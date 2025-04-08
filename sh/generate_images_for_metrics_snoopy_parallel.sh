@@ -217,21 +217,24 @@ for model in "sdxl"; do
             mkdir -p "$path"
 
             if [ ! -f "$path/orig.png" ]; then
-                CUDA_VISIBLE_DEVICES=0 python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/orig.png" --not_steer &
+                CUDA_VISIBLE_DEVICES=$((seed % 2)) python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/orig.png" --not_steer &
             fi
 
             for beta in 2; do
                 if [ ! -f "$path/casteer_${beta}.png" ]; then
-                    CUDA_VISIBLE_DEVICES=1 python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/casteer_${beta}.png" --steering_vectors mickey_laion_steering_vectors.pickle --beta "${beta}" --steer_type casteer --steer_back &
+                    CUDA_VISIBLE_DEVICES=$((seed % 2 + 1) python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/casteer_${beta}.png" --steering_vectors mickey_laion_steering_vectors.pickle --beta "${beta}" --steer_type casteer --steer_back &
                 fi
             done
             
             for alpha in 1; do 
                 if [ ! -f "$path/mmsteer_${alpha}.png" ]; then
-                    CUDA_VISIBLE_DEVICES=2 python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/mmsteer_${alpha}.png" --steering_vectors mickey_laion_mm_inverse_steering_vectors.pickle --alpha "${alpha}" --steer_type mmsteer &
+                    CUDA_VISIBLE_DEVICES=$((seed % 2 + 2)) python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/mmsteer_${alpha}.png" --steering_vectors mickey_laion_mm_inverse_steering_vectors.pickle --alpha "${alpha}" --steer_type mmsteer &
                 fi
             done
-            wait
+
+            if (( seed % 2 == 1 || seed == 4 )); then
+                wait
+            fi
         done
     done
 done
