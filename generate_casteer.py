@@ -18,7 +18,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo'], default="sd14")
 parser.add_argument('--prompt', type=str, default="a girl with a kitty")
 parser.add_argument('--seed', type=int, default=0)
-parser.add_argument('--steering_vectors', type=str) # path to steering vectors file
+parser.add_argument('--steering_vectors', type=str, default=None) # path to steering vectors file
 parser.add_argument('--not_steer', action='store_true')
 parser.add_argument('--steer_only_up', action='store_true')
 parser.add_argument('--num_denoising_steps', type=int, default=50) # 50 for sd14, sd21, 1 for turbo, 30 for sdxl
@@ -53,29 +53,28 @@ def run_model(model_type, pipe, prompt, seed, num_denoising_steps):
 print('Generating for prompt:')
 print(args.prompt)
 
-if args.not_steer:
-    image = run_model(args.model, pipe, args.prompt, args.seed, args.num_denoising_steps)
-    
-    image.save(args.output)
-    
-    
-else:
+
+
+
+if args.steering_vectors is not None:
     with open(args.steering_vectors, 'rb') as handle:
         steering_vectors = pickle.load(handle)
+else:
+    steering_vectors = None
 
-    controller = VectorStore(steering_vectors, steer_type=args.steer_type, device=device)
-    controller.steer_only_up = True if args.steer_only_up else False
-    if args.steer_back:
-        controller.steer_back = True
-        controller.beta = args.beta
-    else:
-        controller.steer_back = False
-        controller.alpha = args.alpha
-    
-    register_vector_control(pipe.unet, controller)
-    
-    image = run_model(args.model, pipe, args.prompt, args.seed, args.num_denoising_steps)
-    
-    image.save(args.output)
-    
+controller = VectorStore(
+    steering_vectors=steering_vectors,
+    steer=not args.not_steer,
+    steer_type=args.steer_type,
+    steer_only_up=args.steer_only_up,
+    steer_back=args.steer_back,
+    alpha=args.alpha,
+    beta=args.beta,
+    device=device
+)
 
+register_vector_control(pipe.unet, controller)
+
+image = run_model(args.model, pipe, args.prompt, args.seed, args.num_denoising_steps)
+
+image.save(args.output)

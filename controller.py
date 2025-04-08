@@ -43,29 +43,40 @@ def fractional_matrix_power(mat: torch.Tensor, alpha: float) -> torch.Tensor:
 
 
 class VectorStore(VectorControl):
-    def __init__(self, steering_vectors=None, steer=True, steer_only_up=False, 
-                 alpha: float = 10.0,
-                 beta: float = 2.0, 
-                 steer_back: bool = False,
-                 steer_type: str = None,
-                 device: str = 'cpu'):
+    def __init__(
+        self,
+        *,
+        steering_vectors=None,
+        steer=True,
+        steer_only_up=False, 
+        alpha: float = 10.0,
+        beta: float = 2.0, 
+        steer_back: bool = False,
+        steer_type: str = None,
+        dump_states: bool = False,
+        device: Any = 'cpu',
+    ):
         super(VectorStore, self).__init__()
+        self.steering_vectors = steering_vectors
+        self.steer = steer
+        self.steer_only_up = steer_only_up
+        self.alpha = alpha
+        self.beta = beta
+        self.steer_back = steer_back
+        self.steer_type = steer_type
+        self.dump_states = dump_states
+        self.device = device
+
         self.step_store = self.get_empty_store()
         self.vector_store = defaultdict(dict)
-        self.steering_vectors = steering_vectors
-        self.steer=True
-        self.steer_only_up = False
-        self.alpha = 10
-        self.beta = 2
-        self.steer_back = False
-        self.steer_type = steer_type
-        self.device=device
         self.steering_cache = {}
+        self.current_position = defaultdict(int)
 
     def reset(self):
         super(VectorStore, self).reset()
         self.step_store = self.get_empty_store()
         self.vector_store = defaultdict(dict)
+        self.current_position = defaultdict(int)
         
     @staticmethod
     def get_empty_store():
@@ -94,18 +105,20 @@ class VectorStore(VectorControl):
         return vector
 
     def forward(self, vector, place_in_unet: str):
-        
+        if self.dump_states:
+            # save activation (vector) for further computing steering vectors
+            self.step_store[place_in_unet].append(vector.data.cpu().numpy()[len(vector)//2:].mean(axis=0).mean(axis=0))
+
         # steering 
         if self.steer:
-            
             if place_in_unet in ['up', 'mid'] or (place_in_unet == 'down' and not self.steer_only_up): 
-                
                 # if steering vectors are from turbo version, then there's only one key in self.steering_vectors, 
                 # and we'll use it for all the steps of generation
                 # if steering vectors are from full version, then there's a key in self.steering_vectors
                 # for each of the generation steps 
                 num_steer = 0 if len(list(self.steering_vectors.keys()))==1 else self.cur_step
-                idx = len(self.step_store[place_in_unet])
+                idx = self.current_position[place_in_unet]
+                self.current_position[place_in_unet] += 1
 
                 steering_tensors = self.steering_vectors[num_steer][place_in_unet][idx]
                 if isinstance(steering_tensors, np.ndarray):
@@ -148,15 +161,12 @@ class VectorStore(VectorControl):
                 vector = vector * norm
 
                 vector = vector.half()
-            
-        # save activation (vector) for further computing steering vectors
-        self.step_store[place_in_unet].append(vector.data.cpu().numpy()[len(vector)//2:].mean(axis=0).mean(axis=0))
-        
         return vector
 
     def between_steps(self):
         self.vector_store[self.cur_step] = self.step_store
         self.step_store = self.get_empty_store()
+        self.current_position = defaultdict(int)
 
 
 def register_vector_control(model, controller):

@@ -68,7 +68,7 @@ for i, (prompt_pos, prompt_neg) in enumerate(zip(prompts_pos, prompts_neg)):
     print('Positive prompt:', prompt_pos)
     print('Negative prompt', prompt_neg)
 
-    controller = VectorStore()
+    controller = VectorStore(dump_states=True)
     controller.steer=False
     register_vector_control(pipe.unet, controller)
 
@@ -76,7 +76,7 @@ for i, (prompt_pos, prompt_neg) in enumerate(zip(prompts_pos, prompts_neg)):
 
     pos_vectors.append(controller.vector_store)
 
-    controller = VectorStore()
+    controller = VectorStore(dump_states=True)
     controller.steer=False
     register_vector_control(pipe.unet, controller)
 
