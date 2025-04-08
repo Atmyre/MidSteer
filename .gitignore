@@ -5,3 +5,8 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .DS_Store
+
+/concept_prompts/
+/hidden_states/
+/steering_vectors/
+/images/
