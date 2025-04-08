@@ -100,4 +100,5 @@ for prompt in prompts:
             else:
                 file = f'{args.steer_type}_{args.alpha}.png'
             path = f'{args.output}/{prompt}/{seed}/{file}'
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         image.save(path)
