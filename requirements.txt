@@ -1,3 +1,5 @@
+--pre
+--extra-index-url https://download.pytorch.org/whl/nightly/cpu
 transformers
 datasets
 diffusers
@@ -5,3 +7,6 @@ torch
 torchvision
 torchaudio
 accelerate
+numpy
+jupyterlab
+scipy
