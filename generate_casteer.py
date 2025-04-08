@@ -7,6 +7,7 @@ import time
 
 import torch
 from diffusers import StableDiffusionPipeline, DiffusionPipeline, AutoPipelineForText2Image
+from utils import get_device, init_pipeline_for_model
 
 # local imports
 from controller import VectorStore, register_vector_control
@@ -22,50 +23,16 @@ parser.add_argument('--not_steer', action='store_true')
 parser.add_argument('--steer_only_up', action='store_true')
 parser.add_argument('--num_denoising_steps', type=int, default=50) # 50 for sd14, sd21, 1 for turbo, 30 for sdxl
 parser.add_argument('--steer_back', action='store_true')
-parser.add_argument('--alpha', type=int, default=10)
-parser.add_argument('--beta', type=int, default=2)
-parser.add_argument('--save_dir', type=str, default='images') # path to saving generated images
+parser.add_argument('--alpha', type=float, default=10)
+parser.add_argument('--beta', type=float, default=2)
+parser.add_argument('--output', type=str, default='output.png') # path to saving generated images
+parser.add_argument('--steer_type', type=str, choices=['casteer', 'mmsteer'], default=None)
 args = parser.parse_args()
 
 
-if args.model == 'sd14':
-    pipe = StableDiffusionPipeline.from_pretrained(
-        "CompVis/stable-diffusion-v1-4",
-         torch_dtype=torch.float16, 
-        cache_dir='./cache'
-        )
-elif args.model == 'sd21':
-    pipe = StableDiffusionPipeline.from_pretrained(
-        "stabilityai/stable-diffusion-2-1",
-         torch_dtype=torch.float16, 
-        cache_dir='./cache'
-        )
-elif args.model == 'sd21-turbo':
-    pipe = AutoPipelineForText2Image.from_pretrained(
-        "stabilityai/sd-turbo", 
-        torch_dtype=torch.float16, 
-        variant="fp16",
-        cache_dir='./cache'
-    )
-elif args.model == 'sdxl':
-     pipe = DiffusionPipeline.from_pretrained(
-        "stabilityai/stable-diffusion-xl-base-1.0", 
-        torch_dtype=torch.float16, 
-        use_safetensors=True, 
-        variant="fp16",
-         cache_dir='./cache'
-    )
-elif args.model == 'sdxl-turbo':
-     pipe = AutoPipelineForText2Image.from_pretrained(
-         "stabilityai/sdxl-turbo", 
-         torch_dtype=torch.float16, 
-         variant="fp16",
-         cache_dir='./cache'
-     ) 
+pipe = init_pipeline_for_model(args.model)
         
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-pipe.to(device)
-        
+device = get_device()
         
 def run_model(model_type, pipe, prompt, seed, num_denoising_steps):
     if args.model in ['sd14', 'sd21', 'sdxl']:
@@ -86,20 +53,17 @@ def run_model(model_type, pipe, prompt, seed, num_denoising_steps):
 print('Generating for prompt:')
 print(args.prompt)
 
-if not os.path.exists(args.save_dir):
-    os.makedirs(args.save_dir)
-
 if args.not_steer:
     image = run_model(args.model, pipe, args.prompt, args.seed, args.num_denoising_steps)
     
-    image.save(os.path.join(args.save_dir, "orig_{}_{}.png".format(args.prompt, args.seed)))
+    image.save(args.output)
     
     
 else:
     with open(args.steering_vectors, 'rb') as handle:
         steering_vectors = pickle.load(handle)
-        
-    controller = VectorStore(steering_vectors, device=device)
+
+    controller = VectorStore(steering_vectors, steer_type=args.steer_type, device=device)
     controller.steer_only_up = True if args.steer_only_up else False
     if args.steer_back:
         controller.steer_back = True
@@ -112,6 +76,6 @@ else:
     
     image = run_model(args.model, pipe, args.prompt, args.seed, args.num_denoising_steps)
     
-    image.save(os.path.join(args.save_dir, "steered_{}_{}.png".format(args.prompt, args.seed)))
+    image.save(args.output)
     
 
