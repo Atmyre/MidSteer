@@ -127,10 +127,10 @@ class VectorStore(VectorControl):
                     steering_tensors = list(steering_tensors)
 
                 for i in range(len(steering_tensors)):
-                    steering_tensors[i] = torch.tensor(steering_tensors[i]).float().to(self.device)
+                    steering_tensors[i] = torch.tensor(steering_tensors[i]).half().to(self.device)
 
 
-                vector = vector.float()
+                # vector = vector.float()
 
                 # save current norm of vector components
                 norm = torch.norm(vector, dim=2, keepdim=True)
@@ -160,7 +160,7 @@ class VectorStore(VectorControl):
                 vector = vector / torch.norm(vector, dim=2, keepdim=True)
                 vector = vector * norm
 
-                vector = vector.half()
+                # vector = vector.half()
         return vector
 
     def between_steps(self):
