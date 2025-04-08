@@ -34,11 +34,21 @@ class VectorControl(abc.ABC):
         return vector
 
 
+def fractional_matrix_power(mat: torch.Tensor, alpha: float) -> torch.Tensor:
+    device = mat.device
+    if mat.device.type == 'mps':  # Workaround because MPS does not yet support torch.linalg.eig
+        mat = mat.cpu()
+    evals, evecs = torch.linalg.eig(mat)
+    return (evecs @ torch.diag(evals ** alpha) @ evecs.inverse()).to(device)
+
+
 class VectorStore(VectorControl):
     def __init__(self, steering_vectors=None, steer=True, steer_only_up=False, 
-                 alpha=10, beta=2, 
-                 steer_back=False,
-                device='cpu'):
+                 alpha: float = 10.0,
+                 beta: float = 2.0, 
+                 steer_back: bool = False,
+                 steer_type: str = None,
+                 device: str = 'cpu'):
         super(VectorStore, self).__init__()
         self.step_store = self.get_empty_store()
         self.vector_store = defaultdict(dict)
@@ -48,7 +58,9 @@ class VectorStore(VectorControl):
         self.alpha = 10
         self.beta = 2
         self.steer_back = False
+        self.steer_type = steer_type
         self.device=device
+        self.steering_cache = {}
 
     def reset(self):
         super(VectorStore, self).reset()
@@ -58,6 +70,28 @@ class VectorStore(VectorControl):
     @staticmethod
     def get_empty_store():
         return {"down": [], "up": [], 'mid': []}
+
+    def steer_CASteer(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
+        (b,) = steering_tensors
+        b = b.view(1, 1, -1)
+
+        if self.steer_back:
+            # steering backward, i.e. removing notion from vector
+
+            # computing dot products between vector components and steering vector x
+            sim = torch.tensordot(vector, b, 
+                                  dims=([2], [2])).view(vector.size()[0], vector.size()[1], 1)
+            # we will steer back only if dot product is positive, i.e.
+            # if there's positive amount of information from steering vector in the vector
+            sim = torch.where(sim>0, sim, 0)
+
+            # steer backward for beta*sim
+            vector -= (self.beta*sim)*b.expand(1, vector.size()[1], -1)
+        else:
+            # steer forward, i.e. add a steering vector x multiplied by self.intensity
+            vector += self.alpha*b.expand(1, vector.size()[1], -1)
+        
+        return vector
 
     def forward(self, vector, place_in_unet: str):
         
@@ -71,33 +105,49 @@ class VectorStore(VectorControl):
                 # if steering vectors are from full version, then there's a key in self.steering_vectors
                 # for each of the generation steps 
                 num_steer = 0 if len(list(self.steering_vectors.keys()))==1 else self.cur_step
+                idx = len(self.step_store[place_in_unet])
 
-                steering_vector = self.steering_vectors[num_steer][place_in_unet][len(self.step_store[place_in_unet])]
-                steering_vector = torch.tensor(steering_vector).to(self.device).view(1, 1, -1)
-                
+                steering_tensors = self.steering_vectors[num_steer][place_in_unet][idx]
+                if isinstance(steering_tensors, np.ndarray):
+                    steering_tensors = [steering_tensors]
+                elif isinstance(steering_tensors, list|tuple):
+                    steering_tensors = list(steering_tensors)
+
+                for i in range(len(steering_tensors)):
+                    steering_tensors[i] = torch.tensor(steering_tensors[i]).float().to(self.device)
+
+
+                vector = vector.float()
+
                 # save current norm of vector components
                 norm = torch.norm(vector, dim=2, keepdim=True)
 
-                if self.steer_back:
-                    # steering backward, i.e. removing notion from vector
+                if self.steer_type == 'casteer':
+                    vector = self.steer_CASteer(vector, *steering_tensors)
+                elif self.steer_type == 'mmsteer':
+                    pos = (num_steer, place_in_unet, idx)
+                    if pos in self.steering_cache:
+                        W_alpha, b_alpha = self.steering_cache[*pos]
+                    else:
+                        (W, b) = steering_tensors
 
-                    # computing dot products between vector components and steering vector x
-                    sim = torch.tensordot(vector, steering_vector, 
-                                          dims=([2], [2])).view(vector.size()[0], vector.size()[1], 1)
-                    # we will steer back only if dot product is positive, i.e.
-                    # if there's positive amount of information from steering vector in the vector
-                    sim = torch.where(sim>0, sim, 0)
+                        if self.alpha != 1.0:
+                            I = torch.eye(W.shape[0], device=W.device)
+                            W_alpha = fractional_matrix_power(W, self.alpha).float()
+                            b_alpha = (I - W_alpha) @ (I - W).inverse() @ b
+                        else:
+                            W_alpha, b_alpha = W, b
 
-                    # steer backward for beta*sim
-                    vector = vector - (self.beta*sim)*steering_vector.expand(1, vector.size()[1], -1)
+                        self.steering_cache[*pos] = W_alpha, b_alpha
+                    vector = torch.matmul(vector, W_alpha.T) + b_alpha
                 else:
-                    # steer forward, i.e. add a steering vector x multiplied by self.intensity
-                    vector = self.alpha*steering_vector.expand(1, vector.size()[1], -1)
-                
-                
+                    raise ValueError(f'Unknown steer type {self.steer_type}')
+
                 # renormalize so that the norm of the steered vector is the same as of original one
                 vector = vector / torch.norm(vector, dim=2, keepdim=True)
                 vector = vector * norm
+
+                vector = vector.half()
             
         # save activation (vector) for further computing steering vectors
         self.step_store[place_in_unet].append(vector.data.cpu().numpy()[len(vector)//2:].mean(axis=0).mean(axis=0))
@@ -241,17 +291,17 @@ def register_vector_control(model, controller):
                 hidden_states = hidden_states.squeeze(1)
                 
                 
-            print(controller.cur_att_layer-1)
-            x = torch.norm(attn_output, dim=2, keepdim=True) / torch.norm(hidden_states, dim=2, keepdim=True)
-            print('CA', place_in_unet, x.mean().item())
+            # print(controller.cur_att_layer-1)
+            # x = torch.norm(attn_output, dim=2, keepdim=True) / torch.norm(hidden_states, dim=2, keepdim=True)
+            # print('CA', place_in_unet, x.mean().item())
             
-            x = y / torch.norm(hidden_states, dim=2, keepdim=True)
-            print('SA',place_in_unet, x.mean().item())
+            # x = y / torch.norm(hidden_states, dim=2, keepdim=True)
+            # print('SA',place_in_unet, x.mean().item())
             
-            x = torch.norm(ff_output, dim=2, keepdim=True) / torch.norm(hidden_states, dim=2, keepdim=True)
-            print('FF',place_in_unet, x.mean().item())
+            # x = torch.norm(ff_output, dim=2, keepdim=True) / torch.norm(hidden_states, dim=2, keepdim=True)
+            # print('FF',place_in_unet, x.mean().item())
             
-            print()
+            # print()
 
             return hidden_states
 
@@ -275,11 +325,11 @@ def register_vector_control(model, controller):
     for net in sub_nets:
         if "down" in net[0]:
             block_count += register_recr(net[1], 0, "down")
-            print('down', block_count)
+            # print('down', block_count)
         elif "up" in net[0]:
             block_count += register_recr(net[1], 0, "up")
-            print('up', block_count)
+            # print('up', block_count)
         if "mid" in net[0]:
             block_count += register_recr(net[1], 0, "mid")
-            print('mid', block_count)
+            # print('mid', block_count)
     controller.num_att_layers = block_count
