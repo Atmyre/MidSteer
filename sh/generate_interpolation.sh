@@ -2,92 +2,43 @@
 
 set -eoux pipefail
 
-PREFIX="images/nudity"
-
-prompts=(
-#   'Astronaut rides a horse in a jungle, cold color palette, muted colors, detailed, 8k'
-#   'Horse race in the snowy mountains, studio ghibli style'
-#   'A photograph of stables with beautiful horses, detailed, film grain'
-#   'A unicorn in the woods, my little pony style'
-
-    'A young attractive woman with dark blonde hair, facing the audience, teaching mathematics in front of a black board'
-    'The Last Supper, old painting style, detailed'
-    'A photo of a tall male with short hair'
-    'Main character of a satirical cartoon about aging sitcom actor'
-    'Astronaut in a jungle, cold color palette, muted colors, detailed, 8k'
-    'A girl walking down the beach'
-)
+PREFIX="images/interp_horse_motorcycle"
+seeds="21"  # String representing list of seeds, separated by comma
 
 for model in "sdxl"; do
-    for prompt in "${prompts[@]}"; do
-        for seed in 1 21; do
-            if [[ $model = 'sdxl' ]]; then
-                num_denoising_steps=30
-            else
-                num_denoising_steps=1
-            fi
+    if [[ $model = 'sdxl' ]]; then
+        num_denoising_steps=30
+    else
+        num_denoising_steps=1
+    fi
 
-            echo "Forward generating for $prompt $model $seed $num_denoising_steps"
-            path="$PREFIX/forward/$model/$prompt/$seed/"
-            mkdir -p "$path"
+    echo "Forward generating for $model $num_denoising_steps"
+    path="$PREFIX/forward/$model/"
+    mkdir -p "$path"
 
-            if [ ! -f "$path/orig.png" ]; then
-                python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/orig.png" --not_steer
-            fi
+    python generate_casteer.py \
+        --model $model \
+        --prompt_file ./test_prompts/horse_prompts.txt \
+        --num_denoising_steps $num_denoising_steps \
+        --seed "$seeds" --output "$path" --not_steer
 
-            for alpha in $(seq 3 3 21); do
-                if [ ! -f "$path/casteer_${alpha}.png" ]; then
-                    python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/casteer_${alpha}.png" --steering_vectors steering_vectors/nudity_laion_steering_vectors.pickle --alpha "${alpha}" --steer_type casteer
-                fi
-            done
+    for alpha in $(seq 3 3 18); do
+        python generate_casteer.py \
+            --model $model \
+            --prompt_file ./test_prompts/horse_prompts.txt \
+            --num_denoising_steps $num_denoising_steps \
+            --seed "$seeds" --output "$path" \
+            --steering_vectors steering_vectors/horse_to_motorcycle_laion_steering_vectors.pickle \
+            --alpha "${alpha}" --steer_type casteer
+    done
 
-            for alpha in $(seq 0.25 0.25 1.5); do 
-                if [ ! -f "$path/mmsteer_${alpha}.png" ]; then
-                    python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/mmsteer_${alpha}.png" --steering_vectors steering_vectors/nudity_laion_mm_steering_vectors.pickle --alpha "${alpha}" --steer_type mmsteer
-                fi
-            done
-        done
+    for alpha in $(seq 0.5 0.25 2.0); do 
+        python generate_casteer.py \
+            --model $model \
+            --prompt_file ./test_prompts/horse_prompts.txt \
+            --num_denoising_steps $num_denoising_steps \
+            --seed "$seeds" --output "$path" \
+            --steering_vectors steering_vectors/horse_to_motorcycle_laion_mm_steering_vectors.pickle \
+            --alpha "${alpha}" --steer_type mmsteer
     done
 done
-
-
-
-# prompts=(
-#   'a cartoon mickey'
-#   'a plushie cat'
-#   'a pixelated photo of mickey'
-#   'a good photo of mickey mouse'
-#   'a tattoo of the mickey mouse'
-# )
-
-# for model in "sdxl-turbo" "sdxl"; do
-#     for prompt in "${prompts[@]}"; do
-
-#         for seed in 0 42; do
-    
-#             if [[ $model = 'sdxl' ]]; then
-#                 num_denoising_steps=30
-#             else
-#                 num_denoising_steps=1
-#             fi
-    
-#             echo "Inverse generating for $prompt $model $seed $num_denoising_steps"
-#             path="$PREFIX/inverse/$model/$prompt/$seed/"
-#             mkdir -p "$path"
-            
-#             if [ ! -f "$path/orig.png" ]; then
-#                 python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/orig.png" --not_steer
-#             fi
-
-#             if [ ! -f "$path/casteer.png" ]; then
-#                 python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/casteer.png" --steering_vectors mickey_laion_steering_vectors.pickle --beta 2 --steer_type casteer --steer_back
-#             fi
-
-#             if [ ! -f "$path/mmsteer.png" ]; then
-#                 python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/mmsteer.png" --steering_vectors mickey_laion_mm_inverse_steering_vectors.pickle --steer_type mmsteer
-#             fi
-#         done
-    
-#     done
-
-# done

@@ -1,8 +1,11 @@
+import logging
 import numpy as np
 import torch
 import abc
 from collections import defaultdict
-from typing import Optional, Union, Tuple, List, Callable, Dict, Any
+from typing import Optional, Dict, Any
+
+logger = logging.getLogger()
 
 # Define Controller for BasicTransformerBlock
 class VectorControl(abc.ABC):
@@ -56,7 +59,7 @@ class VectorStore(VectorControl):
         dump_states: bool = False,
         device: Any = 'cpu',
     ):
-        super(VectorStore, self).__init__()
+        super().__init__()
         self.steering_vectors = steering_vectors
         self.steer = steer
         self.steer_only_up = steer_only_up
@@ -73,7 +76,7 @@ class VectorStore(VectorControl):
         self.current_position = defaultdict(int)
 
     def reset(self):
-        super(VectorStore, self).reset()
+        super().reset()
         self.step_store = self.get_empty_store()
         self.vector_store = defaultdict(dict)
         self.current_position = defaultdict(int)
@@ -105,6 +108,7 @@ class VectorStore(VectorControl):
         return vector
 
     def forward(self, vector, place_in_unet: str):
+        # print(vector.shape)
         if self.dump_states:
             # save activation (vector) for further computing steering vectors
             self.step_store[place_in_unet].append(vector.data.cpu().numpy()[len(vector)//2:].mean(axis=0).mean(axis=0))
@@ -145,9 +149,13 @@ class VectorStore(VectorControl):
                         (W, b) = steering_tensors
 
                         if self.alpha != 1.0:
+                            W = W.float()
+                            b = b.float()
                             I = torch.eye(W.shape[0], device=W.device)
                             W_alpha = fractional_matrix_power(W, self.alpha).float()
                             b_alpha = (I - W_alpha) @ (I - W).inverse() @ b
+                            W_alpha = W_alpha.half()
+                            b_alpha = b_alpha.half()
                         else:
                             W_alpha, b_alpha = W, b
 
@@ -216,16 +224,14 @@ def register_vector_control(model, controller):
             # 1. Prepare GLIGEN inputs
             cross_attention_kwargs = cross_attention_kwargs.copy() if cross_attention_kwargs is not None else {}
             gligen_kwargs = cross_attention_kwargs.pop("gligen", None)
-    
+
             attn_output = self.attn1(
                 norm_hidden_states,
                 encoder_hidden_states=encoder_hidden_states if self.only_cross_attention else None,
                 attention_mask=attention_mask,
                 **cross_attention_kwargs,
             )
-        
-            y = torch.norm(attn_output, dim=2, keepdim=True) 
-    
+
             if self.norm_type == "ada_norm_zero":
                 attn_output = gate_msa.unsqueeze(1) * attn_output
             elif self.norm_type == "ada_norm_single":
@@ -268,8 +274,6 @@ def register_vector_control(model, controller):
                 
                 attn_output = controller(attn_output, place_in_unet)
                 # -------------------------------
-                if controller.cur_att_layer in list(range(24, 35)):
-                    attn_output = attn_output*0
                 hidden_states = attn_output + hidden_states
 
             # 4. Feed-forward
