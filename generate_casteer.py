@@ -88,17 +88,20 @@ register_vector_control(pipe.unet, controller)
 
 for prompt in prompts:
     for seed in seeds:
-        print(f'Generating for prompt={prompt}, seed={seed}')
-        image = run_model(args.model, pipe, args.prompt, args.seed, args.num_denoising_steps)
         if len(seeds) == 1 and len(prompts) == 1:
             path = args.output
         else:
             if args.not_steer:
                 file = 'orig.png'
             elif args.steer_back and args.steer_type == 'casteer':
-                file = f'casteer_{args.beta}.png'
+                file = f'casteer_{args.beta:g}.png'
             else:
-                file = f'{args.steer_type}_{args.alpha}.png'
+                file = f'{args.steer_type}_{args.alpha:g}.png'
             path = f'{args.output}/{prompt}/{seed}/{file}'
+        if os.path.exists(path):
+            print(f'{path} already exists, skipping!')
+            continue
+        print(f'Generating for prompt={prompt}, seed={seed}')
+        image = run_model(args.model, pipe, prompt, seed, args.num_denoising_steps, device=device)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         image.save(path)
