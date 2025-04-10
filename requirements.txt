@@ -10,3 +10,5 @@ accelerate
 numpy
 jupyterlab
 scipy
+matplotlib
+pillow

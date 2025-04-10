@@ -14,15 +14,11 @@ class VectorControl(abc.ABC):
         self.num_att_layers = -1
         self.cur_att_layer = 0
     
-    def reset(self):
-        self.cur_step = 0
-        self.cur_att_layer = 0
-    
     def between_steps(self):
         return
     
     @abc.abstractmethod
-    def forward (self, attn, is_cross: bool, place_in_unet: str):
+    def forward (self, attn, place_in_unet: str):
         raise NotImplementedError
 
     def __call__(self, vector, place_in_unet: str):
@@ -73,12 +69,6 @@ class VectorStore(VectorControl):
         self.step_store = self.get_empty_store()
         self.vector_store = defaultdict(dict)
         self.steering_cache = {}
-        self.current_position = defaultdict(int)
-
-    def reset(self):
-        super().reset()
-        self.step_store = self.get_empty_store()
-        self.vector_store = defaultdict(dict)
         self.current_position = defaultdict(int)
         
     @staticmethod
