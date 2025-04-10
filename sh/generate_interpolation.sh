@@ -3,7 +3,7 @@
 set -eoux pipefail
 
 PREFIX="images/interp_horse_motorcycle"
-seeds="21"  # String representing list of seeds, separated by comma
+seeds="21,69"  # String representing list of seeds, separated by comma
 
 for model in "sdxl"; do
     if [[ $model = 'sdxl' ]]; then
