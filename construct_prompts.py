@@ -1,3 +1,5 @@
+from typing import Any
+import pickle
 
 
 def get_imagenet_classes(num=50):
@@ -59,4 +61,11 @@ def get_prompts_human_related(concept_pos='nudity', concept_neg=None):
     return prompts_pos, prompts_neg
 
 
+def read_prompt_file(path: str) -> list[str]:
+    with open(path, 'r') as fin:
+        return list(map(str.strip, fin.readlines()))
 
+
+def pickle_stats(obj: Any, path: str):
+    with open(path, 'wb') as fout:
+        pickle.dump(obj, fout)

@@ -5,32 +5,14 @@ from PIL import Image
 from collections import defaultdict
 import time
 
-import torch
 from diffusers import StableDiffusionPipeline, DiffusionPipeline, AutoPipelineForText2Image
-from utils import get_device, init_pipeline_for_model
+from utils import get_device, init_pipeline_for_model, run_model
 
 # local imports
-from controller import VectorStore, register_vector_control
+from controller import CrossAttentionSteering, register_vector_controls
 
 # parsing arguments
 import argparse
-
-
-def run_model(model_type, pipe, prompt, seed, num_denoising_steps, device):
-    if model_type in ['sd14', 'sd21', 'sdxl']:
-        image = pipe(prompt=prompt, 
-                     num_inference_steps=num_denoising_steps, 
-                     generator=torch.Generator(device=device).manual_seed(seed)
-                    ).images[0]
-      
-    elif model_type in ['sd21-turbo', 'sdxl-turbo']:
-        image = pipe(prompt=prompt, 
-                     num_inference_steps=num_denoising_steps,
-                     guidance_scale=0.0,
-                     generator=torch.Generator(device=device).manual_seed(seed)
-                    ).images[0]
-            
-    return image
 
 
 parser = argparse.ArgumentParser()
@@ -72,7 +54,7 @@ else:
     steering_vectors = None
 
 device = get_device()
-controller = VectorStore(
+controller = CrossAttentionSteering(
     steering_vectors=steering_vectors,
     steer=not args.not_steer,
     steer_type=args.steer_type,
@@ -84,7 +66,7 @@ controller = VectorStore(
 )
 
 pipe = init_pipeline_for_model(args.model)
-register_vector_control(pipe.unet, controller)
+register_vector_controls(pipe.unet, controller)
 
 for prompt in prompts:
     for seed in seeds:

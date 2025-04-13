@@ -6,11 +6,11 @@ PREFIX="images/mickey_interp"
 
 prompts=(
   'a cartoon Pikachu.'
-#   'a plushie cat'
-#   'the cartoon dog'
-#   'a toy of a elephant'
-#   'a photo of a cool dog'
-#   'a tattoo of the dragon'
+  'a plushie cat'
+  'the cartoon dog'
+  'a toy of a elephant'
+  'a photo of a cool dog'
+  'a tattoo of the dragon'
 )
 
 for model in "sdxl"; do
