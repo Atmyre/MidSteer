@@ -11,7 +11,7 @@ import torch
 
 # local imports
 from construct_prompts import get_prompts_concrete, get_prompts_style, get_prompts_human_related, pickle_stats, read_prompt_file
-from controller import register_vector_controls
+from controller import register_vector_controls, fractional_matrix_power_cov_torch
 from utils import get_device, init_pipeline_for_model, run_model
 
 # parsing arguments
@@ -103,8 +103,8 @@ def calculate_casteer(pos_means: dict, neg_means: dict) -> dict:
                     pos_means[denoising_step][place_in_unet][block_idx] -
                     neg_means[denoising_step][place_in_unet][block_idx]
                 )
-                steering_vector /= np.linalg.norm(steering_vector)
-                result[denoising_step][place_in_unet].append(steering_vector)
+                steering_vector /= torch.linalg.norm(steering_vector)
+                result[denoising_step][place_in_unet].append(steering_vector.to(torch.float32).detach().cpu().numpy())
     return result
 
 
@@ -138,22 +138,25 @@ def calculate_mmster(
                 sigma_neg = neg_covariances[denoising_step][place_in_unet][block_idx]
 
                 
-                sigma_neg_half = fractional_matrix_power_cov(sigma_neg, 0.5)
-                sigma_neg_minus_half = fractional_matrix_power_cov(sigma_neg, -0.5)
-                W = fractional_matrix_power_cov(sigma_neg_half @ sigma_pos @ sigma_neg_half, 0.5)
+                sigma_neg_half = fractional_matrix_power_cov_torch(sigma_neg, 0.5)
+                sigma_neg_minus_half = fractional_matrix_power_cov_torch(sigma_neg, -0.5)
+                W = fractional_matrix_power_cov_torch(sigma_neg_half @ sigma_pos @ sigma_neg_half, 0.5)
                 W = sigma_neg_minus_half @ W @ sigma_neg_minus_half
 
                 b = - W @ mu_neg + mu_pos
 
                 print(f'Processing step={denoising_step:2}, block={place_in_unet:4}, layer={block_idx:2}: took {time.time() - start:.2f} s '
-                      f'|W|_2 = {np.linalg.norm(W, ord=2):.3f}, |b|_2 = {np.linalg.norm(b):.3f}')
+                      f'|W|_2 = {torch.linalg.norm(W, ord=2):.3f}, |b|_2 = {torch.linalg.norm(b):.3f}')
 
                 # if W.dtype == np.complex128:
                 #     print(f'Got unexpected complex values for step={denoising_step}, block={place_in_unet}, layer={block_idx}, truncating...')
                 #     W = np.real(W)
                 #     b = np.real(b)
                 
-                result[denoising_step][place_in_unet].append((W.astype(np.float32), b.astype(np.float32)))
+                result[denoising_step][place_in_unet].append((
+                    W.to(torch.float32).detach().cpu().numpy(),
+                    b.to(torch.float32).detach().cpu().numpy(),
+                ))
     return result
 
 
