@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+set -eoux pipefail
+
+PREFIX="images/metrics/"
+seed="0,1,2,3,4,5,6,7,8,9"
+prompt_file="test_prompts/mickey_prompts.txt"
+
+for model in "sdxl"; do
+    if [[ $model = 'sdxl' ]]; then
+        num_denoising_steps=30
+    else
+        num_denoising_steps=1
+    fi
+
+    echo "Inverse generating for $model $num_denoising_steps"
+    path="$PREFIX/mickey/inverse_unnormed/$model/"
+    mkdir -p "$path"
+
+#     CUDA_VISIBLE_DEVICES=3 python generate_casteer.py --model $model --prompt_file "$prompt_file" --num_denoising_steps $num_denoising_steps --seed "$seed" --output "$path" --not_steer &
+
+    for beta in 2; do
+        CUDA_VISIBLE_DEVICES=4 python generate_casteer.py --model $model --prompt_file "$prompt_file" --num_denoising_steps $num_denoising_steps --seed "$seed" --output "$path" --steering_vectors steering_vectors/mickey_laion_steering_vectors.pickle --beta "${beta}" --steer_type casteer --steer_back &
+    done
+
+    for alpha in 1; do 
+        CUDA_VISIBLE_DEVICES=4 python generate_casteer.py --model $model --prompt_file "$prompt_file" --num_denoising_steps $num_denoising_steps --seed "$seed" --output "$path" --steering_vectors steering_vectors/mickey_laion_mm_inverse_steering_vectors.pickle --alpha "${alpha}" --steer_type mmsteer &
+    done
+
+    wait
+done
