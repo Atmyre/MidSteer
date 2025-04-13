@@ -23,8 +23,8 @@ class CrossAttentionStatisticsHandler(VectorControl):
     
     def _update_statistics(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index):
         stat_count = vector.shape[0]
-        stat_m = torch.sum(vector, dim=0).detach().numpy()
-        stat_mm = (vector.T @ vector).detach().numpy()
+        stat_m = torch.sum(vector, dim=0)
+        stat_mm = (vector.T @ vector)
 
         if len(self._cnt[diffusion_step][place_in_unet]) <= block_index:
             self._cnt[diffusion_step][place_in_unet].append(stat_count)
@@ -38,7 +38,7 @@ class CrossAttentionStatisticsHandler(VectorControl):
     
     def forward(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index):
         hidden_size = vector.shape[-1]
-        vec = torch.reshape(vector, (-1, hidden_size)).cpu().to(torch.float64)
+        vec = torch.reshape(vector, (-1, hidden_size)).to(torch.float64)
         if self._patch_average:
             vec = torch.mean(vec, axis=0, keepdims=True)
 
@@ -79,7 +79,7 @@ class CrossAttentionStatisticsHandler(VectorControl):
                     m = self._m[diffusion_step][place_in_unet][block_idx]
                     mm = self._mm[diffusion_step][place_in_unet][block_idx]
                     result[diffusion_step][place_in_unet].append(
-                        mm / (count - 1) - np.outer(m, m)
+                        mm / (count - 1) - torch.outer(m, m)
                     )
         return result
 
