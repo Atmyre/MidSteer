@@ -10,38 +10,58 @@ logger = logging.getLogger()
 # Define Controller for BasicTransformerBlock
 class VectorControl(abc.ABC):
     def __init__(self):
-        self.cur_step = 0
-        self.num_att_layers = -1
-        self.cur_att_layer = 0
+        self._active = True
+        self._diffusion_step = 0
+        self._current_attn_layer = 0
+        self._current_position = defaultdict(int)
+        self.num_attn_layers = -1
+
+    @property
+    def active(self) -> bool:
+        return self._active
     
-    def between_steps(self):
-        return
+    @active.setter
+    def active(self, value: bool):
+        self._active = value
+    
+    def reset(self):
+        self._diffusion_step = 0
+
+    def between_steps(self, last_diffusion_step: int):
+        pass
     
     @abc.abstractmethod
-    def forward (self, attn, place_in_unet: str):
+    def forward(self, vector: torch.Tensor, diffusion_step: int, place_in_unet: str, block_index: int):
         raise NotImplementedError
 
     def __call__(self, vector, place_in_unet: str):
-        
-        vector = self.forward(vector, place_in_unet)
-        
-        self.cur_att_layer += 1
-        if self.cur_att_layer == self.num_att_layers:
-            self.cur_att_layer = 0
-            self.between_steps()
-            self.cur_step += 1
+        block_index = self._current_position[place_in_unet]
+        vector = self.forward(vector, self._diffusion_step, place_in_unet, block_index)
+        self._current_position[place_in_unet] += 1
+
+        self._current_attn_layer += 1
+        if self._current_attn_layer == self.num_attn_layers:
+            self._current_attn_layer = 0
+            self._current_position = defaultdict(int)
+            self.between_steps(self._diffusion_step)
+            self._diffusion_step += 1
         return vector
 
 
-def fractional_matrix_power(mat: torch.Tensor, alpha: float) -> torch.Tensor:
+def fractional_matrix_power_cov_torch(mat: torch.Tensor, alpha: float, eps=1e-10) -> torch.Tensor:
     device = mat.device
     if mat.device.type == 'mps':  # Workaround because MPS does not yet support torch.linalg.eig
         mat = mat.cpu()
-    evals, evecs = torch.linalg.eig(mat)
-    return (evecs @ torch.diag(evals ** alpha) @ evecs.inverse()).to(device)
+
+    evals, evecs = torch.linalg.eigh(mat)
+    evals = torch.clip(evals, min=0, max=None)
+    mask = (evals >= eps)
+    evals = evals[mask]
+    evecs = evecs[:, mask]
+    return (evecs @ torch.diag(evals ** alpha) @ evecs.T).to(device)
 
 
-class VectorStore(VectorControl):
+class CrossAttentionSteering(VectorControl):
     def __init__(
         self,
         *,
@@ -52,7 +72,6 @@ class VectorStore(VectorControl):
         beta: float = 2.0, 
         steer_back: bool = False,
         steer_type: str = None,
-        dump_states: bool = False,
         device: Any = 'cpu',
     ):
         super().__init__()
@@ -63,17 +82,10 @@ class VectorStore(VectorControl):
         self.beta = beta
         self.steer_back = steer_back
         self.steer_type = steer_type
-        self.dump_states = dump_states
         self.device = device
 
-        self.step_store = self.get_empty_store()
-        self.vector_store = defaultdict(dict)
         self.steering_cache = {}
-        self.current_position = defaultdict(int)
-        
-    @staticmethod
-    def get_empty_store():
-        return {"down": [], "up": [], 'mid': []}
+
 
     def steer_CASteer(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
         (b,) = steering_tensors
@@ -97,11 +109,7 @@ class VectorStore(VectorControl):
         
         return vector
 
-    def forward(self, vector, place_in_unet: str):
-        # print(vector.shape)
-        if self.dump_states:
-            # save activation (vector) for further computing steering vectors
-            self.step_store[place_in_unet].append(vector.data.cpu().numpy()[len(vector)//2:].mean(axis=0).mean(axis=0))
+    def forward(self, vector: torch.Tensor, diffusion_step: int, place_in_unet: str, block_index: int):
 
         # steering 
         if self.steer:
@@ -110,11 +118,9 @@ class VectorStore(VectorControl):
                 # and we'll use it for all the steps of generation
                 # if steering vectors are from full version, then there's a key in self.steering_vectors
                 # for each of the generation steps 
-                num_steer = 0 if len(list(self.steering_vectors.keys()))==1 else self.cur_step
-                idx = self.current_position[place_in_unet]
-                self.current_position[place_in_unet] += 1
+                num_steer = 0 if len(list(self.steering_vectors.keys()))==1 else diffusion_step
 
-                steering_tensors = self.steering_vectors[num_steer][place_in_unet][idx]
+                steering_tensors = self.steering_vectors[num_steer][place_in_unet][block_index]
                 if isinstance(steering_tensors, np.ndarray):
                     steering_tensors = [steering_tensors]
                 elif isinstance(steering_tensors, list|tuple):
@@ -132,7 +138,7 @@ class VectorStore(VectorControl):
                 if self.steer_type == 'casteer':
                     vector = self.steer_CASteer(vector, *steering_tensors)
                 elif self.steer_type == 'mmsteer':
-                    pos = (num_steer, place_in_unet, idx)
+                    pos = (num_steer, place_in_unet, block_index)
                     if pos in self.steering_cache:
                         W_alpha, b_alpha = self.steering_cache[*pos]
                     else:
@@ -142,7 +148,7 @@ class VectorStore(VectorControl):
                             W = W.float()
                             b = b.float()
                             I = torch.eye(W.shape[0], device=W.device)
-                            W_alpha = fractional_matrix_power(W, self.alpha).float()
+                            W_alpha = fractional_matrix_power_cov_torch(W, self.alpha).float()
                             b_alpha = (I - W_alpha) @ (I - W).inverse() @ b
                             W_alpha = W_alpha.half()
                             b_alpha = b_alpha.half()
@@ -161,13 +167,8 @@ class VectorStore(VectorControl):
                 # vector = vector.half()
         return vector
 
-    def between_steps(self):
-        self.vector_store[self.cur_step] = self.step_store
-        self.step_store = self.get_empty_store()
-        self.current_position = defaultdict(int)
 
-
-def register_vector_control(model, controller):
+def register_vector_controls(model, *controls: VectorControl):
     def block_forward(self, place_in_unet):
         
         # overriding BasicTransformerBlock forward function
@@ -261,8 +262,9 @@ def register_vector_control(model, controller):
                 )
                 # -------------------------------
                 # adding controller
-                
-                attn_output = controller(attn_output, place_in_unet)
+                for control in controls:
+                    if control.active:
+                        attn_output = control(attn_output, place_in_unet)
                 # -------------------------------
                 hidden_states = attn_output + hidden_states
 
@@ -336,4 +338,5 @@ def register_vector_control(model, controller):
         if "mid" in net[0]:
             block_count += register_recr(net[1], 0, "mid")
             # print('mid', block_count)
-    controller.num_att_layers = block_count
+    for control in controls:
+        control.num_attn_layers = block_count

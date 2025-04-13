@@ -1,125 +1,260 @@
 import os
 import numpy as np
+import tqdm
 import pickle
 from PIL import Image
 from collections import defaultdict
+import time
+from scipy.linalg import fractional_matrix_power
 
 import torch
-from diffusers import StableDiffusionPipeline, DiffusionPipeline, AutoPipelineForText2Image
 
 # local imports
-from construct_prompts import get_prompts_concrete, get_prompts_style, get_prompts_human_related
-from controller import VectorStore, register_vector_control
-from utils import get_device, init_pipeline_for_model
+from construct_prompts import get_prompts_concrete, get_prompts_style, get_prompts_human_related, pickle_stats, read_prompt_file
+from controller import register_vector_controls
+from utils import get_device, init_pipeline_for_model, run_model
 
 # parsing arguments
 import argparse
-parser = argparse.ArgumentParser()
-parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo'], default="sd14")
-parser.add_argument('--mode', type=str, choices=['concrete', 'human-related', 'style', 'file'], default="style")
-parser.add_argument('--num_denoising_steps', type=int, default=50) # 50 for sd14, sd21, 1 for turbo, 30 for sdxl
-parser.add_argument('--concept_pos', type=str, default="anime")
-parser.add_argument('--concept_neg', type=str, default=None)
-parser.add_argument('--save_dir', type=str, default='steering_vectors') # path to saving steering vectors
-args = parser.parse_args()
+from vector_dump import CrossAttentionStatisticsHandler
 
 
-pipe = init_pipeline_for_model(args.model)
-        
-        
-def run_model(model_type, pipe, prompt, seed, num_denoising_steps):
-    if args.model in ['sd14', 'sd21', 'sdxl']:
-        image = pipe(prompt=prompt, 
-                     num_inference_steps=num_denoising_steps, 
-                     generator=torch.Generator(device=get_device()).manual_seed(seed)
-                    ).images[0]
-      
-    elif args.model in ['sd21-turbo', 'sdxl-turbo']:
-        image = pipe(prompt=prompt, 
-                     num_inference_steps=num_denoising_steps,
-                     guidance_scale=0.0,
-                     generator=torch.Generator(device=get_device()).manual_seed(seed)
-                    ).images[0]
-            
-    return image
 
-if args.mode == 'concrete':
-    prompts_pos, prompts_neg = get_prompts_concrete(concept_pos=args.concept_pos, 
+def gather_stats_for_prompts(
+        pipe,
+        prompts: list[str],
+        model_type: str,
+        num_denoising_steps: int,
+        device: torch.device,
+        patch_average: bool,
+        output_prefix: str,
+        normalize_vectors: bool,
+) -> tuple[np.ndarray, np.ndarray]:
+    stats_handler = CrossAttentionStatisticsHandler(patch_average=patch_average, normalize=normalize_vectors)
+    register_vector_controls(pipe.unet, stats_handler)
+
+    print("Gathering statistics for concept prompts...")
+    for prompt in tqdm.tqdm(prompts):
+        image = run_model(
+            model_type=model_type,
+            pipe=pipe,
+            prompt=prompt,
+            seed=0,
+            num_denoising_steps=num_denoising_steps,
+            device=device,
+        )
+        stats_handler.reset()
+
+    means = stats_handler.means
+    covariances = stats_handler.covariances
+
+    pickle_stats(means, f'{output_prefix}_means.pickle')
+    pickle_stats(covariances, f'{output_prefix}_covariances.pickle')
+    return means, covariances
+
+
+def write_checkpoint(
+        output_dir: str,
+        step: int,
+        pos_means: dict,
+        pos_covariances: dict,
+        neg_means: dict,
+        neg_covariances: dict,
+):
+    
+    pickle_stats(pos_means, f'{output_dir}/pos_means_{step}.pickle')
+    pickle_stats(pos_covariances, f'{output_dir}/pos_covariances_{step}.pickle')
+    pickle_stats(neg_means, f'{output_dir}/neg_means_{step}.pickle')
+    pickle_stats(neg_covariances, f'{output_dir}/neg_covariances_{step}.pickle')
+
+    casteer_vectors = calculate_casteer(pos_means=pos_means, neg_means=neg_means)
+    with open(f'{output_dir}/casteer_{step}.pickle', 'wb') as fout:
+        pickle.dump(casteer_vectors, fout)
+
+    mmsteer_transforms_forward = calculate_mmster(
+        pos_means=pos_means,
+        pos_covariances=pos_covariances,
+        neg_means=neg_means,
+        neg_covariances=neg_covariances,
+    )
+    with open(f'{output_dir}/mmsteer_forward_{step}.pickle', 'wb') as fout:
+        pickle.dump(mmsteer_transforms_forward, fout)
+
+    mmsteer_transforms_inverse = calculate_mmster(
+        pos_means=neg_means,
+        pos_covariances=neg_covariances,
+        neg_means=pos_means,
+        neg_covariances=pos_covariances,
+    )
+    with open(f'{output_dir}/mmsteer_inverse_{step}.pickle', 'wb') as fout:
+        pickle.dump(mmsteer_transforms_inverse, fout)
+
+
+def calculate_casteer(pos_means: dict, neg_means: dict) -> dict:
+    result = {}
+    for denoising_step in pos_means.keys():
+        result[denoising_step] = {}
+        for place_in_unet in pos_means[denoising_step].keys():
+            result[denoising_step][place_in_unet] = []
+            for block_idx in range(len(pos_means[denoising_step][place_in_unet])):
+                print(f'Processing step={denoising_step}, block={place_in_unet}, layer={block_idx}')
+                
+                steering_vector = (
+                    pos_means[denoising_step][place_in_unet][block_idx] -
+                    neg_means[denoising_step][place_in_unet][block_idx]
+                )
+                steering_vector /= np.linalg.norm(steering_vector)
+                result[denoising_step][place_in_unet].append(steering_vector)
+    return result
+
+
+def fractional_matrix_power_cov(A: np.ndarray, p: float, eps=1e-10):
+    evals, evecs = np.linalg.eigh(A)
+    evals = np.maximum(evals, 0)
+    mask = (evals >= eps)
+    evals = evals[mask]
+    evecs = evecs[:, mask]
+    return evecs @ np.diag(evals ** p) @ evecs.T
+
+
+def calculate_mmster(
+        pos_means: dict,
+        pos_covariances: dict,
+        neg_means: dict,
+        neg_covariances: dict
+) -> dict:
+    result = {}
+    for denoising_step in pos_means.keys():
+        result[denoising_step] = {}
+        for place_in_unet in pos_means[denoising_step].keys():
+            result[denoising_step][place_in_unet] = []
+            for block_idx in range(len(pos_means[denoising_step][place_in_unet])):
+                start = time.time()
+                
+                mu_pos = pos_means[denoising_step][place_in_unet][block_idx]
+                sigma_pos = pos_covariances[denoising_step][place_in_unet][block_idx]
+
+                mu_neg = neg_means[denoising_step][place_in_unet][block_idx]
+                sigma_neg = neg_covariances[denoising_step][place_in_unet][block_idx]
+
+                
+                sigma_neg_half = fractional_matrix_power_cov(sigma_neg, 0.5)
+                sigma_neg_minus_half = fractional_matrix_power_cov(sigma_neg, -0.5)
+                W = fractional_matrix_power_cov(sigma_neg_half @ sigma_pos @ sigma_neg_half, 0.5)
+                W = sigma_neg_minus_half @ W @ sigma_neg_minus_half
+
+                b = - W @ mu_neg + mu_pos
+
+                print(f'Processing step={denoising_step:2}, block={place_in_unet:4}, layer={block_idx:2}: took {time.time() - start:.2f} s '
+                      f'|W|_2 = {np.linalg.norm(W, ord=2):.3f}, |b|_2 = {np.linalg.norm(b):.3f}')
+
+                # if W.dtype == np.complex128:
+                #     print(f'Got unexpected complex values for step={denoising_step}, block={place_in_unet}, layer={block_idx}, truncating...')
+                #     W = np.real(W)
+                #     b = np.real(b)
+                
+                result[denoising_step][place_in_unet].append((W.astype(np.float32), b.astype(np.float32)))
+    return result
+
+
+def run(args: argparse.Namespace):
+    pipe = init_pipeline_for_model(args.model)
+    pipe.set_progress_bar_config(disable=True)
+
+    device = get_device()
+
+
+    if args.mode == 'concrete':
+        prompts_pos, prompts_neg = get_prompts_concrete(concept_pos=args.concept_pos, 
+                                                        concept_neg=args.concept_neg)
+    elif args.mode == 'human-related':
+        prompts_pos, prompts_neg = get_prompts_human_related(concept_pos=args.concept_pos, 
+                                                            concept_neg=args.concept_neg)
+    elif args.mode == 'style':
+        prompts_pos, prompts_neg = get_prompts_style(concept_pos=args.concept_pos, 
                                                     concept_neg=args.concept_neg)
-elif args.mode == 'human-related':
-    prompts_pos, prompts_neg = get_prompts_human_related(concept_pos=args.concept_pos, 
-                                                         concept_neg=args.concept_neg)
-elif args.mode == 'style':
-    prompts_pos, prompts_neg = get_prompts_style(concept_pos=args.concept_pos, 
-                                                 concept_neg=args.concept_neg)
-elif args.mode == 'file':
-    with open('concept_prompts/mickey_pos_sentence.txt', 'r') as fin:
-        prompts_pos = list(map(str.strip, fin.readlines()))
-    with open('concept_prompts/mickey_neg_sentence.txt', 'r') as fin:
-        prompts_neg = list(map(str.strip, fin.readlines()))
+    elif args.mode == 'file':
+        prompts_pos = read_prompt_file(args.prompts_pos_file)
+        prompts_neg = read_prompt_file(args.prompts_neg_file)
+
+
+    os.makedirs(args.output_dir, exist_ok=True)
+    checkpoint_steps = set(map(int, args.checkpoint_steps.split(',')))
+
+    pos_stats_handler = CrossAttentionStatisticsHandler(patch_average=args.patch_average, normalize=args.normalize_vectors)
+    neg_stats_handler = CrossAttentionStatisticsHandler(patch_average=args.patch_average, normalize=args.normalize_vectors)
     
+    register_vector_controls(pipe.unet, pos_stats_handler, neg_stats_handler)
 
-# Calculating CA outputs for generating steering vectors 
-pos_vectors, neg_vectors = [], []
-seed=0
+    print("Gathering statistics for concept prompts...")
+    for idx, (pos_prompt, neg_prompt) in tqdm.tqdm(
+            enumerate(zip(prompts_pos, prompts_neg)),
+            total=min(len(prompts_pos), len(prompts_neg))
+    ):
+        if idx in checkpoint_steps:
+            write_checkpoint(
+                output_dir=args.output_dir,
+                step=idx,
+                pos_means=pos_stats_handler.means,
+                pos_covariances=pos_stats_handler.covariances,
+                neg_means=neg_stats_handler.means,
+                neg_covariances=neg_stats_handler.covariances,
+            )
 
-for i, (prompt_pos, prompt_neg) in enumerate(zip(prompts_pos, prompts_neg)):
-    print('Prompt pair number', i, 'out of', len(prompts_pos))
-    print('Positive prompt:', prompt_pos)
-    print('Negative prompt', prompt_neg)
+        pos_stats_handler.active = True
+        neg_stats_handler.active = False
+        image = run_model(
+            model_type=args.model,
+            pipe=pipe,
+            prompt=pos_prompt,
+            seed=0,
+            num_denoising_steps=args.num_denoising_steps,
+            device=device,
+        )
+        pos_stats_handler.reset()
 
-    controller = VectorStore(dump_states=True)
-    controller.steer=False
-    register_vector_control(pipe.unet, controller)
+        pos_stats_handler.active = False
+        neg_stats_handler.active = True
+        image = run_model(
+            model_type=args.model,
+            pipe=pipe,
+            prompt=neg_prompt,
+            seed=0,
+            num_denoising_steps=args.num_denoising_steps,
+            device=device,
+        )
+        neg_stats_handler.reset()
 
-    image = run_model(args.model, pipe, prompt_pos, seed, args.num_denoising_steps)
-
-    pos_vectors.append(controller.vector_store)
-
-    controller = VectorStore(dump_states=True)
-    controller.steer=False
-    register_vector_control(pipe.unet, controller)
-
-    image = run_model(args.model, pipe, prompt_neg, seed, args.num_denoising_steps)
-
-    neg_vectors.append(controller.vector_store)
-    
-    if (i+1) % 1000 == 0:
-        np.save(f'hidden_states/pos_vectors_mickey_{i+1}.npy', pos_vectors)
-        np.save(f'hidden_states/neg_vectors_mickey_{i+1}.npy', neg_vectors)
-        pos_vectors, neg_vectors = [], []
-
-np.save(f'hidden_states/pos_vectors_mickey_{i+1}.npy', pos_vectors)
-np.save(f'hidden_states/neg_vectors_mickey_{i+1}.npy', neg_vectors)
-
-
-import sys
-sys.exit(0)
-
-
-# Calculating steering vectors
-steering_vectors = {} 
-
-for denoising_step in range(0, args.num_denoising_steps):
-    steering_vectors[denoising_step] = defaultdict(list)
-    
-    for key in ['up', 'down', 'mid']:
-        for layer_num in range(len(pos_vectors[0][denoising_step][key])):
-            
-            pos_vectors_layer = [pos_vectors[i][denoising_step][key][layer_num] for i in range(len(pos_vectors))]
-            pos_vectors_avg = np.mean(pos_vectors_layer, axis=0)
-            
-            neg_vectors_layer = [neg_vectors[i][denoising_step][key][layer_num] for i in range(len(neg_vectors))]
-            neg_vectors_avg = np.mean(neg_vectors_layer, axis=0)
-            
-            steering_vector = pos_vectors_avg - neg_vectors_avg
-            steering_vector = steering_vector / np.linalg.norm(steering_vector)
-            
-            steering_vectors[denoising_step][key].append(steering_vector)
+    write_checkpoint(
+        output_dir=args.output_dir,
+        step=idx,
+        pos_means=pos_stats_handler.means,
+        pos_covariances=pos_stats_handler.covariances,
+        neg_means=neg_stats_handler.means,
+        neg_covariances=neg_stats_handler.covariances,
+    )
 
 
-# Saving steering vectors:
-if not os.path.exists(args.save_dir):
-    os.makedirs(args.save_dir)
-with open(os.path.join(args.save_dir, '{}_{}_{}.pickle'.format(args.model, args.concept_pos, args.concept_neg)), 'wb') as handle:
-    pickle.dump(steering_vectors, handle)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo'], default="sd14")
+    parser.add_argument('--mode', type=str, choices=['concrete', 'human-related', 'style', 'file'], default="style")
+    parser.add_argument('--prompts_pos_file', type=str, default=None,
+                        help="If --mode is set to 'file', path to the text file containing positive prompts")
+    parser.add_argument('--prompts_neg_file', type=str, default=None,
+                        help="If --mode is set to 'file', path to the text file containing negative prompts")
+    parser.add_argument('--num_denoising_steps', type=int, default=50) # 50 for sd14, sd21, 1 for turbo, 30 for sdxl
+    parser.add_argument('--concept_pos', type=str, default="anime")
+    parser.add_argument('--concept_neg', type=str, default=None)
+    parser.add_argument('--patch_average', action='store_true', help='Average across patches for each prompt before updating statistics')
+    parser.add_argument('--normalize_vectors', action='store_true', help='Whether to normalize vectors before computing the statistics')
+    parser.add_argument('--output_dir', type=str, default=None, required=True, help='path to saving steering vectors')
+    parser.add_argument('--checkpoint_steps', type=str, default='50,100,500,1000,5000,10000', help='A comma separated list of integers representing steps at which to write checkpoints')
+    args = parser.parse_args()
+    run(args)
+
+
+if __name__ == "__main__":
+    main()
