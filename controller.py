@@ -7,6 +7,8 @@ from typing import Optional, Dict, Any
 
 logger = logging.getLogger()
 
+EPS = 1e-6
+
 # Define Controller for BasicTransformerBlock
 class VectorControl(abc.ABC):
     def __init__(self):
@@ -65,24 +67,50 @@ class CrossAttentionSteering(VectorControl):
     def __init__(
         self,
         *,
-        steering_vectors=None,
-        steer=True,
+        casteer_vectors=None,
+        mmsteer_vectors=None,
+        steer_type: str = None,
+        
+        mmsteer_threshold: float,
         steer_only_up=False, 
         alpha: float = 10.0,
         beta: float = 2.0, 
         steer_back: bool = False,
-        steer_type: str = None,
-        device: Any = 'cpu',
+        device: Any,
     ):
         super().__init__()
-        self.steering_vectors = steering_vectors
-        self.steer = steer
+        self.device = device
+        
+        if casteer_vectors is not None:
+            self.casteer_vectors = defaultdict(lambda: defaultdict(list))
+            for num_steer in casteer_vectors:
+                for place_in_unet in casteer_vectors[num_steer]:
+                    for block_idx in range(len(casteer_vectors[num_steer][place_in_unet])):
+                        b = casteer_vectors[num_steer][place_in_unet][block_idx]
+                        b = torch.tensor(b).half().to(self.device)
+                        self.casteer_vectors[num_steer][place_in_unet].append(b)
+        else:
+            self.casteer_vectors = None
+
+        if mmsteer_vectors is not None:
+            self.mmsteer_vectors = defaultdict(lambda: defaultdict(list))
+            for num_steer in mmsteer_vectors:
+                for place_in_unet in mmsteer_vectors[num_steer]:
+                    for block_idx in range(len(mmsteer_vectors[num_steer][place_in_unet])):
+                        W, b = mmsteer_vectors[num_steer][place_in_unet][block_idx]
+                        W = torch.tensor(W).half().to(self.device)
+                        b = torch.tensor(b).half().to(self.device)
+                        self.mmsteer_vectors[num_steer][place_in_unet].append((W, b))
+        else:
+            self.mmsteer_vectors = None
+        
+        self.mmsteer_threshold = mmsteer_threshold
+        
         self.steer_only_up = steer_only_up
         self.alpha = alpha
         self.beta = beta
         self.steer_back = steer_back
         self.steer_type = steer_type
-        self.device = device
 
         self.steering_cache = {}
 
@@ -111,61 +139,59 @@ class CrossAttentionSteering(VectorControl):
 
     def forward(self, vector: torch.Tensor, diffusion_step: int, place_in_unet: str, block_index: int):
 
-        # steering 
-        if self.steer:
-            if place_in_unet in ['up', 'mid'] or (place_in_unet == 'down' and not self.steer_only_up): 
-                # if steering vectors are from turbo version, then there's only one key in self.steering_vectors, 
-                # and we'll use it for all the steps of generation
-                # if steering vectors are from full version, then there's a key in self.steering_vectors
-                # for each of the generation steps 
-                num_steer = 0 if len(list(self.steering_vectors.keys()))==1 else diffusion_step
+        if place_in_unet in ['up', 'mid'] or (place_in_unet == 'down' and not self.steer_only_up): 
+            # if steering vectors are from turbo version, then there's only one key in self.steering_vectors, 
+            # and we'll use it for all the steps of generation
+            # if steering vectors are from full version, then there's a key in self.steering_vectors
+            # for each of the generation steps 
+            num_steer = 0 #if len(list(self.steering_vectors.keys()))==1 else diffusion_step
 
-                steering_tensors = self.steering_vectors[num_steer][place_in_unet][block_index]
-                if isinstance(steering_tensors, np.ndarray):
-                    steering_tensors = [steering_tensors]
-                elif isinstance(steering_tensors, list|tuple):
-                    steering_tensors = list(steering_tensors)
-
-                for i in range(len(steering_tensors)):
-                    steering_tensors[i] = torch.tensor(steering_tensors[i]).half().to(self.device)
-
-
-                # vector = vector.float()
-
-                # save current norm of vector components
-                norm = torch.norm(vector, dim=2, keepdim=True)
-
-                if self.steer_type == 'casteer':
-                    vector = self.steer_CASteer(vector, *steering_tensors)
-                elif self.steer_type == 'mmsteer':
-                    pos = (num_steer, place_in_unet, block_index)
-                    if pos in self.steering_cache:
-                        W_alpha, b_alpha = self.steering_cache[*pos]
-                    else:
-                        (W, b) = steering_tensors
-
-                        if self.alpha != 1.0:
-                            W = W.float()
-                            b = b.float()
-                            I = torch.eye(W.shape[0], device=W.device)
-                            W_alpha = fractional_matrix_power_cov_torch(W, self.alpha).float()
-                            b_alpha = (I - W_alpha) @ (I - W).inverse() @ b
-                            W_alpha = W_alpha.half()
-                            b_alpha = b_alpha.half()
-                        else:
-                            W_alpha, b_alpha = W, b
-
-                        self.steering_cache[*pos] = W_alpha, b_alpha
-                    vector = torch.matmul(vector, W_alpha.T) + b_alpha
-                else:
-                    raise ValueError(f'Unknown steer type {self.steer_type}')
-
-                # renormalize so that the norm of the steered vector is the same as of original one
+            norm = torch.norm(vector, dim=2, keepdim=True)
+            if self.steer_type == 'casteer':
+                vector = self.steer_CASteer(vector, self.casteer_vectors[num_steer][place_in_unet][block_index])
                 vector = vector / torch.norm(vector, dim=2, keepdim=True)
                 vector = vector * norm
+            elif self.steer_type == 'mmsteer':
+                pos = (num_steer, place_in_unet, block_index)
+                if pos in self.steering_cache:
+                    W_alpha, b_alpha = self.steering_cache[*pos]
+                else:
+                    (W, b) = self.mmsteer_vectors[num_steer][place_in_unet][block_index]
 
-                # vector = vector.half()
-        return vector
+                    if self.alpha != 1.0:
+                        W = W.float()
+                        b = b.float()
+                        I = torch.eye(W.shape[0], device=W.device)
+                        W_alpha = fractional_matrix_power_cov_torch(W, self.alpha).float()
+                        b_alpha = (I - W_alpha) @ (I - W).inverse() @ b
+                        W_alpha = W_alpha.half()
+                        b_alpha = b_alpha.half()
+                    else:
+                        W_alpha, b_alpha = W, b
+
+                    self.steering_cache[*pos] = W_alpha, b_alpha
+                    
+                vector_steered = torch.matmul(vector, W_alpha.T) + b_alpha
+                    
+                if self.casteer_vectors is not None:
+
+                    b_casteer = -1 * self.casteer_vectors[num_steer][place_in_unet][block_index].view(1, 1, -1)
+
+                    sim = torch.tensordot(vector / norm , b_casteer,
+                                          dims=([2], [2])).view(vector.size()[0], vector.size()[1], 1)
+
+#                     sim = torch.clamp(sim, min=0)
+#                     sim = sim / (torch.max(sim, dim=1, keepdim=True)[0] + EPS)
+                    
+                    sim = torch.where(sim>self.mmsteer_threshold, 1.0, 0.0)
+
+                    vector = sim * vector_steered + (1 - sim) * vector
+                else:
+                    vector = vector_steered
+                    
+            else:
+                raise ValueError(f'Unknown steer type {self.steer_type}')
+        return vector.half()
 
 
 def register_vector_controls(model, *controls: VectorControl):

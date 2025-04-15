@@ -63,8 +63,8 @@ class CrossAttentionStatisticsHandler(VectorControl):
                 result[diffusion_step][place_in_unet] = []
                 for block_idx in range(len(self._m[diffusion_step][place_in_unet])):
                     count = self._cnt[diffusion_step][place_in_unet][block_idx]
-                    m = self._m[diffusion_step][place_in_unet][block_idx]
-                    result[diffusion_step][place_in_unet].append(m / count)
+                    m = self._m[diffusion_step][place_in_unet][block_idx] / count
+                    result[diffusion_step][place_in_unet].append(m)
         return result
 
     @property
@@ -76,10 +76,10 @@ class CrossAttentionStatisticsHandler(VectorControl):
                 result[diffusion_step][place_in_unet] = []
                 for block_idx in range(len(self._mm[diffusion_step][place_in_unet])):
                     count = self._cnt[diffusion_step][place_in_unet][block_idx]
-                    m = self._m[diffusion_step][place_in_unet][block_idx]
-                    mm = self._mm[diffusion_step][place_in_unet][block_idx]
+                    m = self._m[diffusion_step][place_in_unet][block_idx] / count
+                    mm = self._mm[diffusion_step][place_in_unet][block_idx] / (count - 1)
                     result[diffusion_step][place_in_unet].append(
-                        mm / (count - 1) - torch.outer(m, m)
+                        mm - torch.outer(m, m)
                     )
         return result
 
