@@ -20,11 +20,13 @@ parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 
 parser.add_argument('--prompt', type=str, default=None)
 parser.add_argument('--prompt_file', type=str, default=None, help="Path to text file with prompts, one per line.")
 parser.add_argument('--seed', type=str, default="0", help="Comma-separated list of seeds to use for generation.")
-parser.add_argument('--steering_vectors', type=str, default=None) # path to steering vectors file
+parser.add_argument('--casteer_vectors', type=str, default=None) # path to casteer steering vectors file
+parser.add_argument('--mmsteer_vectors', type=str, default=None) # path to mmsteer steering vectors file
 parser.add_argument('--not_steer', action='store_true')
 parser.add_argument('--steer_only_up', action='store_true')
 parser.add_argument('--num_denoising_steps', type=int, default=50) # 50 for sd14, sd21, 1 for turbo, 30 for sdxl
 parser.add_argument('--steer_back', action='store_true')
+parser.add_argument('--mmsteer_thr', type=float, default=0)
 parser.add_argument('--alpha', type=float, default=10)
 parser.add_argument('--beta', type=float, default=2)
 parser.add_argument(
@@ -47,26 +49,35 @@ else:
 
 seeds = list(map(int, args.seed.split(",")))
 
-if args.steering_vectors is not None:
-    with open(args.steering_vectors, 'rb') as handle:
-        steering_vectors = pickle.load(handle)
+if args.casteer_vectors is not None:
+    with open(args.casteer_vectors, 'rb') as handle:
+        casteer_vectors = pickle.load(handle)
 else:
-    steering_vectors = None
+    casteer_vectors = None
+    
+if args.mmsteer_vectors is not None:
+    with open(args.mmsteer_vectors, 'rb') as handle:
+        mmsteer_vectors = pickle.load(handle)
+else:
+    mmsteer_vectors = None
 
 device = get_device()
-controller = CrossAttentionSteering(
-    steering_vectors=steering_vectors,
-    steer=not args.not_steer,
-    steer_type=args.steer_type,
-    steer_only_up=args.steer_only_up,
-    steer_back=args.steer_back,
-    alpha=args.alpha,
-    beta=args.beta,
-    device=device
-)
-
 pipe = init_pipeline_for_model(args.model)
-register_vector_controls(pipe.unet, controller)
+
+if not args.not_steer:
+    controller = CrossAttentionSteering(
+        casteer_vectors=casteer_vectors,
+        mmsteer_vectors=mmsteer_vectors,
+        steer_type=args.steer_type,
+        mmsteer_threshold=args.mmsteer_thr,
+        steer_only_up=args.steer_only_up,
+        steer_back=args.steer_back,
+        alpha=args.alpha,
+        beta=args.beta,
+        device=device
+    )
+    
+    register_vector_controls(pipe.unet, controller)
 
 for prompt in prompts:
     for seed in seeds:
