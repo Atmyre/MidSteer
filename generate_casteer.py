@@ -24,7 +24,6 @@ parser.add_argument('--casteer_vectors', type=str, default=None) # path to caste
 parser.add_argument('--mmsteer_vectors', type=str, default=None) # path to mmsteer steering vectors file
 parser.add_argument('--not_steer', action='store_true')
 parser.add_argument('--steer_only_up', action='store_true')
-parser.add_argument('--num_denoising_steps', type=int, default=50) # 50 for sd14, sd21, 1 for turbo, 30 for sdxl
 parser.add_argument('--steer_back', action='store_true')
 parser.add_argument('--mmsteer_thr', type=float, default=0)
 parser.add_argument('--alpha', type=float, default=10)
@@ -95,6 +94,6 @@ for prompt in prompts:
             print(f'{path} already exists, skipping!')
             continue
         print(f'Generating for prompt={prompt}, seed={seed}')
-        image = run_model(args.model, pipe, prompt, seed, args.num_denoising_steps, device=device)
+        image = run_model(args.model, pipe, prompt, seed, device=device)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         image.save(path)
