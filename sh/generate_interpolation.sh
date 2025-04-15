@@ -33,7 +33,7 @@ for model in "sdxl"; do
             --alpha "${alpha}" --steer_type casteer
     done
 
-    for alpha in $(seq 0.75 0.25 1.75); do 
+    for alpha in $(seq 0.5 0.25 2.0); do 
         python generate_casteer.py \
             --model $model \
             --prompt_file $prompt_file \
