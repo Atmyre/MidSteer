@@ -53,17 +53,28 @@ def init_pipeline_for_model(model: str) -> DiffusionPipeline:
     return pipe
 
 
-def run_model(model_type: str, pipe, prompt: str, seed: int, num_denoising_steps: int, device: torch.device):
+def get_num_denoising_steps(model: str) -> int:
+    if model in ('sd14', 'sd21'):
+        return 50
+    elif model in ('sd21-turbo', 'sdxl-turbo'):
+        return 1
+    elif model in ('sdxl',):
+        return 30
+    else:
+        raise ValueError('Unknown model type')
+
+
+def run_model(model_type: str, pipe, prompt: str, seed: int, device: torch.device):
     if model_type in ['sd14', 'sd21', 'sdxl']:
         image = pipe(prompt=prompt,
-                     num_inference_steps=num_denoising_steps,
+                     num_inference_steps=get_num_denoising_steps(model_type),
                      generator=torch.Generator(device=device).manual_seed(seed),
 #                      guidance_scale=0.0
                     ).images[0]
 
     elif model_type in ['sd21-turbo', 'sdxl-turbo']:
         image = pipe(prompt=prompt,
-                     num_inference_steps=num_denoising_steps,
+                     num_inference_steps=get_num_denoising_steps(model_type),
                      guidance_scale=0.0,
                      generator=torch.Generator(device=device).manual_seed(seed),
                     ).images[0]

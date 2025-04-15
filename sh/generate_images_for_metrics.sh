@@ -90,29 +90,23 @@ prompts=(
 for model in "sdxl"; do
     for prompt in "${prompts[@]}"; do
         for seed in 0 1 2 3 4; do
-            if [[ $model = 'sdxl' ]]; then
-                num_denoising_steps=30
-            else
-                num_denoising_steps=1
-            fi
-    
-            echo "Inverse generating for $prompt $model $seed $num_denoising_steps"
+            echo "Inverse generating for $prompt $model $seed "
             path="$PREFIX/mickey/inverse/$model/$prompt/$seed/"
             mkdir -p "$path"
 
             # if [ ! -f "$path/orig.png" ]; then
-            #     python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/orig.png" --not_steer
+            #     python generate_casteer.py --model $model --prompt "$prompt"  --seed $seed --output "$path/orig.png" --not_steer
             # fi
 
             for beta in 2; do
                 if [ ! -f "$path/casteer_${beta}.png" ]; then
-                    python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/casteer_${beta}.png" --steering_vectors steering_vectors/mickey_laion_steering_vectors.pickle --beta "${beta}" --steer_type casteer --steer_back
+                    python generate_casteer.py --model $model --prompt "$prompt"  --seed $seed --output "$path/casteer_${beta}.png" --steering_vectors steering_vectors/mickey_laion_steering_vectors.pickle --beta "${beta}" --steer_type casteer --steer_back
                 fi
             done
             
             for alpha in 1; do 
                 if [ ! -f "$path/mmsteer_${alpha}.png" ]; then
-                    python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/mmsteer_${alpha}.png" --steering_vectors steering_vectors/mickey_laion_mm_inverse_steering_vectors.pickle --alpha "${alpha}" --steer_type mmsteer
+                    python generate_casteer.py --model $model --prompt "$prompt"  --seed $seed --output "$path/mmsteer_${alpha}.png" --steering_vectors steering_vectors/mickey_laion_mm_inverse_steering_vectors.pickle --alpha "${alpha}" --steer_type mmsteer
                 fi
             done
         done
@@ -206,29 +200,24 @@ done
 # for model in "sdxl"; do
 #     for prompt in "${prompts[@]}"; do
 #         for seed in 0 1 2 3 4; do
-#             if [[ $model = 'sdxl' ]]; then
-#                 num_denoising_steps=30
-#             else
-#                 num_denoising_steps=1
-#             fi
     
-#             echo "Inverse generating for $prompt $model $seed $num_denoising_steps"
+#             echo "Inverse generating for $prompt $model $seed "
 #             path="$PREFIX/snoopy/inverse/$model/$prompt/$seed/"
 #             mkdir -p "$path"
 
 #             if [ ! -f "$path/orig.png" ]; then
-#                 python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/orig.png" --not_steer
+#                 python generate_casteer.py --model $model --prompt "$prompt"  --seed $seed --output "$path/orig.png" --not_steer
 #             fi
 
 #             for beta in 2; do
 #                 if [ ! -f "$path/casteer_${beta}.png" ]; then
-#                     python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/casteer_${beta}.png" --steering_vectors mickey_laion_steering_vectors.pickle --beta "${beta}" --steer_type casteer --steer_back
+#                     python generate_casteer.py --model $model --prompt "$prompt"  --seed $seed --output "$path/casteer_${beta}.png" --steering_vectors mickey_laion_steering_vectors.pickle --beta "${beta}" --steer_type casteer --steer_back
 #                 fi
 #             done
             
 #             for alpha in 1; do 
 #                 if [ ! -f "$path/mmsteer_${alpha}.png" ]; then
-#                     python generate_casteer.py --model $model --prompt "$prompt" --num_denoising_steps $num_denoising_steps --seed $seed --output "$path/mmsteer_${alpha}.png" --steering_vectors mickey_laion_mm_inverse_steering_vectors.pickle --alpha "${alpha}" --steer_type mmsteer
+#                     python generate_casteer.py --model $model --prompt "$prompt"  --seed $seed --output "$path/mmsteer_${alpha}.png" --steering_vectors mickey_laion_mm_inverse_steering_vectors.pickle --alpha "${alpha}" --steer_type mmsteer
 #                 fi
 #             done
 #         done

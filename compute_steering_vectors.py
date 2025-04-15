@@ -24,7 +24,6 @@ def gather_stats_for_prompts(
         pipe,
         prompts: list[str],
         model_type: str,
-        num_denoising_steps: int,
         device: torch.device,
         patch_average: bool,
         output_prefix: str,
@@ -40,7 +39,6 @@ def gather_stats_for_prompts(
             pipe=pipe,
             prompt=prompt,
             seed=0,
-            num_denoising_steps=num_denoising_steps,
             device=device,
         )
         stats_handler.reset()
@@ -211,7 +209,6 @@ def run(args: argparse.Namespace):
             pipe=pipe,
             prompt=pos_prompt,
             seed=0,
-            num_denoising_steps=args.num_denoising_steps,
             device=device,
         )
         pos_stats_handler.reset()
@@ -223,7 +220,6 @@ def run(args: argparse.Namespace):
             pipe=pipe,
             prompt=neg_prompt,
             seed=0,
-            num_denoising_steps=args.num_denoising_steps,
             device=device,
         )
         neg_stats_handler.reset()
@@ -248,7 +244,6 @@ def main():
                         help="If --mode is set to 'file', path to the text file containing positive prompts")
     parser.add_argument('--prompts_neg_file', type=str, default=None,
                         help="If --mode is set to 'file', path to the text file containing negative prompts")
-    parser.add_argument('--num_denoising_steps', type=int, default=50) # 50 for sd14, sd21, 1 for turbo, 30 for sdxl
     parser.add_argument('--concept_pos', type=str, default="anime")
     parser.add_argument('--concept_neg', type=str, default=None)
     parser.add_argument('--patch_average', action='store_true', help='Average across patches for each prompt before updating statistics')

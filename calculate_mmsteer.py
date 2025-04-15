@@ -30,7 +30,9 @@ def run(
         pickle.dump(mmsteer_transforms_inverse, fout)
 
 
-def unpickle(path: str):
+def unpickle(path: str | None):
+    if path is None:
+        return None
     with open(path, 'rb') as fin:
         return pickle.load(fin)
 
