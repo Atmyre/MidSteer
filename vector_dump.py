@@ -34,11 +34,17 @@ class CrossAttentionStatisticsHandler(VectorControl):
             self._cnt[diffusion_step][place_in_unet][block_index] += stat_count
             self._m[diffusion_step][place_in_unet][block_index] += stat_m
             self._mm[diffusion_step][place_in_unet][block_index] += stat_mm
-            
+
+    def convert_to_dtype(self, vector: torch.Tensor):
+        # float64 is needed for numerical stability
+        if torch.mps.is_available():
+            return vector.to('cpu').to(torch.float64)
+        else:
+            return vector.to(torch.float64)
     
     def forward(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index):
         hidden_size = vector.shape[-1]
-        vec = torch.reshape(vector, (-1, hidden_size)).to(torch.float64)
+        vec = self.convert_to_dtype(torch.reshape(vector, (-1, hidden_size)))
         if self._patch_average:
             vec = torch.mean(vec, axis=0, keepdims=True)
 
