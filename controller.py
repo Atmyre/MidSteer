@@ -5,13 +5,24 @@ import abc
 from collections import defaultdict
 from typing import Optional, Dict, Any
 
+import enum
+import torch.nn.functional as F
+from utils import fractional_matrix_power_cov_torch
+
+
 logger = logging.getLogger()
 
 EPS = 1e-6
 
+class VectorControlMode(enum.StrEnum):
+    ATTN_OUTPUT = 'attn_output'
+    ATTN_HEADS = 'attn_head'
+
+
 # Define Controller for BasicTransformerBlock
 class VectorControl(abc.ABC):
-    def __init__(self):
+    def __init__(self, mode: VectorControlMode):
+        self._mode = mode
         self._active = True
         self._diffusion_step = 0
         self._current_attn_layer = 0
@@ -49,23 +60,10 @@ class VectorControl(abc.ABC):
             self._diffusion_step += 1
         return vector
 
-
-def fractional_matrix_power_cov_torch(mat: torch.Tensor, alpha: float, eps=1e-10) -> torch.Tensor:
-    device = mat.device
-    if mat.device.type == 'mps':  # Workaround because MPS does not yet support torch.linalg.eig
-        mat = mat.cpu()
-
-    evals, evecs = torch.linalg.eigh(mat)
-    evals = torch.clip(evals, min=0, max=None)
-    mask = (evals >= eps)
-    evals = evals[mask]
-    evecs = evecs[:, mask]
-    return (evecs @ torch.diag(evals ** alpha) @ evecs.T).to(device)
-
-
-class CrossAttentionSteering(VectorControl):
+class CrossAttentionOutputSteering(VectorControl):
     def __init__(
         self,
+        mode: VectorControlMode,
         *,
         casteer_vectors=None,
         mmsteer_vectors=None,
@@ -78,7 +76,7 @@ class CrossAttentionSteering(VectorControl):
         steer_back: bool = False,
         device: Any,
     ):
-        super().__init__()
+        super().__init__(mode=mode)
         self.device = device
         
         if casteer_vectors is not None:
@@ -116,27 +114,36 @@ class CrossAttentionSteering(VectorControl):
 
 
     def steer_CASteer(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
+        hidden_dim = vector.shape[-1]
         (b,) = steering_tensors
-        b = b.view(1, 1, -1)
+
+        assert len(b.shape) in (1, 2)
+        if len(b.shape) == 1:
+            b = b.reshape(1, 1, 1, -1)
+        else:
+            num_heads = b.shape[0]
+            b = b.reshape(1, 1, num_heads, -1)
 
         if self.steer_back:
             # steering backward, i.e. removing notion from vector
 
             # computing dot products between vector components and steering vector x
-            sim = torch.tensordot(vector, b, 
-                                  dims=([2], [2])).view(vector.size()[0], vector.size()[1], 1)
+            sim = (vector[..., None, :] @ b[..., None])[..., 0]
+            # sim = torch.tensordot(vector, b, 
+                                #   dims=([2], [2])).view(*vector.shape[:2], 1)
             # we will steer back only if dot product is positive, i.e.
             # if there's positive amount of information from steering vector in the vector
             sim = torch.where(sim>0, sim, 0)
 
             # steer backward for beta*sim
-            vector -= (self.beta*sim)*b.expand(1, vector.size()[1], -1)
+            vector -= self.beta * sim * b
         else:
             # steer forward, i.e. add a steering vector x multiplied by self.intensity
-            vector += self.alpha*b.expand(1, vector.size()[1], -1)
+            vector += self.alpha * b
         
         return vector
 
+    # [batch_size, sequence_length, num_heads, head_dim]
     def forward(self, vector: torch.Tensor, diffusion_step: int, place_in_unet: str, block_index: int):
 
         if place_in_unet in ['up', 'mid'] or (place_in_unet == 'down' and not self.steer_only_up): 
@@ -146,10 +153,11 @@ class CrossAttentionSteering(VectorControl):
             # for each of the generation steps 
             num_steer = 0 #if len(list(self.steering_vectors.keys()))==1 else diffusion_step
 
-            norm = torch.norm(vector, dim=2, keepdim=True)
+            norm = torch.norm(vector, dim=-1, keepdim=True)
             if self.steer_type == 'casteer':
+                pass
                 vector = self.steer_CASteer(vector, self.casteer_vectors[num_steer][place_in_unet][block_index])
-                vector = vector / torch.norm(vector, dim=2, keepdim=True)
+                vector = vector / (torch.norm(vector, dim=-1, keepdim=True) + EPS)
                 vector = vector * norm
             elif self.steer_type == 'mmsteer':
                 pos = (num_steer, place_in_unet, block_index)
@@ -157,22 +165,31 @@ class CrossAttentionSteering(VectorControl):
                     W_alpha, b_alpha = self.steering_cache[*pos]
                 else:
                     (W, b) = self.mmsteer_vectors[num_steer][place_in_unet][block_index]
+                    if len(W.shape) == 2:
+                        W = W[None, ...]
+                        b = b[None, :]
 
                     if self.alpha != 1.0:
                         W = W.float()
                         b = b.float()
-                        I = torch.eye(W.shape[0], device=W.device)
+                        I = torch.eye(W.shape[1], device=W.device)[None, ...]
                         W_alpha = fractional_matrix_power_cov_torch(W, self.alpha).float()
-                        b_alpha = (I - W_alpha) @ (I - W).inverse() @ b
+                        b_alpha = ((I - W_alpha) @ (I - W).inverse() @ b[..., None])[..., 0]
                         W_alpha = W_alpha.half()
                         b_alpha = b_alpha.half()
                     else:
                         W_alpha, b_alpha = W, b
 
                     self.steering_cache[*pos] = W_alpha, b_alpha
-                    
-                vector_steered = torch.matmul(vector, W_alpha.T) + b_alpha
-                    
+
+                num_heads = W_alpha.shape[0]
+                hidden_dim = W_alpha.shape[1]
+                batch_size = vector.shape[0]
+                sequence_length = vector.shape[1]
+
+                vector_steered = ((vector.reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ W_alpha.mT) + b_alpha.unsqueeze(1)).transpose(0, 1).reshape(batch_size, sequence_length, num_heads, hidden_dim) 
+
+                # TODO: the code below was not rewritten in the batched fashion
                 if self.casteer_vectors is not None:
 
                     b_casteer = -1 * self.casteer_vectors[num_steer][place_in_unet][block_index].view(1, 1, -1)
@@ -192,6 +209,131 @@ class CrossAttentionSteering(VectorControl):
             else:
                 raise ValueError(f'Unknown steer type {self.steer_type}')
         return vector.half()
+
+
+class CustomAttnProcessor:
+    def __init__(self, controls: list[VectorControl], place_in_unet: str):
+        self._controls = controls
+        self._place_in_unet = place_in_unet
+     
+    def __call__(
+        self,
+        attn,
+        hidden_states: torch.Tensor,
+        encoder_hidden_states: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        temb: Optional[torch.Tensor] = None,
+        *args,
+        **kwargs,
+    ) -> torch.Tensor:
+        if len(args) > 0 or kwargs.get("scale", None) is not None:
+            deprecation_message = "The `scale` argument is deprecated and will be ignored. Please remove it, as passing it will raise an error in the future. `scale` should directly be passed while calling the underlying pipeline component i.e., via `cross_attention_kwargs`."
+            deprecate("scale", "1.0.0", deprecation_message)
+
+        residual = hidden_states
+        if attn.spatial_norm is not None:
+            hidden_states = attn.spatial_norm(hidden_states, temb)
+
+        input_ndim = hidden_states.ndim
+
+        if input_ndim == 4:
+            batch_size, channel, height, width = hidden_states.shape
+            hidden_states = hidden_states.view(batch_size, channel, height * width).transpose(1, 2)
+
+        batch_size, sequence_length, _ = (
+            hidden_states.shape if encoder_hidden_states is None else encoder_hidden_states.shape
+        )
+
+        if attention_mask is not None:
+            attention_mask = attn.prepare_attention_mask(attention_mask, sequence_length, batch_size)
+            # scaled_dot_product_attention expects attention_mask shape to be
+            # (batch, heads, source_length, target_length)
+            attention_mask = attention_mask.view(batch_size, attn.heads, -1, attention_mask.shape[-1])
+
+        if attn.group_norm is not None:
+            hidden_states = attn.group_norm(hidden_states.transpose(1, 2)).transpose(1, 2)
+
+        query = attn.to_q(hidden_states)
+
+        if encoder_hidden_states is None:
+            encoder_hidden_states = hidden_states
+        elif attn.norm_cross:
+            encoder_hidden_states = attn.norm_encoder_hidden_states(encoder_hidden_states)
+
+        key = attn.to_k(encoder_hidden_states)
+        value = attn.to_v(encoder_hidden_states)
+
+        inner_dim = key.shape[-1]
+        head_dim = inner_dim // attn.heads
+
+        query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
+
+        key = key.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
+        value = value.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
+
+        if attn.norm_q is not None:
+            query = attn.norm_q(query)
+        if attn.norm_k is not None:
+            key = attn.norm_k(key)
+
+        # the output of sdp = (batch, num_heads, seq_len, head_dim)
+        # TODO: add support for attn.scale when we move to Torch 2.1
+        hidden_states = F.scaled_dot_product_attention(
+            query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
+        )
+
+
+        hidden_states = hidden_states.transpose(1, 2)  # (batch_size, sequence_length, num_heads, head_dim)
+
+        for control in self._controls:
+            if control._mode == VectorControlMode.ATTN_HEADS and control.active:
+                hidden_states = control(hidden_states, self._place_in_unet)
+
+
+        hidden_states = hidden_states.reshape(batch_size, -1, attn.heads * head_dim).to(query.dtype)
+
+
+        # -------------------------------
+        # adding controller
+
+        
+        
+#         size = hidden_states.shape[2] // attn.heads
+# #         y = torch.tensor(np.zeros_like(hidden_states.data.cpu().numpy())).to(device)
+#         for idx in range(attn.heads):
+# #             x = deepcopy(y[:, :, :])
+# #             x[:, :, size*idx:size*(idx+1)] = hidden_states[:, :, size*idx:size*(idx+1)]
+            
+#             x = hidden_states[:, :, size*idx:size*(idx+1)]
+            
+# #             x = attn.to_out[0](x)
+# #             # dropout
+# #             x = attn.to_out[1](x)
+            
+# #             if attn.residual_connection:
+# #                 x = x + residual
+
+# #             x = x / attn.rescale_output_factor
+            
+#             x = controller(x, attn.heads, idx)
+#             hidden_states[:, :, size*idx:size*(idx+1)] = x
+        # -------------------------------
+            
+
+        # linear proj
+        hidden_states = attn.to_out[0](hidden_states)
+        # dropout
+        hidden_states = attn.to_out[1](hidden_states)
+
+        if input_ndim == 4:
+            hidden_states = hidden_states.transpose(-1, -2).reshape(batch_size, channel, height, width)
+
+        if attn.residual_connection:
+            hidden_states = hidden_states + residual
+
+        hidden_states = hidden_states / attn.rescale_output_factor
+
+        return hidden_states
 
 
 def register_vector_controls(model, *controls: VectorControl):
@@ -288,9 +430,11 @@ def register_vector_controls(model, *controls: VectorControl):
                 )
                 # -------------------------------
                 # adding controller
+                attn_output = attn_output[..., None, :]
                 for control in controls:
-                    if control.active:
+                    if control._mode == VectorControlMode.ATTN_OUTPUT and control.active:
                         attn_output = control(attn_output, place_in_unet)
+                attn_output = attn_output[..., 0, :]
                 # -------------------------------
                 hidden_states = attn_output + hidden_states
 
@@ -340,11 +484,13 @@ def register_vector_controls(model, *controls: VectorControl):
         return forward
 
     
-    def register_recr(net_, count, place_in_unet):
+    def register_recr(net_, count: int, place_in_unet: str):
         '''
         registering controller for all the BasicTransformerBlocks in the model
         '''
         if net_.__class__.__name__ == 'BasicTransformerBlock':
+            processor = CustomAttnProcessor(controls=controls, place_in_unet=place_in_unet)
+            net_.attn2.set_processor(processor)
             net_.forward = block_forward(net_, place_in_unet)
             return count + 1
         elif hasattr(net_, 'children'):
@@ -357,12 +503,9 @@ def register_vector_controls(model, *controls: VectorControl):
     for net in sub_nets:
         if "down" in net[0]:
             block_count += register_recr(net[1], 0, "down")
-            # print('down', block_count)
         elif "up" in net[0]:
             block_count += register_recr(net[1], 0, "up")
-            # print('up', block_count)
         if "mid" in net[0]:
             block_count += register_recr(net[1], 0, "mid")
-            # print('mid', block_count)
     for control in controls:
         control.num_attn_layers = block_count

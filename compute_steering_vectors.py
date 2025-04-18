@@ -11,12 +11,12 @@ import torch
 
 # local imports
 from construct_prompts import get_prompts_concrete, get_prompts_style, get_prompts_human_related, pickle_stats, read_prompt_file
-from controller import register_vector_controls, fractional_matrix_power_cov_torch
-from utils import get_device, init_pipeline_for_model, run_model
+from controller import VectorControlMode, register_vector_controls
+from utils import fractional_matrix_power_cov_torch, get_device, init_pipeline_for_model, run_model
 
 # parsing arguments
 import argparse
-from vector_dump import CrossAttentionStatisticsHandler
+from vector_dump import CrossAttentionOutputStatsCollector
 
 
 
@@ -29,7 +29,7 @@ def gather_stats_for_prompts(
         output_prefix: str,
         normalize_vectors: bool,
 ) -> tuple[np.ndarray, np.ndarray]:
-    stats_handler = CrossAttentionStatisticsHandler(patch_average=patch_average, normalize=normalize_vectors)
+    stats_handler = CrossAttentionOutputStatsCollector(patch_average=patch_average, normalize=normalize_vectors)
     register_vector_controls(pipe.unet, stats_handler)
 
     print("Gathering statistics for concept prompts...")
@@ -96,12 +96,11 @@ def calculate_casteer(pos_means: dict, neg_means: dict) -> dict:
             result[denoising_step][place_in_unet] = []
             for block_idx in range(len(pos_means[denoising_step][place_in_unet])):
                 print(f'Processing step={denoising_step}, block={place_in_unet}, layer={block_idx}')
-                
                 steering_vector = (
                     pos_means[denoising_step][place_in_unet][block_idx] -
                     neg_means[denoising_step][place_in_unet][block_idx]
                 )
-                steering_vector /= torch.linalg.norm(steering_vector)
+                steering_vector /= torch.linalg.norm(steering_vector, dim=1, keepdim=True)
                 result[denoising_step][place_in_unet].append(steering_vector.to(torch.float32).detach().cpu().numpy())
     return result
 
@@ -141,16 +140,11 @@ def calculate_mmster(
                 W = fractional_matrix_power_cov_torch(sigma_neg_half @ sigma_pos @ sigma_neg_half, 0.5)
                 W = sigma_neg_minus_half @ W @ sigma_neg_minus_half
 
-                b = - W @ mu_neg + mu_pos
+                b = (- W @ mu_neg[..., None])[..., 0] + mu_pos
 
                 print(f'Processing step={denoising_step:2}, block={place_in_unet:4}, layer={block_idx:2}: took {time.time() - start:.2f} s '
-                      f'|W|_2 = {torch.linalg.norm(W, ord=2):.3f}, |b|_2 = {torch.linalg.norm(b):.3f}')
+                      f'|W|_2 = {torch.linalg.norm(W, ord=2, dim=(1, 2))}, |b|_2 = {torch.linalg.norm(b, dim=1)}')
 
-                # if W.dtype == np.complex128:
-                #     print(f'Got unexpected complex values for step={denoising_step}, block={place_in_unet}, layer={block_idx}, truncating...')
-                #     W = np.real(W)
-                #     b = np.real(b)
-                
                 result[denoising_step][place_in_unet].append((
                     W.to(torch.float32).detach().cpu().numpy(),
                     b.to(torch.float32).detach().cpu().numpy(),
@@ -182,8 +176,16 @@ def run(args: argparse.Namespace):
     os.makedirs(args.output_dir, exist_ok=True)
     checkpoint_steps = set(map(int, args.checkpoint_steps.split(',')))
 
-    pos_stats_handler = CrossAttentionStatisticsHandler(patch_average=args.patch_average, normalize=args.normalize_vectors)
-    neg_stats_handler = CrossAttentionStatisticsHandler(patch_average=args.patch_average, normalize=args.normalize_vectors)
+    pos_stats_handler = CrossAttentionOutputStatsCollector(
+        mode=args.control_mode,
+        patch_average=args.patch_average,
+        normalize=args.normalize_vectors
+    )
+    neg_stats_handler = CrossAttentionOutputStatsCollector(
+        mode=args.control_mode,
+        patch_average=args.patch_average,
+        normalize=args.normalize_vectors
+    )
     
     register_vector_controls(pipe.unet, pos_stats_handler, neg_stats_handler)
 
@@ -240,6 +242,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo'], default="sd14")
     parser.add_argument('--mode', type=str, choices=['concrete', 'human-related', 'style', 'file'], default="style")
+    parser.add_argument('--control_mode', type=VectorControlMode, choices=['attn_head', 'attn_output'], default='attn_output', help='Vector control mode')
     parser.add_argument('--prompts_pos_file', type=str, default=None,
                         help="If --mode is set to 'file', path to the text file containing positive prompts")
     parser.add_argument('--prompts_neg_file', type=str, default=None,

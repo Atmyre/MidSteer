@@ -9,7 +9,7 @@ from diffusers import StableDiffusionPipeline, DiffusionPipeline, AutoPipelineFo
 from utils import get_device, init_pipeline_for_model, run_model
 
 # local imports
-from controller import CrossAttentionSteering, register_vector_controls
+from controller import CrossAttentionOutputSteering, VectorControlMode, register_vector_controls
 
 # parsing arguments
 import argparse
@@ -17,6 +17,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo'], default="sd14")
+parser.add_argument('--control_mode', type=VectorControlMode, choices=['attn_head', 'attn_output'], default='attn_output', help='Vector control mode')
 parser.add_argument('--prompt', type=str, default=None)
 parser.add_argument('--prompt_file', type=str, default=None, help="Path to text file with prompts, one per line.")
 parser.add_argument('--seed', type=str, default="0", help="Comma-separated list of seeds to use for generation.")
@@ -64,7 +65,8 @@ device = get_device()
 pipe = init_pipeline_for_model(args.model)
 
 if not args.not_steer:
-    controller = CrossAttentionSteering(
+    controller = CrossAttentionOutputSteering(
+        mode=args.control_mode,
         casteer_vectors=casteer_vectors,
         mmsteer_vectors=mmsteer_vectors,
         steer_type=args.steer_type,
@@ -95,5 +97,6 @@ for prompt in prompts:
             continue
         print(f'Generating for prompt={prompt}, seed={seed}')
         image = run_model(args.model, pipe, prompt, seed, device=device)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if os.path.dirname(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
         image.save(path)
