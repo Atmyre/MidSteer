@@ -114,23 +114,21 @@ class CrossAttentionOutputSteering(VectorControl):
 
 
     def steer_CASteer(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
+        batch_size = vector.shape[0]
         hidden_dim = vector.shape[-1]
         (b,) = steering_tensors
 
         assert len(b.shape) in (1, 2)
-        if len(b.shape) == 1:
-            b = b.reshape(1, 1, 1, -1)
-        else:
-            num_heads = b.shape[0]
-            b = b.reshape(1, 1, num_heads, -1)
+        if len(b.shape) == 1:  # Old code, add a num_heads dim
+            b = b.reshape(1, -1)
+        num_heads = b.shape[0]
 
         if self.steer_back:
             # steering backward, i.e. removing notion from vector
 
             # computing dot products between vector components and steering vector x
-            sim = (vector[..., None, :] @ b[..., None])[..., 0]
-            # sim = torch.tensordot(vector, b, 
-                                #   dims=([2], [2])).view(*vector.shape[:2], 1)
+            sim = (vector.reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ b.unsqueeze(-1)).transpose(0, 1).reshape(batch_size, -1, num_heads, 1)
+
             # we will steer back only if dot product is positive, i.e.
             # if there's positive amount of information from steering vector in the vector
             sim = torch.where(sim>0, sim, 0)
@@ -155,7 +153,6 @@ class CrossAttentionOutputSteering(VectorControl):
 
             norm = torch.norm(vector, dim=-1, keepdim=True)
             if self.steer_type == 'casteer':
-                pass
                 vector = self.steer_CASteer(vector, self.casteer_vectors[num_steer][place_in_unet][block_index])
                 vector = vector / (torch.norm(vector, dim=-1, keepdim=True) + EPS)
                 vector = vector * norm
@@ -173,7 +170,7 @@ class CrossAttentionOutputSteering(VectorControl):
                         W = W.float()
                         b = b.float()
                         I = torch.eye(W.shape[1], device=W.device)[None, ...]
-                        W_alpha = fractional_matrix_power_cov_torch(W, self.alpha).float()
+                        W_alpha = fractional_matrix_power_cov_torch(W, self.alpha)
                         b_alpha = ((I - W_alpha) @ (I - W).inverse() @ b[..., None])[..., 0]
                         W_alpha = W_alpha.half()
                         b_alpha = b_alpha.half()

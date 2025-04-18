@@ -1,4 +1,4 @@
-from controller import VectorControl, VectorControlMode
+from controller import EPS, VectorControl, VectorControlMode
 from collections import defaultdict
 import torch
 import numpy as np
@@ -48,7 +48,7 @@ class CrossAttentionOutputStatsCollector(VectorControl):
             vec = torch.mean(vec, dim=1, keepdim=True)
 
         if self._normalize:
-            vec /= torch.linalg.norm(vec, dim=2, keepdim=True)
+            vec /= torch.linalg.norm(vec, dim=2, keepdim=True) + EPS
 
         self._update_statistics(vec, diffusion_step, place_in_unet, block_index)
         
