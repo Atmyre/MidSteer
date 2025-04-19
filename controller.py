@@ -17,6 +17,10 @@ EPS = 1e-6
 class VectorControlMode(enum.StrEnum):
     ATTN_OUTPUT = 'attn_output'
     ATTN_HEADS = 'attn_head'
+    ATTN_KEY = 'attn_key'
+    ATTN_VALUE = 'attn_value'
+    ATTN_KEY_VALUE = 'attn_key_value'
+
 
 
 # Define Controller for BasicTransformerBlock
@@ -49,7 +53,9 @@ class VectorControl(abc.ABC):
 
     def __call__(self, vector, place_in_unet: str):
         block_index = self._current_position[place_in_unet]
+        input_shape = vector.shape
         vector = self.forward(vector, self._diffusion_step, place_in_unet, block_index)
+        assert vector.shape == input_shape
         self._current_position[place_in_unet] += 1
 
         self._current_attn_layer += 1
@@ -265,8 +271,25 @@ class CustomAttnProcessor:
 
         query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
 
-        key = key.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
-        value = value.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
+        key = key.view(batch_size, -1, attn.heads, head_dim)
+        value = value.view(batch_size, -1, attn.heads, head_dim)
+
+        for control in self._controls:
+            if control._mode == VectorControlMode.ATTN_KEY and control.active:
+                key = control(key, self._place_in_unet)
+
+        for control in self._controls:
+            if control._mode == VectorControlMode.ATTN_VALUE and control.active:
+                value = control(value, self._place_in_unet)
+
+        key_value = torch.cat([key, value], dim=2)
+        for control in self._controls:
+            if control._mode == VectorControlMode.ATTN_KEY_VALUE and control.active:
+                key_value = control(key_value, self._place_in_unet)
+        key, value = torch.chunk(key_value, chunks=2, dim=2)  
+
+        key = key.transpose(1, 2)
+        value = value.transpose(1, 2)
 
         if attn.norm_q is not None:
             query = attn.norm_q(query)

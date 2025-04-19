@@ -242,7 +242,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo'], default="sd14")
     parser.add_argument('--mode', type=str, choices=['concrete', 'human-related', 'style', 'file'], default="style")
-    parser.add_argument('--control_mode', type=VectorControlMode, choices=['attn_head', 'attn_output'], default='attn_output', help='Vector control mode')
+    parser.add_argument('--control_mode', type=VectorControlMode, choices=[str(x) for x in VectorControlMode], default='attn_output', help='Vector control mode')
     parser.add_argument('--prompts_pos_file', type=str, default=None,
                         help="If --mode is set to 'file', path to the text file containing positive prompts")
     parser.add_argument('--prompts_neg_file', type=str, default=None,

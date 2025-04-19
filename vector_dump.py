@@ -38,12 +38,11 @@ class CrossAttentionOutputStatsCollector(VectorControl):
 
     # [batch_size, sequence_length, num_heads, head_dim]
     def forward(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index):
-        vector = vector.permute(2, 0, 1, 3)  # [num_heads, batch_size, sequence_length, head_dim]
-
-        num_heads = vector.shape[0]
+        num_heads = vector.shape[-2]
         hidden_size = vector.shape[-1]
 
-        vec = self.convert_to_dtype(vector.view(num_heads, -1, hidden_size))
+        vector_permuted = vector.permute(2, 0, 1, 3)  # [num_heads, batch_size, sequence_length, head_dim]
+        vec = self.convert_to_dtype(vector_permuted.view(num_heads, -1, hidden_size))
         if self._patch_average:
             vec = torch.mean(vec, dim=1, keepdim=True)
 
