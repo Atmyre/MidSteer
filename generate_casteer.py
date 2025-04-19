@@ -6,6 +6,7 @@ from collections import defaultdict
 import time
 
 from diffusers import StableDiffusionPipeline, DiffusionPipeline, AutoPipelineForText2Image
+from calculate_mmsteer import unpickle
 from utils import get_device, init_pipeline_for_model, run_model
 
 # local imports
@@ -35,7 +36,9 @@ parser.add_argument(
     default='output.png',
     help='Output path to image or directory, in case of multiple images'
 )
-parser.add_argument('--steer_type', type=str, choices=['casteer', 'mmsteer'], default=None)
+parser.add_argument('--steer_type', type=str, choices=['casteer', 'mmsteer', 'leace'], default=None)
+parser.add_argument('--leace_cov', type=str, default=None)
+parser.add_argument('--leace_mean', type=str, default=None)
 args = parser.parse_args()
 
 if (args.prompt is not None) == (args.prompt_file is not None):
@@ -49,17 +52,6 @@ else:
 
 seeds = list(map(int, args.seed.split(",")))
 
-if args.casteer_vectors is not None:
-    with open(args.casteer_vectors, 'rb') as handle:
-        casteer_vectors = pickle.load(handle)
-else:
-    casteer_vectors = None
-    
-if args.mmsteer_vectors is not None:
-    with open(args.mmsteer_vectors, 'rb') as handle:
-        mmsteer_vectors = pickle.load(handle)
-else:
-    mmsteer_vectors = None
 
 device = get_device()
 pipe = init_pipeline_for_model(args.model)
@@ -67,8 +59,10 @@ pipe = init_pipeline_for_model(args.model)
 if not args.not_steer:
     controller = CrossAttentionOutputSteering(
         mode=args.control_mode,
-        casteer_vectors=casteer_vectors,
-        mmsteer_vectors=mmsteer_vectors,
+        casteer_vectors=unpickle(args.casteer_vectors),
+        mmsteer_vectors=unpickle(args.mmsteer_vectors),
+        leace_cov=unpickle(args.leace_cov),
+        leace_mean=unpickle(args.leace_mean),
         steer_type=args.steer_type,
         mmsteer_threshold=args.mmsteer_thr,
         steer_only_up=args.steer_only_up,
