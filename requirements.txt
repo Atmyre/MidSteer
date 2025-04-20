@@ -12,3 +12,4 @@ jupyterlab
 scipy
 matplotlib
 pillow
+clean-fid

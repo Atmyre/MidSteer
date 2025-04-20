@@ -2,6 +2,10 @@
 # - https://github.com/jmhessel/clipscore/blob/main/clipscore.py
 # - https://github.com/openai/CLIP/blob/main/notebooks/Prompt_Engineering_for_ImageNet.ipynb
 
+import argparse
+import glob
+import shutil
+import tempfile
 import torch
 import clip
 import numpy as np
@@ -15,12 +19,6 @@ from cleanfid import fid
 
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
 from diffusers.pipelines import DiffusionPipeline
-
-
-def compute_fid(path1, path2):
-
-    fid_value = fid.compute_fid(path1, path2)
-    return fid_value
 
 
 def get_clip_preprocess(n_px=224):
@@ -48,7 +46,7 @@ def get_clip_preprocess(n_px=224):
 
 @torch.no_grad()
 def clip_score(
-    images: List[Union[torch.Tensor, np.ndarray, Image.Image, str]],
+    images: List[str],
     texts: str,
     w: float = 2.5,
     clip_model: str = "ViT-B/32",
@@ -116,7 +114,7 @@ def clip_score(
 
 @torch.no_grad()
 def clip_accuracy(
-    images: List[Union[torch.Tensor, np.ndarray, Image.Image, str]],
+    images: List[str],
     ablated_texts: Union[List[str], str],
     anchor_texts: Union[List[str], str],
     w: float = 2.5,
@@ -155,7 +153,7 @@ def clip_accuracy(
 
 
 def clip_eval_by_image(
-    images: List[Union[torch.Tensor, np.ndarray, Image.Image, str]],
+    images: List[str],
     concept,
     eval_with_template = False,
     w: float = 2.5,
@@ -188,3 +186,63 @@ def clip_eval_by_image(
     score = np.mean(ablated_clip_score).item()
 
     return score, accuracy
+
+
+def copy_recursive_file_pattern(src_folder: str, fname_pattern: str, dst_folder: str):
+    for file in glob.iglob(f'**/{fname_pattern}', root_dir=src_folder, recursive=True):
+        from_path = os.path.join(src_folder, file)
+        to_path = os.path.join(dst_folder, file)
+        shutil.copy(from_path, to_path)
+
+
+def compute_fid(
+    path: str,
+    first_fname: str,
+    second_fname: str,
+):
+    with tempfile.TemporaryDirectory(suffix='mmsteer_metrics') as dir:
+        first_temp_path = os.path.join(dir, 'first')
+        second_temp_path = os.path.join(dir, 'second')
+        copy_recursive_file_pattern(path, first_fname, first_temp_path)
+        copy_recursive_file_pattern(path, second_fname, second_temp_path)
+        fid_value = fid.compute_fid(first_temp_path, second_temp_path)
+        print(fid_value)
+
+
+def compute_clip(
+    path: str,
+    fname: str,
+    concept: str,
+):
+    images = glob.glob(f'**/{fname}', root_dir=path)
+    score, accuracy = clip_eval_by_image(images, concept)
+    print(f'CLIP score: {score}, CLIP accuracy: {accuracy}')
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--metric', choices=['clip', 'fid'], required=True, help='Metric type to compute')
+    parser.add_argument('--path', type=str, required=True, help='Path to folder with images')
+    parser.add_argument('--clip_fname', type=str, default=None, help='Name of the file to consider for clip score')
+    parser.add_argument('--clip_concept', type=str, default=None, help='Concept name to compare with (for CLIP score)')
+    parser.add_argument('--fid_first_fname', type=str, default=None, help='Regex of the first file to match (for FID score)')
+    parser.add_argument('--fid_second_fname', type=str, default=None, help='Regex of the second file to match (for FID score)')
+    args = parser.parse_args()
+
+    if args.metric == 'fid':
+        compute_fid(
+            path=args.path,
+            first_fname=args.fid_first_fname,
+            second_fname=args.fid_second_fname,
+        )
+    elif args.metric == 'clip':
+        compute_clip(
+            path=args.path,
+            fname=args.clip_fname,
+            concept=args.clip_concept,
+        )
+
+
+
+if __name__ == "__main__":
+    main()
