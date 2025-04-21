@@ -85,6 +85,7 @@ def clip_score(
     )  # following the official implementation, rather than using the default CLIP preprocess
 
     sc = None
+#     print(images)
     for i in tqdm(range(len(images) // 50)):
         # extract all texts
         texts_feats = text_preprocess(texts[i*50:(i+1)*50]).cuda()
@@ -192,21 +193,23 @@ def copy_recursive_file_pattern(src_folder: str, fname_pattern: str, dst_folder:
     for file in glob.iglob(f'**/{fname_pattern}', root_dir=src_folder, recursive=True):
         from_path = os.path.join(src_folder, file)
         to_path = os.path.join(dst_folder, file)
+        os.makedirs(os.path.dirname(to_path), exist_ok=True)
         shutil.copy(from_path, to_path)
 
 
 def compute_fid(
-    path: str,
+    first_path: str,
     first_fname: str,
+    second_path: str,
     second_fname: str,
 ):
-    with tempfile.TemporaryDirectory(suffix='mmsteer_metrics') as dir:
-        first_temp_path = os.path.join(dir, 'first')
-        second_temp_path = os.path.join(dir, 'second')
-        copy_recursive_file_pattern(path, first_fname, first_temp_path)
-        copy_recursive_file_pattern(path, second_fname, second_temp_path)
+    with tempfile.TemporaryDirectory(suffix='mmsteer_metrics') as tmp_dir:
+        first_temp_path = os.path.join(tmp_dir, 'first')
+        second_temp_path = os.path.join(tmp_dir, 'second')
+        copy_recursive_file_pattern(first_path, first_fname, first_temp_path)
+        copy_recursive_file_pattern(second_path, second_fname, second_temp_path)
         fid_value = fid.compute_fid(first_temp_path, second_temp_path)
-        print(fid_value)
+        print(f'FID score: {fid_value}')
 
 
 def compute_clip(
@@ -214,7 +217,7 @@ def compute_clip(
     fname: str,
     concept: str,
 ):
-    images = glob.glob(f'**/{fname}', root_dir=path)
+    images = glob.glob(f'{path}/**/*/{fname}', recursive=True)
     score, accuracy = clip_eval_by_image(images, concept)
     print(f'CLIP score: {score}, CLIP accuracy: {accuracy}')
 
@@ -222,22 +225,25 @@ def compute_clip(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--metric', choices=['clip', 'fid'], required=True, help='Metric type to compute')
-    parser.add_argument('--path', type=str, required=True, help='Path to folder with images')
+    parser.add_argument('--clip_path', type=str, help='Path to folder with images')
     parser.add_argument('--clip_fname', type=str, default=None, help='Name of the file to consider for clip score')
     parser.add_argument('--clip_concept', type=str, default=None, help='Concept name to compare with (for CLIP score)')
+    parser.add_argument('--fid_first_path', type=str, default=None, help='Path to the first folder containing files (for FID score)')
     parser.add_argument('--fid_first_fname', type=str, default=None, help='Regex of the first file to match (for FID score)')
+    parser.add_argument('--fid_second_path', type=str, default=None, help='Path to the second folder containing files (for FID score)')
     parser.add_argument('--fid_second_fname', type=str, default=None, help='Regex of the second file to match (for FID score)')
     args = parser.parse_args()
 
     if args.metric == 'fid':
         compute_fid(
-            path=args.path,
+            first_path=args.fid_first_path,
             first_fname=args.fid_first_fname,
+            second_path=args.fid_second_path,
             second_fname=args.fid_second_fname,
         )
     elif args.metric == 'clip':
         compute_clip(
-            path=args.path,
+            path=args.clip_path,
             fname=args.clip_fname,
             concept=args.clip_concept,
         )
