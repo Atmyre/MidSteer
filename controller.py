@@ -159,7 +159,9 @@ class CrossAttentionOutputSteering(VectorControl):
         vector_steered = ((vector.reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ P.mT) + b.unsqueeze(1)).transpose(0, 1).reshape(batch_size, sequence_length, num_heads, hidden_dim) 
         return vector_steered
 
-    def steer_CASteer(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
+
+    # steering backward, i.e. removing notion from vector
+    def steer_backward_CASteer(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
         batch_size = vector.shape[0]
         hidden_dim = vector.shape[-1]
         (b,) = steering_tensors
@@ -169,22 +171,28 @@ class CrossAttentionOutputSteering(VectorControl):
             b = b.reshape(1, -1)
         num_heads = b.shape[0]
 
-        if self.steer_back:
-            # steering backward, i.e. removing notion from vector
+        # computing dot products between vector components and steering vector x
+        sim = (vector.reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ b.unsqueeze(-1)).transpose(0, 1).reshape(batch_size, -1, num_heads, 1)
 
-            # computing dot products between vector components and steering vector x
-            sim = (vector.reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ b.unsqueeze(-1)).transpose(0, 1).reshape(batch_size, -1, num_heads, 1)
+        # we will steer back only if dot product is positive, i.e.
+        # if there's positive amount of information from steering vector in the vector
+        sim = torch.where(sim>0, sim, 0)
 
-            # we will steer back only if dot product is positive, i.e.
-            # if there's positive amount of information from steering vector in the vector
-            sim = torch.where(sim>0, sim, 0)
+        # steer backward for beta*sim
+        vector -= self.beta * sim * b
+        return vector
 
-            # steer backward for beta*sim
-            vector -= self.beta * sim * b
-        else:
-            # steer forward, i.e. add a steering vector x multiplied by self.intensity
-            vector += self.alpha * b
-        
+
+    def steer_forward_CASteer(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
+        (b,) = steering_tensors
+
+        assert len(b.shape) in (1, 2)
+        if len(b.shape) == 1:  # Old code, add a num_heads dim
+            b = b.reshape(1, -1)
+
+        vector = self.steer_backward_CASteer(vector, *steering_tensors)
+
+        vector += self.alpha * b * torch.norm(vector, dim=-1, keepdim=True)
         return vector
 
     # [batch_size, sequence_length, num_heads, head_dim]
@@ -197,11 +205,14 @@ class CrossAttentionOutputSteering(VectorControl):
             # for each of the generation steps 
             num_steer = 0 #if len(list(self.steering_vectors.keys()))==1 else diffusion_step
 
-            norm = torch.norm(vector, dim=-1, keepdim=True)
+            # norm = torch.norm(vector, dim=-1, keepdim=True)
             if self.steer_type == 'casteer':
-                vector = self.steer_CASteer(vector, self.casteer_vectors[num_steer][place_in_unet][block_index])
-                vector = vector / (torch.norm(vector, dim=-1, keepdim=True) + EPS)
-                vector = vector * norm
+                if self.steer_back:
+                    vector = self.steer_backward_CASteer(vector, self.casteer_vectors[num_steer][place_in_unet][block_index])
+                else:
+                    vector = self.steer_forward_CASteer(vector, self.casteer_vectors[num_steer][place_in_unet][block_index])
+                # vector = vector / (torch.norm(vector, dim=-1, keepdim=True) + EPS)
+                # vector = vector * norm
             elif self.steer_type == 'leace':
                 sigma = self.leace_vectors[num_steer][place_in_unet][block_index]
                 b = self.casteer_vectors[num_steer][place_in_unet][block_index]
@@ -236,6 +247,7 @@ class CrossAttentionOutputSteering(VectorControl):
 
                 vector_steered = ((vector.reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ W_alpha.mT) + b_alpha.unsqueeze(1)).transpose(0, 1).reshape(batch_size, sequence_length, num_heads, hidden_dim) 
 
+                # WARNING: DO NOT USE!!!!
                 # TODO: the code below was not rewritten in the batched fashion
                 if self.casteer_vectors is not None:
 
@@ -252,7 +264,8 @@ class CrossAttentionOutputSteering(VectorControl):
                     vector = sim * vector_steered + (1 - sim) * vector
                 else:
                     vector = vector_steered
-                    
+                # ACHTUNG!
+
             else:
                 raise ValueError(f'Unknown steer type {self.steer_type}')
         return vector.half()
