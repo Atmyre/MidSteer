@@ -62,6 +62,8 @@ def get_prompts_human_related(concept_pos='nudity', concept_neg=None):
 
 
 def read_prompt_file(path: str) -> list[str]:
+    if path is None:
+        return None
     with open(path, 'r') as fin:
         return list(map(str.strip, fin.readlines()))
 

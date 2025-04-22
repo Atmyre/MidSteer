@@ -5,6 +5,7 @@ import pickle
 from PIL import Image
 from collections import defaultdict
 import time
+import typing as tp
 from scipy.linalg import fractional_matrix_power
 
 import torch
@@ -26,14 +27,25 @@ def gather_stats_for_prompts(
         model_type: str,
         device: torch.device,
         patch_average: bool,
-        output_prefix: str,
+        output_dir: str,
         normalize_vectors: bool,
+        checkpoint_steps: list[int],
+        control_mode: VectorControlMode,
 ) -> tuple[np.ndarray, np.ndarray]:
-    stats_handler = CrossAttentionOutputStatsCollector(patch_average=patch_average, normalize=normalize_vectors)
+    stats_handler = CrossAttentionOutputStatsCollector(
+        mode=control_mode,
+        patch_average=patch_average,
+        normalize=normalize_vectors
+    )
     register_vector_controls(pipe.unet, stats_handler)
 
     print("Gathering statistics for concept prompts...")
-    for prompt in tqdm.tqdm(prompts):
+    for idx, prompt in tqdm.tqdm(enumerate(prompts), total=len(prompts)):
+
+        if idx in checkpoint_steps:
+            pickle_stats(stats_handler.means, f'{output_dir}/means_{idx}.pickle')
+            pickle_stats(stats_handler.covariances, f'{output_dir}/covariances_{idx}.pickle')
+    
         image = run_model(
             model_type=model_type,
             pipe=pipe,
@@ -43,12 +55,78 @@ def gather_stats_for_prompts(
         )
         stats_handler.reset()
 
-    means = stats_handler.means
-    covariances = stats_handler.covariances
+    pickle_stats(stats_handler.means, f'{output_dir}/means_{idx}.pickle')
+    pickle_stats(stats_handler.covariances, f'{output_dir}/covariances_{idx}.pickle')
+    
 
-    pickle_stats(means, f'{output_prefix}_means.pickle')
-    pickle_stats(covariances, f'{output_prefix}_covariances.pickle')
-    return means, covariances
+
+def gather_stats_for_prompt_pairs(
+        pipe,
+        args: argparse.Namespace,
+        checkpoint_steps: list[int],
+        device: tp.Any,
+        prompts_pos: list[str],
+        prompts_neg: list[str],
+):
+    
+    pos_stats_handler = CrossAttentionOutputStatsCollector(
+        mode=args.control_mode,
+        patch_average=args.patch_average,
+        normalize=args.normalize_vectors
+    )
+    neg_stats_handler = CrossAttentionOutputStatsCollector(
+        mode=args.control_mode,
+        patch_average=args.patch_average,
+        normalize=args.normalize_vectors
+    )
+    
+    register_vector_controls(pipe.unet, pos_stats_handler, neg_stats_handler)
+
+    print("Gathering statistics for concept prompts...")
+    for idx, (pos_prompt, neg_prompt) in tqdm.tqdm(
+            enumerate(zip(prompts_pos, prompts_neg)),
+            total=min(len(prompts_pos), len(prompts_neg))
+    ):
+        if idx in checkpoint_steps:
+            write_checkpoint(
+                output_dir=args.output_dir,
+                step=idx,
+                pos_means=pos_stats_handler.means,
+                pos_covariances=pos_stats_handler.covariances,
+                neg_means=neg_stats_handler.means,
+                neg_covariances=neg_stats_handler.covariances,
+            )
+
+        pos_stats_handler.active = True
+        neg_stats_handler.active = False
+        image = run_model(
+            model_type=args.model,
+            pipe=pipe,
+            prompt=pos_prompt,
+            seed=0,
+            device=device,
+        )
+        pos_stats_handler.reset()
+
+        pos_stats_handler.active = False
+        neg_stats_handler.active = True
+        image = run_model(
+            model_type=args.model,
+            pipe=pipe,
+            prompt=neg_prompt,
+            seed=0,
+            device=device,
+        )
+        neg_stats_handler.reset()
+
+    write_checkpoint(
+        output_dir=args.output_dir,
+        step=idx,
+        pos_means=pos_stats_handler.means,
+        pos_covariances=pos_stats_handler.covariances,
+        neg_means=neg_stats_handler.means,
+        neg_covariances=neg_stats_handler.covariances,
+    )
 
 
 def write_checkpoint(
@@ -176,65 +254,27 @@ def run(args: argparse.Namespace):
     os.makedirs(args.output_dir, exist_ok=True)
     checkpoint_steps = set(map(int, args.checkpoint_steps.split(',')))
 
-    pos_stats_handler = CrossAttentionOutputStatsCollector(
-        mode=args.control_mode,
-        patch_average=args.patch_average,
-        normalize=args.normalize_vectors
-    )
-    neg_stats_handler = CrossAttentionOutputStatsCollector(
-        mode=args.control_mode,
-        patch_average=args.patch_average,
-        normalize=args.normalize_vectors
-    )
-    
-    register_vector_controls(pipe.unet, pos_stats_handler, neg_stats_handler)
-
-    print("Gathering statistics for concept prompts...")
-    for idx, (pos_prompt, neg_prompt) in tqdm.tqdm(
-            enumerate(zip(prompts_pos, prompts_neg)),
-            total=min(len(prompts_pos), len(prompts_neg))
-    ):
-        if idx in checkpoint_steps:
-            write_checkpoint(
-                output_dir=args.output_dir,
-                step=idx,
-                pos_means=pos_stats_handler.means,
-                pos_covariances=pos_stats_handler.covariances,
-                neg_means=neg_stats_handler.means,
-                neg_covariances=neg_stats_handler.covariances,
-            )
-
-        pos_stats_handler.active = True
-        neg_stats_handler.active = False
-        image = run_model(
-            model_type=args.model,
+    if prompts_pos is not None and prompts_neg is not None:
+        gather_stats_for_prompt_pairs(
             pipe=pipe,
-            prompt=pos_prompt,
-            seed=0,
+            args=args,
+            checkpoint_steps=checkpoint_steps,
             device=device,
+            prompts_pos=prompts_pos,
+            prompts_neg=prompts_neg,
         )
-        pos_stats_handler.reset()
-
-        pos_stats_handler.active = False
-        neg_stats_handler.active = True
-        image = run_model(
-            model_type=args.model,
+    else:
+        gather_stats_for_prompts(
             pipe=pipe,
-            prompt=neg_prompt,
-            seed=0,
+            prompts=prompts_neg,
+            model_type=args.model,
             device=device,
+            patch_average=args.patch_average,
+            output_dir=args.output_dir,
+            normalize_vectors=args.normalize_vectors,
+            checkpoint_steps=checkpoint_steps,
+            control_mode=args.control_mode,
         )
-        neg_stats_handler.reset()
-
-    write_checkpoint(
-        output_dir=args.output_dir,
-        step=idx,
-        pos_means=pos_stats_handler.means,
-        pos_covariances=pos_stats_handler.covariances,
-        neg_means=neg_stats_handler.means,
-        neg_covariances=neg_stats_handler.covariances,
-    )
-
 
 
 
