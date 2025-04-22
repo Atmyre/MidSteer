@@ -15,7 +15,6 @@ class CrossAttentionOutputStatsCollector(VectorControl):
 
         self._patch_average = patch_average
         self._normalize = normalize
-        self._all_vecs = defaultdict(functools.partial(defaultdict, functools.partial(defaultdict, list)))
     
     def _update_statistics(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index):
         stat_count = vector.shape[1]
@@ -40,8 +39,6 @@ class CrossAttentionOutputStatsCollector(VectorControl):
 
     # [batch_size, sequence_length, num_heads, head_dim]
     def forward(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index):
-
-        self._all_vecs[diffusion_step][place_in_unet][block_index].append(vector)
 
         num_heads = vector.shape[-2]
         hidden_size = vector.shape[-1]
