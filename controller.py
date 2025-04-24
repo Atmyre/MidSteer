@@ -75,6 +75,9 @@ class CrossAttentionOutputSteering(VectorControl):
         mmsteer_vectors=None,
         leace_cov=None,
         leace_mean=None,
+        mu_pos=None,
+        mu_neg=None,
+        mu_neutral=None,
         steer_type: str = None,
         
         mmsteer_threshold: float,
@@ -136,6 +139,40 @@ class CrossAttentionOutputSteering(VectorControl):
                         self.leace_vectors[num_steer][place_in_unet].append((P.half(), b.half()))
         else:
             self.leace_vectors = None
+
+        if mu_pos is not None:
+            self.mu_pos = defaultdict(lambda: defaultdict(list))
+            for num_steer in mu_pos:
+                for place_in_unet in mu_pos[num_steer]:
+                    for block_idx in range(len(mu_pos[num_steer][place_in_unet])):
+                        b = mu_pos[num_steer][place_in_unet][block_idx]
+                        b = torch.tensor(b).half().to(self.device)
+                        self.mu_pos[num_steer][place_in_unet].append(b)
+        else:
+            self.mu_pos = None
+
+        
+        if mu_neg is not None:
+            self.mu_neg = defaultdict(lambda: defaultdict(list))
+            for num_steer in mu_neg:
+                for place_in_unet in mu_neg[num_steer]:
+                    for block_idx in range(len(mu_neg[num_steer][place_in_unet])):
+                        b = mu_neg[num_steer][place_in_unet][block_idx]
+                        b = torch.tensor(b).half().to(self.device)
+                        self.mu_neg[num_steer][place_in_unet].append(b)
+        else:
+            self.mu_neg = None
+
+        if mu_neutral is not None:
+            self.mu_neutral = defaultdict(lambda: defaultdict(list))
+            for num_steer in mu_neutral:
+                for place_in_unet in mu_neutral[num_steer]:
+                    for block_idx in range(len(mu_neutral[num_steer][place_in_unet])):
+                        b = mu_neutral[num_steer][place_in_unet][block_idx]
+                        b = torch.tensor(b).half().to(self.device)
+                        self.mu_neutral[num_steer][place_in_unet].append(b)
+        else:
+            self.mu_neutral = None
         
         self.mmsteer_threshold = mmsteer_threshold
         
@@ -194,6 +231,32 @@ class CrossAttentionOutputSteering(VectorControl):
 
         vector += self.alpha * b * torch.norm(vector, dim=-1, keepdim=True)
         return vector
+    
+    def steer_forward_mean_matching(self, vector: torch.Tensor, mu_pos: torch.Tensor, mu_neg: torch.Tensor, mu_neutral: torch.Tensor) -> torch.Tensor:
+        batch_size = vector.shape[0]
+        sequence_length = vector.shape[1]
+        num_heads = vector.shape[2]
+        hidden_dim = vector.shape[3]
+
+
+        mu_pos = mu_pos.unsqueeze(-1)
+        mu_neg = mu_neg.unsqueeze(-1)
+        mu_neutral = mu_neutral.unsqueeze(-1)
+
+        mu_pos -= mu_neutral
+        mu_neg -= mu_neutral
+
+        denom = mu_neg.mT @ mu_neg + self.alpha + EPS
+
+        A = torch.eye(hidden_dim, dtype=mu_pos.dtype, device=mu_pos.device)[None, ...] + (mu_pos - mu_neg) @ mu_neg.mT / denom
+
+        if self.alpha > 0:
+            b = mu_pos - A @ mu_neg
+        else:
+            b = mu_neutral - A @ mu_neutral
+
+        vector_steered = ((vector.reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ A.mT) + b.mT).transpose(0, 1).reshape(batch_size, sequence_length, num_heads, hidden_dim) 
+        return vector_steered
 
     # [batch_size, sequence_length, num_heads, head_dim]
     def forward(self, vector: torch.Tensor, diffusion_step: int, place_in_unet: str, block_index: int):
@@ -213,6 +276,12 @@ class CrossAttentionOutputSteering(VectorControl):
                     vector = self.steer_forward_CASteer(vector, self.casteer_vectors[num_steer][place_in_unet][block_index])
                 # vector = vector / (torch.norm(vector, dim=-1, keepdim=True) + EPS)
                 # vector = vector * norm
+            elif self.steer_type == 'mean_matching':
+                vector = self.steer_forward_mean_matching(vector,
+                                                          self.mu_pos[num_steer][place_in_unet][block_index],
+                                                          self.mu_neg[num_steer][place_in_unet][block_index],
+                                                          self.mu_neutral[num_steer][place_in_unet][block_index],
+                                                          )
             elif self.steer_type == 'leace':
                 sigma = self.leace_vectors[num_steer][place_in_unet][block_index]
                 b = self.casteer_vectors[num_steer][place_in_unet][block_index]

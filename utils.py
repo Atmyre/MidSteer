@@ -82,7 +82,7 @@ def run_model(model_type: str, pipe, prompt: str, seed: int, device: torch.devic
     return image
 
 
-def fractional_matrix_power_cov_torch(mat: torch.Tensor, alpha: float, eps=1e-10) -> torch.Tensor:
+def fractional_matrix_power_cov_torch(mat: torch.Tensor, alpha: float, eps=1e-8) -> torch.Tensor:
     device = mat.device
     if mat.device.type == 'mps':  # Workaround because MPS does not yet support torch.linalg.eig
         mat = mat.cpu()

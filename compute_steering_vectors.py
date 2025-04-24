@@ -292,7 +292,7 @@ def main():
     parser.add_argument('--patch_average', action='store_true', help='Average across patches for each prompt before updating statistics')
     parser.add_argument('--normalize_vectors', action='store_true', help='Whether to normalize vectors before computing the statistics')
     parser.add_argument('--output_dir', type=str, default=None, required=True, help='path to saving steering vectors')
-    parser.add_argument('--checkpoint_steps', type=str, default='50,100,500,1000,5000,10000', help='A comma separated list of integers representing steps at which to write checkpoints')
+    parser.add_argument('--checkpoint_steps', type=str, default='100,500,1000,5000,10000', help='A comma separated list of integers representing steps at which to write checkpoints')
     args = parser.parse_args()
     run(args)
 
