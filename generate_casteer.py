@@ -24,6 +24,9 @@ parser.add_argument('--prompt_file', type=str, default=None, help="Path to text 
 parser.add_argument('--seed', type=str, default="0", help="Comma-separated list of seeds to use for generation.")
 parser.add_argument('--casteer_vectors', type=str, default=None) # path to casteer steering vectors file
 parser.add_argument('--mmsteer_vectors', type=str, default=None) # path to mmsteer steering vectors file
+parser.add_argument('--mu_pos', type=str, default=None)  # path to mu_pos file
+parser.add_argument('--mu_neg', type=str, default=None)  # path to mu_neg file
+parser.add_argument('--mu_neutral', type=str, default=None)  # path to mu_neutral file
 parser.add_argument('--not_steer', action='store_true')
 parser.add_argument('--steer_only_up', action='store_true')
 parser.add_argument('--steer_back', action='store_true')
@@ -36,7 +39,7 @@ parser.add_argument(
     default='output.png',
     help='Output path to image or directory, in case of multiple images'
 )
-parser.add_argument('--steer_type', type=str, choices=['casteer', 'mmsteer', 'leace'], default=None)
+parser.add_argument('--steer_type', type=str, choices=['casteer', 'mmsteer', 'leace', 'mean_matching'], default=None)
 parser.add_argument('--leace_cov', type=str, default=None)
 parser.add_argument('--leace_mean', type=str, default=None)
 args = parser.parse_args()
@@ -63,6 +66,9 @@ if not args.not_steer:
         mmsteer_vectors=unpickle(args.mmsteer_vectors),
         leace_cov=unpickle(args.leace_cov),
         leace_mean=unpickle(args.leace_mean),
+        mu_pos=unpickle(args.mu_pos),
+        mu_neg=unpickle(args.mu_neg),
+        mu_neutral=unpickle(args.mu_neutral),
         steer_type=args.steer_type,
         mmsteer_threshold=args.mmsteer_thr,
         steer_only_up=args.steer_only_up,
