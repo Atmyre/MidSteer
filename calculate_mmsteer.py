@@ -1,6 +1,7 @@
 import argparse
 import pickle
 from compute_steering_vectors import calculate_mmster
+import torch
 
 def run(
     pos_means: dict,
@@ -29,12 +30,21 @@ def run(
     with open(inverse_output_path, 'wb') as fout:
         pickle.dump(mmsteer_transforms_inverse, fout)
 
+        
+class CPU_Unpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module == 'torch.storage' and name == '_load_from_bytes':
+            return lambda b: torch.load(io.BytesIO(b), map_location='cpu')
+        else: return super().find_class(module, name)
 
 def unpickle(path: str | None):
     if path is None:
         return None
-    with open(path, 'rb') as fin:
-        return pickle.load(fin)
+    try:
+        with open(path, 'rb') as fin:
+            return pickle.load(fin)
+    except:
+        return CPU_Unpickler(path).load()
 
 
 def main():

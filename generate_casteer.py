@@ -27,6 +27,7 @@ parser.add_argument('--mmsteer_vectors', type=str, default=None) # path to mmste
 parser.add_argument('--mu_pos', type=str, default=None)  # path to mu_pos file
 parser.add_argument('--mu_neg', type=str, default=None)  # path to mu_neg file
 parser.add_argument('--mu_neutral', type=str, default=None)  # path to mu_neutral file
+parser.add_argument('--cov', type=str, default=None)  # path to mu_neutral file
 parser.add_argument('--not_steer', action='store_true')
 parser.add_argument('--steer_only_up', action='store_true')
 parser.add_argument('--steer_back', action='store_true')
@@ -69,6 +70,7 @@ if not args.not_steer:
         mu_pos=unpickle(args.mu_pos),
         mu_neg=unpickle(args.mu_neg),
         mu_neutral=unpickle(args.mu_neutral),
+        cov=unpickle(args.cov),
         steer_type=args.steer_type,
         mmsteer_threshold=args.mmsteer_thr,
         steer_only_up=args.steer_only_up,
@@ -90,7 +92,7 @@ for prompt in prompts:
             elif args.steer_back and args.steer_type == 'casteer':
                 file = f'casteer_{args.beta:g}.png'
             else:
-                file = f'{args.steer_type}_{args.alpha:g}.png'
+                file = f'{args.steer_type}_{args.alpha:g}_test4.png'
             path = f'{args.output}/{prompt}/{seed}/{file}'
         if os.path.exists(path):
             print(f'{path} already exists, skipping!')
