@@ -78,6 +78,7 @@ class CrossAttentionOutputSteering(VectorControl):
         mu_pos=None,
         mu_neg=None,
         mu_neutral=None,
+        cov=None,
         steer_type: str = None,
         
         mmsteer_threshold: float,
@@ -131,7 +132,7 @@ class CrossAttentionOutputSteering(VectorControl):
 
                         steering_proj = (sigma_minus_half @ steering_vector.unsqueeze(-1))
                         
-                        res = sigma_plus_half @ (steering_proj @ torch.linalg.pinv(steering_proj)) @ sigma_minus_half
+                        res = sigma_plus_half @ (self.alpha*(steering_proj @ torch.linalg.pinv(steering_proj))) @ sigma_minus_half
 
                         P = torch.eye(res.shape[1], dtype=res.dtype).unsqueeze(0) - res
                         b = mean - (P @ mean.unsqueeze(-1)).squeeze(-1)
@@ -171,6 +172,19 @@ class CrossAttentionOutputSteering(VectorControl):
                         b = mu_neutral[num_steer][place_in_unet][block_idx]
                         b = torch.tensor(b).half().to(self.device)
                         self.mu_neutral[num_steer][place_in_unet].append(b)
+        else:
+            self.mu_neutral = None
+            
+        if cov is not None:
+            self.cov = defaultdict(lambda: defaultdict(list))
+            for num_steer in mu_neutral:
+                for place_in_unet in cov[num_steer]:
+                    for block_idx in range(len(cov[num_steer][place_in_unet])):
+                        b = cov[num_steer][place_in_unet][block_idx]
+                        b = torch.tensor(b).to(torch.float64).to(self.device)
+                        sigma_minus_half = fractional_matrix_power_cov_torch(b, -0.5, eps=1e-8).half()
+                        sigma_plus_half = fractional_matrix_power_cov_torch(b, 0.5, eps=1e-8).half()
+                        self.cov[num_steer][place_in_unet].append((sigma_minus_half, sigma_plus_half))
         else:
             self.mu_neutral = None
         
@@ -232,7 +246,8 @@ class CrossAttentionOutputSteering(VectorControl):
         vector += self.alpha * b * torch.norm(vector, dim=-1, keepdim=True)
         return vector
     
-    def steer_forward_mean_matching(self, vector: torch.Tensor, mu_pos: torch.Tensor, mu_neg: torch.Tensor, mu_neutral: torch.Tensor) -> torch.Tensor:
+    def steer_forward_mean_matching(self, vector: torch.Tensor, mu_pos: torch.Tensor, mu_neg: torch.Tensor, 
+                                    mu_neutral: torch.Tensor, cov: torch.Tensor) -> torch.Tensor:
         batch_size = vector.shape[0]
         sequence_length = vector.shape[1]
         num_heads = vector.shape[2]
@@ -242,13 +257,18 @@ class CrossAttentionOutputSteering(VectorControl):
         mu_pos = mu_pos.unsqueeze(-1)
         mu_neg = mu_neg.unsqueeze(-1)
         mu_neutral = mu_neutral.unsqueeze(-1)
-
+        
         mu_pos -= mu_neutral
         mu_neg -= mu_neutral
 
+        sigma_minus_half, sigma_plus_half = cov
+        
+        mu_pos = sigma_minus_half @ mu_pos
+        mu_neg = sigma_minus_half @ mu_neg
+
         denom = mu_neg.mT @ mu_neg + self.alpha + EPS
 
-        A = torch.eye(hidden_dim, dtype=mu_pos.dtype, device=mu_pos.device)[None, ...] + (mu_pos - mu_neg) @ mu_neg.mT / denom
+        A = torch.eye(hidden_dim, dtype=mu_pos.dtype, device=mu_pos.device)[None, ...] + sigma_plus_half@(1.*((mu_pos - mu_neg) @ mu_neg.mT / denom))@sigma_minus_half
 
         if self.alpha > 0:
             b = mu_pos - A @ mu_neg
@@ -281,11 +301,10 @@ class CrossAttentionOutputSteering(VectorControl):
                                                           self.mu_pos[num_steer][place_in_unet][block_index],
                                                           self.mu_neg[num_steer][place_in_unet][block_index],
                                                           self.mu_neutral[num_steer][place_in_unet][block_index],
+                                                          self.cov[num_steer][place_in_unet][block_index]
                                                           )
             elif self.steer_type == 'leace':
-                sigma = self.leace_vectors[num_steer][place_in_unet][block_index]
-                b = self.casteer_vectors[num_steer][place_in_unet][block_index]
-                vector = self.steer_leace(vector, (sigma, b))
+                vector = self.steer_leace(vector, *self.leace_vectors[num_steer][place_in_unet][block_index])
             elif self.steer_type == 'mmsteer':
                 pos = (num_steer, place_in_unet, block_index)
                 if pos in self.steering_cache:
@@ -437,34 +456,6 @@ class CustomAttnProcessor:
 
 
         hidden_states = hidden_states.reshape(batch_size, -1, attn.heads * head_dim).to(query.dtype)
-
-
-        # -------------------------------
-        # adding controller
-
-        
-        
-#         size = hidden_states.shape[2] // attn.heads
-# #         y = torch.tensor(np.zeros_like(hidden_states.data.cpu().numpy())).to(device)
-#         for idx in range(attn.heads):
-# #             x = deepcopy(y[:, :, :])
-# #             x[:, :, size*idx:size*(idx+1)] = hidden_states[:, :, size*idx:size*(idx+1)]
-            
-#             x = hidden_states[:, :, size*idx:size*(idx+1)]
-            
-# #             x = attn.to_out[0](x)
-# #             # dropout
-# #             x = attn.to_out[1](x)
-            
-# #             if attn.residual_connection:
-# #                 x = x + residual
-
-# #             x = x / attn.rescale_output_factor
-            
-#             x = controller(x, attn.heads, idx)
-#             hidden_states[:, :, size*idx:size*(idx+1)] = x
-        # -------------------------------
-            
 
         # linear proj
         hidden_states = attn.to_out[0](hidden_states)
