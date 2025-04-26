@@ -60,10 +60,16 @@ seeds = list(map(int, args.seed.split(",")))
 device = get_device()
 pipe = init_pipeline_for_model(args.model)
 
+casteer_vectors = []
+if args.casteer_vectors is not None:
+    casteer_vectors_names = args.casteer_vectors.split(',')
+    for casteer_vector in casteer_vectors_names:
+        casteer_vectors.append(unpickle(casteer_vector))
+
 if not args.not_steer:
     controller = CrossAttentionOutputSteering(
         mode=args.control_mode,
-        casteer_vectors=unpickle(args.casteer_vectors),
+        casteer_vectors=casteer_vectors,
         mmsteer_vectors=unpickle(args.mmsteer_vectors),
         leace_cov=unpickle(args.leace_cov),
         leace_mean=unpickle(args.leace_mean),
@@ -90,9 +96,9 @@ for prompt in prompts:
             if args.not_steer:
                 file = 'orig.png'
             elif args.steer_back and args.steer_type == 'casteer':
-                file = f'casteer_{args.beta:g}.png'
+                file = f'casteer_{args.beta:g}_sim.png'
             else:
-                file = f'{args.steer_type}_{args.alpha:g}_test4.png'
+                file = f'{args.steer_type}_{args.alpha:g}.png'
             path = f'{args.output}/{prompt}/{seed}/{file}'
         if os.path.exists(path):
             print(f'{path} already exists, skipping!')
