@@ -13,3 +13,5 @@ scipy
 matplotlib
 pillow
 clean-fid
+steering_vectors
+bitsandbytes
