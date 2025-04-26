@@ -13,7 +13,7 @@ class TokenAggregationMode(enum.StrEnum):
 
 
 class CrossAttentionOutputStatsCollector(VectorControl):
-    def __init__(self, mode: VectorControlMode, *, token_aggregation_mode: TokenAggregationMode, normalize: bool = False):
+    def __init__(self, mode: VectorControlMode, *, token_aggregation_mode: TokenAggregationMode, normalize: bool = False, last_token_offset: int = -1):
         super().__init__(mode=mode)
 
         self._cnt = defaultdict(lambda: defaultdict(list))
@@ -21,6 +21,7 @@ class CrossAttentionOutputStatsCollector(VectorControl):
         self._mm = defaultdict(lambda: defaultdict(list))
 
         self._token_aggregation_mode = token_aggregation_mode
+        self._last_token_offset = last_token_offset
         self._normalize = normalize
     
     def _update_statistics(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index):
@@ -57,7 +58,11 @@ class CrossAttentionOutputStatsCollector(VectorControl):
         elif self._token_aggregation_mode == TokenAggregationMode.LAST:
             if batch_size > 1:
                 raise ValueError("TokenAggregationMode.LAST and batch_size > 1 is not supported currently")
-            vec = vec[:, -1:, :]
+            start = self._last_token_offset
+            end = self._last_token_offset + 1
+            if end == 0:
+                end = vec.shape[1]
+            vec = vec[:, start:end, :]
             assert vec.shape[1] == 1
 
         if self._normalize:
