@@ -3,17 +3,24 @@ from collections import defaultdict
 import torch
 import numpy as np
 import functools
+import enum
+
+
+class TokenAggregationMode(enum.StrEnum):
+    ALL = 'all'
+    LAST = 'last'
+    AVERAGE = 'average'
 
 
 class CrossAttentionOutputStatsCollector(VectorControl):
-    def __init__(self, mode: VectorControlMode, *, patch_average: bool = False, normalize: bool = False):
+    def __init__(self, mode: VectorControlMode, *, token_aggregation_mode: TokenAggregationMode, normalize: bool = False):
         super().__init__(mode=mode)
 
         self._cnt = defaultdict(lambda: defaultdict(list))
         self._m = defaultdict(lambda: defaultdict(list))
         self._mm = defaultdict(lambda: defaultdict(list))
 
-        self._patch_average = patch_average
+        self._token_aggregation_mode = token_aggregation_mode
         self._normalize = normalize
     
     def _update_statistics(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index):
@@ -39,14 +46,19 @@ class CrossAttentionOutputStatsCollector(VectorControl):
 
     # [batch_size, sequence_length, num_heads, head_dim]
     def forward(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index):
-
+        batch_size = vector.shape[0]
         num_heads = vector.shape[-2]
         hidden_size = vector.shape[-1]
 
         vector_permuted = vector.permute(2, 0, 1, 3)  # [num_heads, batch_size, sequence_length, head_dim]
         vec = self.convert_to_dtype(vector_permuted.view(num_heads, -1, hidden_size))
-        if self._patch_average:
+        if self._token_aggregation_mode == TokenAggregationMode.AVERAGE:
             vec = torch.mean(vec, dim=1, keepdim=True)
+        elif self._token_aggregation_mode == TokenAggregationMode.LAST:
+            if batch_size > 1:
+                raise ValueError("TokenAggregationMode.LAST and batch_size > 1 is not supported currently")
+            vec = vec[:, -1:, :]
+            assert vec.shape[1] == 1
 
         if self._normalize:
             vec /= torch.linalg.norm(vec, dim=2, keepdim=True) + EPS

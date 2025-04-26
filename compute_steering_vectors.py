@@ -17,7 +17,7 @@ from utils import fractional_matrix_power_cov_torch, get_device, init_pipeline_f
 
 # parsing arguments
 import argparse
-from vector_dump import CrossAttentionOutputStatsCollector
+from vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
 
 
 
@@ -34,7 +34,7 @@ def gather_stats_for_prompts(
 ) -> tuple[np.ndarray, np.ndarray]:
     stats_handler = CrossAttentionOutputStatsCollector(
         mode=control_mode,
-        patch_average=patch_average,
+        token_aggregation_mode=TokenAggregationMode.AVERAGE if patch_average else TokenAggregationMode.ALL,
         normalize=normalize_vectors
     )
     register_vector_controls(pipe.unet, stats_handler)
@@ -71,12 +71,12 @@ def gather_stats_for_prompt_pairs(
     
     pos_stats_handler = CrossAttentionOutputStatsCollector(
         mode=args.control_mode,
-        patch_average=args.patch_average,
+        token_aggregation_mode=TokenAggregationMode.AVERAGE if args.patch_average else TokenAggregationMode.ALL,
         normalize=args.normalize_vectors
     )
     neg_stats_handler = CrossAttentionOutputStatsCollector(
         mode=args.control_mode,
-        patch_average=args.patch_average,
+        token_aggregation_mode=TokenAggregationMode.AVERAGE if args.patch_average else TokenAggregationMode.ALL,
         normalize=args.normalize_vectors
     )
     
