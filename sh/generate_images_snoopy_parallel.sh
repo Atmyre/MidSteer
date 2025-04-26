@@ -2,7 +2,7 @@
 
 set -eoux pipefail
 
-PREFIX="images/mickey/"
+PREFIX="images/snoopy/"
 seed="0,1,2,3,4,5,6,7,8,9"
 prompt_file="test_prompts/mickey_prompts.txt"
 
@@ -13,10 +13,10 @@ for model in "sdxl"; do
     path="$PREFIX/mickey/inverse/$model/"
     mkdir -p "$path"
 
-#     CUDA_VISIBLE_DEVICES=2 python generate_casteer.py --model $model --prompt_file "$prompt_file" --seed "$seed" --output "$path" --not_steer &
+#     CUDA_VISIBLE_DEVICES=5 python generate_casteer.py --model $model --prompt_file "$prompt_file" --seed "$seed" --output "$path" --not_steer &
 
     for beta in 1; do
-        CUDA_VISIBLE_DEVICES=1 python generate_casteer.py --model $model --control_mode attn_output --prompt_file "$prompt_file"  --seed "$seed" --output "$path" --casteer_vectors ckpt/mickey_output/casteer_1000.pickle --beta "${beta}" --steer_type casteer --steer_back &
+        CUDA_VISIBLE_DEVICES=2 python generate_casteer.py --model $model --control_mode attn_output --prompt_file "$prompt_file"  --seed "$seed" --output "$path" --casteer_vectors ckpt/snoopy_output/casteer_1000.pickle --beta "${beta}" --steer_type casteer --steer_back &
     done
 
 #     for alpha in 1; do
@@ -25,7 +25,7 @@ for model in "sdxl"; do
 #             --control_mode attn_output \
 #             --prompt_file "$prompt_file"  \
 #             --seed "$seed" --output "$path" \
-#             --casteer_vectors ckpt/mickey_output/casteer_1000.pickle \
+#             --casteer_vectors ckpt/snoopy_output/casteer_1000.pickle \
 #             --steer_type leace \
 #             --alpha "${alpha}" \
 #             --leace_cov ckpt/all_output/covariances_99999.pickle \
