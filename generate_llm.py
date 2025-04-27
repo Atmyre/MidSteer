@@ -14,6 +14,7 @@ from utils import get_device
 def main(
         model_name: str,
         layer_type: str,
+        layers_to_steer: list[int] | None,
         pos_means: dict,
         neg_means: dict,
         prompt: str,
@@ -55,6 +56,7 @@ def main(
         model=model,
         control=control,
         layer_type=layer_type,
+        layers_to_steer=layers_to_steer,
     )
 
     inputs = tokenizer(prompt, return_tensors="pt")
@@ -74,6 +76,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, choices=['meta-llama/Llama-2-7b-hf'], required=True)
     parser.add_argument('--layer_type', choices=['decoder_block', 'self_attn', 'mlp', 'input_layernorm', 'post_attention_layernorm'], required=True)
+    parser.add_argument('--layers_to_steer', type=str, help='Comma separated list of layer indices to steer', default=None)
     parser.add_argument('--pos_means', type=str, required=True)
     parser.add_argument('--neg_means', type=str, required=True)
     parser.add_argument('--prompt', type=str, required=True)
@@ -83,9 +86,15 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    if args.layers_to_steer is not None:
+        layers_to_steer = list(map(int, args.layers_to_steer.split(',')))
+    else:
+        layers_to_steer = None
+
     main(
         model_name=args.model_name,
         layer_type=args.layer_type,
+        layers_to_steer=layers_to_steer,
         pos_means=unpickle(args.pos_means),
         neg_means=unpickle(args.neg_means),
         prompt=args.prompt,
