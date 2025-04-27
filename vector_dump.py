@@ -4,6 +4,7 @@ import torch
 import numpy as np
 import functools
 import enum
+from utils import convert_to_widest_dtype
 
 
 class TokenAggregationMode(enum.StrEnum):
@@ -38,13 +39,6 @@ class CrossAttentionOutputStatsCollector(VectorControl):
             self._m[diffusion_step][place_in_unet][block_index] += stat_m
             self._mm[diffusion_step][place_in_unet][block_index] += stat_mm
 
-    def convert_to_dtype(self, vector: torch.Tensor):
-        # float64 is needed for numerical stability
-        if torch.mps.is_available():
-            return vector.to('cpu').to(torch.float64)
-        else:
-            return vector.to(torch.float64)
-
     # [batch_size, sequence_length, num_heads, head_dim]
     def forward(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index):
         batch_size = vector.shape[0]
@@ -52,7 +46,7 @@ class CrossAttentionOutputStatsCollector(VectorControl):
         hidden_size = vector.shape[-1]
 
         vector_permuted = vector.permute(2, 0, 1, 3)  # [num_heads, batch_size, sequence_length, head_dim]
-        vec = self.convert_to_dtype(vector_permuted.view(num_heads, -1, hidden_size))
+        vec = convert_to_widest_dtype(vector_permuted.view(num_heads, -1, hidden_size), device=vector_permuted.device, force_double=True)
         if self._token_aggregation_mode == TokenAggregationMode.AVERAGE:
             vec = torch.mean(vec, dim=1, keepdim=True)
         elif self._token_aggregation_mode == TokenAggregationMode.LAST:

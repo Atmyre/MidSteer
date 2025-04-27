@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any
 
 import enum
 import torch.nn.functional as F
-from utils import fractional_matrix_power_cov_torch
+from utils import fractional_matrix_power_cov_torch, convert_to_widest_dtype
 
 
 logger = logging.getLogger()
@@ -25,13 +25,13 @@ class VectorControlMode(enum.StrEnum):
 
 # Define Controller for BasicTransformerBlock
 class VectorControl(abc.ABC):
-    def __init__(self, mode: VectorControlMode):
+    def __init__(self, mode: VectorControlMode, num_layers: int = None):
         self._mode = mode
         self._active = True
         self._diffusion_step = 0
         self._current_attn_layer = 0
         self._current_position = defaultdict(int)
-        self.num_attn_layers = -1
+        self.num_attn_layers = num_layers
 
     @property
     def active(self) -> bool:
@@ -81,14 +81,15 @@ class CrossAttentionOutputSteering(VectorControl):
         cov=None,
         steer_type: str = None,
         
-        mmsteer_threshold: float,
+        mmsteer_threshold: float=0.1,
         steer_only_up=False, 
         alpha: float = 10.0,
         beta: float = 2.0, 
         steer_back: bool = False,
         device: Any,
+        num_layers: int = None,
     ):
-        super().__init__(mode=mode)
+        super().__init__(mode=mode, num_layers=num_layers)
         self.device = device
         
         self.mmsteer_threshold = mmsteer_threshold
@@ -109,7 +110,7 @@ class CrossAttentionOutputSteering(VectorControl):
                             b = casteer_vectors_[num_steer][place_in_unet][block_idx]
                             if len(b.shape) == 1:
                                 b = b.unsqueeze(0)
-                            b = torch.tensor(b).to(torch.float64).to(self.device).unsqueeze(-1)
+                            b = convert_to_widest_dtype(torch.tensor(b), device=self.device).unsqueeze(-1)
                             
                             res = self.beta*(b @ torch.linalg.pinv(b))
                             P = torch.eye(res.shape[1], dtype=res.dtype).unsqueeze(0).to(self.device) - res
@@ -263,7 +264,13 @@ class CrossAttentionOutputSteering(VectorControl):
 #         num_heads = b.shape[0]
 
         # computing dot products between vector components and steering vector x
-        sim = (vector.to(torch.float64).reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ b.unsqueeze(-1)).transpose(0, 1).reshape(batch_size, -1, num_heads, 1)
+        sim = (
+            (
+                convert_to_widest_dtype(vector, device=self.device)
+                .reshape(-1, num_heads, hidden_dim)
+                .transpose(0, 1)
+            ) @ b.unsqueeze(-1)
+        ).transpose(0, 1).reshape(batch_size, -1, num_heads, 1)
 
         # we will steer back only if dot product is positive, i.e.
         # if there's positive amount of information from steering vector in the vector
@@ -321,7 +328,7 @@ class CrossAttentionOutputSteering(VectorControl):
     # [batch_size, sequence_length, num_heads, head_dim]
     def forward(self, vector: torch.Tensor, diffusion_step: int, place_in_unet: str, block_index: int):
 
-        if place_in_unet in ['up', 'mid'] or (place_in_unet == 'down' and not self.steer_only_up): 
+        if place_in_unet in ['LLM', 'up', 'mid'] or (place_in_unet == 'down' and not self.steer_only_up): 
             # if steering vectors are from turbo version, then there's only one key in self.steering_vectors, 
             # and we'll use it for all the steps of generation
             # if steering vectors are from full version, then there's a key in self.steering_vectors

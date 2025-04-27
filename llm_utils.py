@@ -4,7 +4,7 @@ import typing as tp
 import torch
 from torch.utils.data import Dataset
 
-from transformers import PreTrainedTokenizer
+from transformers import AutoModelForCausalLM, PreTrainedTokenizer
 from transformers import AutoTokenizer
 
 
@@ -77,3 +77,20 @@ class ComparisonDataset(Dataset):
         p_tokens = self.prompt_to_tokens(q_text, p_text)
         n_tokens = self.prompt_to_tokens(q_text, n_text)
         return p_tokens, n_tokens
+
+
+def init_model_and_tokenizer(model_name: str) -> tuple[AutoModelForCausalLM, AutoTokenizer]:
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        cache_dir='./cache',
+        torch_dtype=torch.float16,
+        device_map='balanced',
+    )
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_name,
+        cache_dir='./cache',
+        torch_dtype=torch.float16,
+        device_map='balanced',
+    )
+    return model, tokenizer

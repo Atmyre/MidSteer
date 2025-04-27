@@ -1,4 +1,5 @@
 import torch
+import typing as tp
 
 from diffusers import StableDiffusionPipeline, DiffusionPipeline, AutoPipelineForText2Image
 
@@ -91,3 +92,14 @@ def fractional_matrix_power_cov_torch(mat: torch.Tensor, alpha: float, eps=1e-10
     evals = torch.clip(evals, min=0, max=None)
     evals = torch.where(evals >= eps, evals ** alpha, 0.)
     return (evecs @ torch.diag_embed(evals) @ evecs.mT).to(device)
+
+
+def convert_to_widest_dtype(vector: torch.Tensor, device: tp.Any, force_double: bool = False):
+    # float64 is needed for numerical stability
+    if device.type == 'mps':
+        if force_double:
+            return vector.to(torch.float64).to('cpu')
+        else:
+            return vector.to(torch.float32).to(device)
+    else:
+        return vector.to(torch.float64).to(device)
