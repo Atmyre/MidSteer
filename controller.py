@@ -288,7 +288,7 @@ class CrossAttentionOutputSteering(VectorControl):
         if len(b.shape) == 1:  # Old code, add a num_heads dim
             b = b.reshape(1, -1)
 
-        vector = self.steer_backward_CASteer(vector, *steering_tensors)
+        # vector = self.steer_backward_CASteer(vector, *steering_tensors)
 
         vector += self.alpha * b * torch.norm(vector, dim=-1, keepdim=True)
         return vector
