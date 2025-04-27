@@ -18,6 +18,8 @@ def main(
         neg_means: dict,
         prompt: str,
         alpha=0.0,
+        beta=2.0,
+        steer_back=False
 ):
     model, tokenizer = init_model_and_tokenizer(model_name=model_name)
     device = get_device()
@@ -29,7 +31,7 @@ def main(
         pos_mean = pos_means[0]['LLM'][idx]
         neg_mean = neg_means[0]['LLM'][idx]
 
-        vec = -(pos_mean - neg_mean)
+        vec = (pos_mean - neg_mean)
         vec /= torch.linalg.norm(vec, dim=-1, keepdim=True)
         steering_vectors[0]['LLM'].append(vec)
 
@@ -40,7 +42,8 @@ def main(
         casteer_vectors=[steering_vectors],
         steer_type='casteer',
         alpha=alpha,
-        steer_back=False,
+        beta=beta,
+        steer_back=steer_back,
         device=device,
         num_layers=num_layers,
     )
@@ -56,7 +59,7 @@ def main(
 
     inputs = tokenizer(prompt, return_tensors="pt")
     for k, v in inputs.items():
-        inputs[k] = v.to('mps')
+        inputs[k] = v.to(device)
 
     outputs = model.generate(**inputs, generation_config=generation_config)
     print(tokenizer.decode(token_ids=outputs[0]))
@@ -75,6 +78,8 @@ if __name__ == "__main__":
     parser.add_argument('--neg_means', type=str, required=True)
     parser.add_argument('--prompt', type=str, required=True)
     parser.add_argument('--alpha', type=float, default=1.0)
+    parser.add_argument('--steer_back', action='store_true')
+    parser.add_argument('--beta', type=float, default=2)
 
     args = parser.parse_args()
 
@@ -85,4 +90,6 @@ if __name__ == "__main__":
         neg_means=unpickle(args.neg_means),
         prompt=args.prompt,
         alpha=args.alpha,
+        beta=args.beta,
+        steer_back=args.steer_back
     )
