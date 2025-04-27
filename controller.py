@@ -342,9 +342,10 @@ class CrossAttentionOutputSteering(VectorControl):
                         vector = self.steer_backward_CASteer(vector, *casteer_vectors[num_steer][place_in_unet][block_index])
                 else:
                     for casteer_vectors in self.casteer_vectors:
+                        norm = torch.norm(vector, dim=-1, keepdim=True)
                         vector = self.steer_forward_CASteer(vector, *casteer_vectors[num_steer][place_in_unet][block_index])
-                # vector = vector / (torch.norm(vector, dim=-1, keepdim=True) + EPS)
-                # vector = vector * norm
+                        vector = vector / (torch.norm(vector, dim=-1, keepdim=True) + EPS)
+                        vector = vector * norm
             elif self.steer_type == 'mean_matching':
                 vector = self.steer_forward_mean_matching(vector,
                                                           self.mu_pos[num_steer][place_in_unet][block_index],
