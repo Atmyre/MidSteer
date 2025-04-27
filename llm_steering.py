@@ -18,6 +18,7 @@ def llm_patch_activations(
     model,
     control: VectorControl,
     layer_type: str,
+    layers_to_steer: tp.Iterable[int] | None = None,
     layer_config = None,
     min_token_index = None,
     token_indices = None):
@@ -58,6 +59,7 @@ def llm_patch_activations(
     layer_config = guess_and_enhance_layer_config(
         model, layer_config, layer_type
     )
+    print(layer_config)
     hooks: list[RemovableHandle] = []
     if layer_type not in layer_config:
         raise ValueError(
@@ -65,7 +67,16 @@ def llm_patch_activations(
         )
     matcher = layer_config[layer_type]
     matching_layers = collect_matching_layers(model, matcher)
-    for layer_num in range(control.num_attn_layers):
+
+    layers = set(range(control.num_attn_layers))
+
+    if layers_to_steer is not None:
+        layers = layers.intersection(layers_to_steer)
+
+    # print(layers)
+
+
+    for layer_num in layers:
         layer_name = matching_layers[layer_num]
 
         module = get_module(model, layer_name)
@@ -86,8 +97,9 @@ def _create_vector_control_hook(
     """Create a hook function that adds the given target_activation to the model output"""
 
     def hook_fn(module: tp.Any, inputs: tp.Any, outputs: tp.Any) -> tp.Any:
+        # print(layer_num)
         original_tensor = untuple_tensor(outputs)
-#         print(original_tensor)
+        # print(original_tensor)
         # print(original_tensor.shape)
         modified_tensor = control.forward(original_tensor.unsqueeze(-2), 0, 'LLM', layer_num).squeeze(-2)
         # print(modified_tensor.shape)
@@ -107,9 +119,9 @@ def _create_vector_control_hook(
         # print(mask)
 
         original_tensor[None] = torch.where(mask == 1, modified_tensor, original_tensor)
-#         print(modified_tensor)
+        # print(modified_tensor)
         # print(original_tensor.shape)
-        return (modified_tensor,)
+        return outputs
 
     return hook_fn
 
