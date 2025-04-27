@@ -1,33 +1,14 @@
 import argparse
-import torch
 import enum
 import time
-from transformers import AutoModelForCausalLM, AutoTokenizer
 from steering_vectors import record_activations
 
 from construct_prompts import pickle_stats, read_prompt_file
 from controller import VectorControlMode
-from llm_utils import ComparisonDataset
+from llm_utils import ComparisonDataset, init_model_and_tokenizer
 from utils import get_device
 from vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
 import tqdm
-
-
-def init_model_and_tokenizer(model_name: str) -> tuple[AutoModelForCausalLM, AutoTokenizer]:
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,   
-        cache_dir='./cache',
-        torch_dtype=torch.float16,
-        device_map='balanced',
-    )
-
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_name,
-        cache_dir='./cache',
-        torch_dtype=torch.float16,
-        device_map='balanced',
-    )
-    return model, tokenizer
 
 
 def main(
@@ -73,15 +54,15 @@ def main(
                 pickle_stats(neg_vector_control.covariances, f'{output_dir}/neg_covariances_{idx}.pickle')
 
             start = time.time()
-            _ = model.forward(p_tokens)
+            _ = model.forward(p_tokens, use_cache=False)
             print(f'Pos generation took {time.time() - start}')
             for layer_id, record in records.items():
                 tensor = record[0].unsqueeze(-2)
-                pos_vector_control.forward(tensor, 0, 'LLM', layer_id)
+                pos_vector_control.forward(tensor, 0, 'LLM', layer_id,)
             records.clear()
 
             start = time.time()
-            _ = model.forward(n_tokens)
+            _ = model.forward(n_tokens, use_cache=False)
             print(f'Neg generation took {time.time() - start}')
             for layer_id, record in records.items():
                 tensor = record[0].unsqueeze(-2)
