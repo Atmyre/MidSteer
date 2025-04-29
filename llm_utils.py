@@ -19,16 +19,17 @@ ADD_FROM_POS_BASE = BASE_RESPONSE
 
 def tokenize_llama_chat(
     tokenizer: PreTrainedTokenizer,
-    user_input: str,
+    user_input: str | None,
     model_output: str = None,
     system_prompt: str = None,
 ) -> list[int]:
     input_content = ""
     if system_prompt is not None:
         input_content += B_SYS + system_prompt + E_SYS
-    input_content += f"{B_INST} {user_input.strip()} {E_INST}"
+    if user_input is not None:
+        input_content += f"{B_INST} {user_input.strip()} {E_INST} "
     if model_output is not None:
-        input_content += f" {model_output.strip()}"
+        input_content += f"{model_output.strip()}"
     return tokenizer.encode(input_content)
 
 
@@ -36,9 +37,10 @@ def tokenize_llama_base(
     tokenizer, user_input: str, model_output: str = None
 ) -> list[int]:
     input_content = ""
-    input_content += f"{BASE_INPUT} {user_input.strip()}"
+    if user_input is not None:
+        input_content += f"{BASE_INPUT} {user_input.strip()} {BASE_RESPONSE} "
     if model_output is not None:
-        input_content += f"{BASE_RESPONSE} {model_output.strip()}"
+        input_content += f"{model_output.strip()}"
     return tokenizer.encode(input_content)
 
 
@@ -51,7 +53,7 @@ class ComparisonDataset(Dataset):
         self.use_chat = use_chat
         self.device = device
 
-    def prompt_to_tokens(self, instruction, model_output):
+    def prompt_to_tokens(self, instruction: str | None, model_output: str):
         if self.use_chat:
             tokens = tokenize_llama_chat(
                 self.tokenizer,
@@ -73,7 +75,7 @@ class ComparisonDataset(Dataset):
         item = self.data[idx]
         p_text = item["answer_matching_behavior"]
         n_text = item["answer_not_matching_behavior"]
-        q_text = item["question"]
+        q_text = item.get("question")
         p_tokens = self.prompt_to_tokens(q_text, p_text)
         n_tokens = self.prompt_to_tokens(q_text, n_text)
         return p_tokens, n_tokens

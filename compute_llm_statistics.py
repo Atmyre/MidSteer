@@ -19,6 +19,7 @@ def main(
         normalize_vectors: bool,
         output_dir: str,
         checkpoint_steps: set[int],
+        last_token_offset: int,
 ):
     model, tokenizer = init_model_and_tokenizer(model_name=model_name)
     device = get_device()
@@ -34,14 +35,14 @@ def main(
         mode=VectorControlMode.ATTN_OUTPUT,
         token_aggregation_mode=token_aggregation_mode,
         normalize=normalize_vectors,
-        last_token_offset=-2,
+        last_token_offset=last_token_offset,
     )
 
     neg_vector_control = CrossAttentionOutputStatsCollector(
         mode=VectorControlMode.ATTN_OUTPUT,
         token_aggregation_mode=token_aggregation_mode,
         normalize=normalize_vectors,
-        last_token_offset=-2,
+        last_token_offset=last_token_offset,
     )
 
     with record_activations(model, layer_type=layer_type) as records:
@@ -84,6 +85,7 @@ if __name__ == '__main__':
     parser.add_argument('--normalize_vectors', action='store_true')
     parser.add_argument('--output_dir', type=str, required=True)
     parser.add_argument('--checkpoint_steps', type=str, default='100,500,1000,5000')
+    parser.add_argument('--last_token_offset', type=int, required=True)
 
     args = parser.parse_args()
 
@@ -95,4 +97,5 @@ if __name__ == '__main__':
         normalize_vectors=args.normalize_vectors,
         output_dir=args.output_dir,
         checkpoint_steps=set(map(int, args.checkpoint_steps.split(','))),
+        last_token_offset=args.last_token_offset,
     )
