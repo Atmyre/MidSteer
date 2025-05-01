@@ -160,6 +160,7 @@ class CrossAttentionOutputSteering(VectorControl):
 
                             leace_vectors_[num_steer][place_in_unet].append((P.half(), b.half()))
                 self.leace_vectors.append(leace_vectors_)
+
         else:
             self.leace_vectors = None
 
@@ -204,8 +205,8 @@ class CrossAttentionOutputSteering(VectorControl):
                     for block_idx in range(len(cov[num_steer][place_in_unet])):
                         b = cov[num_steer][place_in_unet][block_idx]
                         b = torch.tensor(b).to(torch.float64).to(self.device)
-                        sigma_minus_half = fractional_matrix_power_cov_torch(b, -0.5, eps=1e-10).half()
-                        sigma_plus_half = fractional_matrix_power_cov_torch(b, 0.5, eps=1e-10).half()
+                        sigma_minus_half = fractional_matrix_power_cov_torch(b, -0.5, eps=1e-10).double()
+                        sigma_plus_half = fractional_matrix_power_cov_torch(b, 0.5, eps=1e-10).double()
                         self.cov[num_steer][place_in_unet].append((sigma_minus_half, sigma_plus_half))
         else:
             self.mu_neutral = None
@@ -281,6 +282,13 @@ class CrossAttentionOutputSteering(VectorControl):
     
     def steer_forward_mean_matching(self, vector: torch.Tensor, mu_pos: torch.Tensor, mu_neg: torch.Tensor, 
                                     mu_neutral: torch.Tensor, cov: torch.Tensor) -> torch.Tensor:
+        
+        vector = vector.double()
+        mu_pos = mu_pos.double()
+        mu_neg = mu_neg.double()
+        mu_neutral = mu_neutral.double()
+        
+        
         batch_size = vector.shape[0]
         sequence_length = vector.shape[1]
         num_heads = vector.shape[2]
@@ -295,13 +303,15 @@ class CrossAttentionOutputSteering(VectorControl):
         mu_neg -= mu_neutral
 
         sigma_minus_half, sigma_plus_half = cov
+        sigma_minus_half = sigma_minus_half.double()
+        sigma_plus_half = sigma_plus_half.double()
         
         mu_pos = sigma_minus_half @ mu_pos
         mu_neg = sigma_minus_half @ mu_neg
 
         denom = mu_neg.mT @ mu_neg + self.alpha + EPS
 
-        A = torch.eye(hidden_dim, dtype=mu_pos.dtype, device=mu_pos.device)[None, ...] + sigma_plus_half@(1.*((mu_pos - mu_neg) @ mu_neg.mT / denom))@sigma_minus_half
+        A = torch.eye(hidden_dim, dtype=mu_pos.dtype, device=mu_pos.device)[None, ...] + sigma_plus_half@(((1.*mu_pos - mu_neg) @ mu_neg.mT / denom))@sigma_minus_half
 
         if self.alpha > 0:
             b = mu_pos - A @ mu_neg
@@ -309,7 +319,7 @@ class CrossAttentionOutputSteering(VectorControl):
             b = mu_neutral - A @ mu_neutral
 
         vector_steered = ((vector.reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ A.mT) + b.mT).transpose(0, 1).reshape(batch_size, sequence_length, num_heads, hidden_dim) 
-        return vector_steered
+        return vector_steered.half()
 
     # [batch_size, sequence_length, num_heads, head_dim]
     def forward(self, vector: torch.Tensor, diffusion_step: int, place_in_unet: str, block_index: int):
@@ -325,15 +335,15 @@ class CrossAttentionOutputSteering(VectorControl):
             if self.steer_type == 'casteer':
                 if self.steer_back:
                     for casteer_vectors in self.casteer_vectors:
-                        vector = self.steer_backward_CASteer(vector, *casteer_vectors[num_steer][place_in_unet][block_index])
+                        vector[1:, ...] = self.steer_backward_CASteer(vector[1:, ...], *casteer_vectors[num_steer][place_in_unet][block_index])
                 else:
                     for casteer_vectors in self.casteer_vectors:
                         norm = torch.norm(vector, dim=-1, keepdim=True)
-                        vector = self.steer_forward_CASteer(vector, *casteer_vectors[num_steer][place_in_unet][block_index])
+                        vector[1:, ...] = self.steer_forward_CASteer(vector[1:, ...], *casteer_vectors[num_steer][place_in_unet][block_index])
                         vector = vector / (torch.norm(vector, dim=-1, keepdim=True) + EPS)
                         vector = vector * norm
             elif self.steer_type == 'mean_matching':
-                vector = self.steer_forward_mean_matching(vector,
+                vector[1:, ...] = self.steer_forward_mean_matching(vector[1:, ...],
                                                           self.mu_pos[num_steer][place_in_unet][block_index],
                                                           self.mu_neg[num_steer][place_in_unet][block_index],
                                                           self.mu_neutral[num_steer][place_in_unet][block_index],

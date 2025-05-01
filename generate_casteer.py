@@ -98,7 +98,11 @@ for prompt in prompts:
             elif args.steer_back and args.steer_type == 'casteer':
                 file = f'casteer_{args.beta:g}_sim.png'
             else:
+<<<<<<< Updated upstream
                 file = f'{args.steer_type}_{args.alpha:g}.png'
+=======
+                file = f'{args.steer_type}_{args.alpha:g}_2.png'
+>>>>>>> Stashed changes
             path = f'{args.output}/{prompt}/{seed}/{file}'
         if os.path.exists(path):
             print(f'{path} already exists, skipping!')
