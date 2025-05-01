@@ -78,14 +78,14 @@ def main(
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', type=str, choices=['meta-llama/Llama-2-7b-hf'], required=True)
+    parser.add_argument('--model_name', type=str, required=True)
     parser.add_argument('--layer_type', choices=['decoder_block', 'self_attn', 'mlp', 'input_layernorm', 'post_attention_layernorm'], required=True)
     parser.add_argument('--dataset_path', type=str, required=True)
     parser.add_argument('--token_aggregation_mode', type=TokenAggregationMode, choices=[str(x) for x in TokenAggregationMode], required=True)
     parser.add_argument('--normalize_vectors', action='store_true')
     parser.add_argument('--output_dir', type=str, required=True)
     parser.add_argument('--checkpoint_steps', type=str, default='100,500,1000,5000')
-    parser.add_argument('--last_token_offset', type=int, required=True)
+    parser.add_argument('--last_token_offset', type=int, default=-1)
 
     args = parser.parse_args()
 

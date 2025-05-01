@@ -45,7 +45,8 @@ def unpickle(path: str | None):
         with open(path, 'rb') as fin:
             return pickle.load(fin)
     except:
-        return CPU_Unpickler(path).load()
+        with open(path, 'rb') as fin:
+            return CPU_Unpickler(fin).load()
 
 
 def main():

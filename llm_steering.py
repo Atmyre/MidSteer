@@ -99,7 +99,7 @@ def _create_vector_control_hook(
     def hook_fn(module: tp.Any, inputs: tp.Any, outputs: tp.Any) -> tp.Any:
         # print(layer_num)
         original_tensor = untuple_tensor(outputs)
-        # print(original_tensor)
+#         print(original_tensor)
         # print(original_tensor.shape)
         modified_tensor = control.forward(original_tensor.unsqueeze(-2), 0, 'LLM', layer_num).squeeze(-2)
         # print(modified_tensor.shape)
@@ -119,7 +119,7 @@ def _create_vector_control_hook(
         # print(mask)
 
         original_tensor[None] = torch.where(mask == 1, modified_tensor, original_tensor)
-        # print(modified_tensor)
+#         print(modified_tensor)
         # print(original_tensor.shape)
         return outputs
 

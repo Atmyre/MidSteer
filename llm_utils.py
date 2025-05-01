@@ -82,11 +82,13 @@ class ComparisonDataset(Dataset):
 
 
 def init_model_and_tokenizer(model_name: str) -> tuple[AutoModelForCausalLM, AutoTokenizer]:
+    # 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
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         cache_dir='./cache',
         torch_dtype=torch.float16,
         device_map='balanced',
+        token='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'
     )
 
     tokenizer = AutoTokenizer.from_pretrained(
@@ -94,5 +96,6 @@ def init_model_and_tokenizer(model_name: str) -> tuple[AutoModelForCausalLM, Aut
         cache_dir='./cache',
         torch_dtype=torch.float16,
         device_map='balanced',
+        token='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'
     )
     return model, tokenizer

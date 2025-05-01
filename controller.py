@@ -148,8 +148,8 @@ class CrossAttentionOutputSteering(VectorControl):
                             mean = torch.tensor(mean).to(torch.float64).to(self.device)
                             steering_vector = torch.tensor(steering_vector).to(torch.float64).to(self.device)
 
-                            sigma_minus_half = fractional_matrix_power_cov_torch(sigma, -0.5, eps=1e-8)
-                            sigma_plus_half = fractional_matrix_power_cov_torch(sigma, 0.5, eps=1e-8)
+                            sigma_minus_half = fractional_matrix_power_cov_torch(sigma, -0.5, eps=1e-10)
+                            sigma_plus_half = fractional_matrix_power_cov_torch(sigma, 0.5, eps=1e-10)
 
                             steering_proj = (sigma_minus_half @ steering_vector.unsqueeze(-1))
 
@@ -204,8 +204,8 @@ class CrossAttentionOutputSteering(VectorControl):
                     for block_idx in range(len(cov[num_steer][place_in_unet])):
                         b = cov[num_steer][place_in_unet][block_idx]
                         b = torch.tensor(b).to(torch.float64).to(self.device)
-                        sigma_minus_half = fractional_matrix_power_cov_torch(b, -0.5, eps=1e-8).half()
-                        sigma_plus_half = fractional_matrix_power_cov_torch(b, 0.5, eps=1e-8).half()
+                        sigma_minus_half = fractional_matrix_power_cov_torch(b, -0.5, eps=1e-10).half()
+                        sigma_plus_half = fractional_matrix_power_cov_torch(b, 0.5, eps=1e-10).half()
                         self.cov[num_steer][place_in_unet].append((sigma_minus_half, sigma_plus_half))
         else:
             self.mu_neutral = None
@@ -235,16 +235,6 @@ class CrossAttentionOutputSteering(VectorControl):
         (_,P) = steering_tensors
         vector = vector.to(torch.float64)
 
-#         assert len(b.shape) in (1, 2)
-#         if len(b.shape) == 1:  # Old code, add a num_heads dim
-#             b = b.reshape(1, -1)
-        
-#         steering_vector = b.unsqueeze(-1)
-
-#         res = self.beta*(steering_vector @ torch.linalg.pinv(steering_vector))
-#         P = torch.eye(res.shape[1], dtype=res.dtype).unsqueeze(0).to(self.device) - res
-#         P = P.half()
-        
         vector_steered = ((vector.reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ P.mT)).transpose(0, 1).reshape(batch_size, sequence_length, num_heads, hidden_dim) 
         vector_steered = vector_steered.half()
         return vector_steered
@@ -258,11 +248,6 @@ class CrossAttentionOutputSteering(VectorControl):
         hidden_dim = vector.shape[3]
         (b,_) = steering_tensors
 
-#         assert len(b.shape) in (1, 2)
-#         if len(b.shape) == 1:  # Old code, add a num_heads dim
-#             b = b.reshape(1, -1)
-#         num_heads = b.shape[0]
-
         # computing dot products between vector components and steering vector x
         sim = (
             (
@@ -271,13 +256,14 @@ class CrossAttentionOutputSteering(VectorControl):
                 .transpose(0, 1)
             ) @ b.unsqueeze(-1)
         ).transpose(0, 1).reshape(batch_size, -1, num_heads, 1)
+        
 
         # we will steer back only if dot product is positive, i.e.
         # if there's positive amount of information from steering vector in the vector
         sim = torch.where(sim>0, sim, 0)
 
         # steer backward for beta*sim
-        vector -= self.beta * sim * b
+        vector -= self.beta * sim.to(vector.device) * b.to(vector.device)
         return vector.half()
 
 
@@ -290,7 +276,7 @@ class CrossAttentionOutputSteering(VectorControl):
 
         # vector = self.steer_backward_CASteer(vector, *steering_tensors)
 
-        vector += self.alpha * b * torch.norm(vector, dim=-1, keepdim=True)
+        vector += self.alpha * b.to(vector.device) * torch.norm(vector, dim=-1, keepdim=True).to(vector.device)
         return vector
     
     def steer_forward_mean_matching(self, vector: torch.Tensor, mu_pos: torch.Tensor, mu_neg: torch.Tensor, 
