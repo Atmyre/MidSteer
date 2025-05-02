@@ -96,7 +96,7 @@ for prompt in prompts:
             if args.not_steer:
                 file = 'orig.png'
             elif args.steer_back and args.steer_type == 'casteer':
-                file = f'casteer_{args.beta:g}_sim.png'
+                file = f'casteer_{args.beta:g}.png'
             else:
                 file = f'{args.steer_type}_{args.alpha:g}.png'
             path = f'{args.output}/{prompt}/{seed}/{file}'

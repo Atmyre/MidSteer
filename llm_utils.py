@@ -89,7 +89,7 @@ class AlpacaDataset(Dataset):
         self.use_chat = use_chat
         self.device = device
 
-    def prompt_to_tokens(self, system_prompt: str | None, instruction: str | None, model_output: str):
+    def prompt_to_tokens(self, system_prompt: str | None, instruction: str | None):
         if self.use_chat:
             tokens = tokenize_llama_chat(
                 self.tokenizer,
@@ -111,8 +111,10 @@ class AlpacaDataset(Dataset):
         item = self.data[idx]
         inst_text = item["instruction"]
         input_text = item["input"]
-        p_tokens = self.prompt_to_tokens(inst_text, input_text)
-        n_tokens = self.prompt_to_tokens(inst_text, input_text)
+        inst_text1 = inst_text+' '+'Think about horses when you answer the question.'
+        inst_text2 = inst_text+' '+'Think about motorbikes when you answer the question.'
+        p_tokens = self.prompt_to_tokens(inst_text1, input_text)
+        n_tokens = self.prompt_to_tokens(inst_text2, input_text)
         return p_tokens, n_tokens
 
 

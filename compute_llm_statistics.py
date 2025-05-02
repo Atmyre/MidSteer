@@ -7,7 +7,7 @@ import torch
 from construct_prompts import pickle_stats, read_prompt_file
 from controller import VectorControlMode
 from llm_steering import llm_register_vector_control
-from llm_utils import ComparisonDataset, init_model_and_tokenizer
+from llm_utils import ComparisonDataset, AlpacaDataset, init_model_and_tokenizer
 from utils import get_device
 from vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
 import tqdm
@@ -27,7 +27,7 @@ def main(
     model, tokenizer = init_model_and_tokenizer(model_name=model_name)
     device = get_device()
 
-    dataset = ComparisonDataset(
+    dataset = AlpacaDataset(
         data_path=dataset_path,
         tokenizer=tokenizer,
         use_chat=('chat' in model_name),
@@ -87,7 +87,7 @@ if __name__ == '__main__':
     parser.add_argument('--token_aggregation_mode', type=TokenAggregationMode, choices=[str(x) for x in TokenAggregationMode], required=True)
     parser.add_argument('--normalize_vectors', action='store_true')
     parser.add_argument('--output_dir', type=str, required=True)
-    parser.add_argument('--checkpoint_steps', type=str, default='100,500,1000,5000')
+    parser.add_argument('--checkpoint_steps', type=str, default='100,500,1000,5000,10000,25000')
     parser.add_argument('--last_token_offset', type=int, default=-1)
     parser.add_argument('--compute_covariances', action='store_true')
 
