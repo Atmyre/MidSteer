@@ -2,9 +2,11 @@ import argparse
 import enum
 import time
 from steering_vectors import record_activations
+import torch
 
 from construct_prompts import pickle_stats, read_prompt_file
 from controller import VectorControlMode
+from llm_steering import llm_register_vector_control
 from llm_utils import ComparisonDataset, init_model_and_tokenizer
 from utils import get_device
 from vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
@@ -20,6 +22,7 @@ def main(
         output_dir: str,
         checkpoint_steps: set[int],
         last_token_offset: int,
+        compute_covariances: bool,
 ):
     model, tokenizer = init_model_and_tokenizer(model_name=model_name)
     device = get_device()
@@ -36,6 +39,7 @@ def main(
         token_aggregation_mode=token_aggregation_mode,
         normalize=normalize_vectors,
         last_token_offset=last_token_offset,
+        compute_covariances=compute_covariances,
     )
 
     neg_vector_control = CrossAttentionOutputStatsCollector(
@@ -43,37 +47,36 @@ def main(
         token_aggregation_mode=token_aggregation_mode,
         normalize=normalize_vectors,
         last_token_offset=last_token_offset,
+        compute_covariances=compute_covariances,
     )
 
-    with record_activations(model, layer_type=layer_type) as records:
+    with llm_register_vector_control(
+        model=model,
+        control=[pos_vector_control, neg_vector_control],
+        layer_type=layer_type,
+    ), torch.no_grad():
 
         for idx, (p_tokens, n_tokens) in enumerate(tqdm.tqdm(dataset, desc="Processing prompts")):
             if idx in checkpoint_steps:
-                pickle_stats(pos_vector_control.means, f'{output_dir}/pos_means_{idx}.pickle')
-                pickle_stats(pos_vector_control.covariances, f'{output_dir}/pos_covariances_{idx}.pickle')
-                pickle_stats(neg_vector_control.means, f'{output_dir}/neg_means_{idx}.pickle')
-                pickle_stats(neg_vector_control.covariances, f'{output_dir}/neg_covariances_{idx}.pickle')
+                pos_vector_control.pickle_stats(means_path=f'{output_dir}/pos_means_{idx}.pickle',
+                                                covariances_path=f'{output_dir}/pos_covariances_{idx}.pickle')
+                neg_vector_control.pickle_stats(means_path=f'{output_dir}/neg_means_{idx}.pickle',
+                                                covariances_path=f'{output_dir}/neg_covariances_{idx}.pickle')
 
-            start = time.time()
+            pos_vector_control.active = True
+            neg_vector_control.active = False
             _ = model.forward(p_tokens, use_cache=False)
-            print(f'Pos generation took {time.time() - start}')
-            for layer_id, record in records.items():
-                tensor = record[0].unsqueeze(-2)
-                pos_vector_control.forward(tensor, 0, 'LLM', layer_id,)
-            records.clear()
+            pos_vector_control.reset()
 
-            start = time.time()
+            pos_vector_control.active = False
+            neg_vector_control.active = True
             _ = model.forward(n_tokens, use_cache=False)
-            print(f'Neg generation took {time.time() - start}')
-            for layer_id, record in records.items():
-                tensor = record[0].unsqueeze(-2)
-                neg_vector_control.forward(tensor, 0, 'LLM', layer_id)
-            records.clear()
+            neg_vector_control.reset()
 
-        pickle_stats(pos_vector_control.means, f'{output_dir}/pos_means_{idx}.pickle')
-        pickle_stats(pos_vector_control.covariances, f'{output_dir}/pos_covariances_{idx}.pickle')
-        pickle_stats(neg_vector_control.means, f'{output_dir}/neg_means_{idx}.pickle')
-        pickle_stats(neg_vector_control.covariances, f'{output_dir}/neg_covariances_{idx}.pickle')
+        pos_vector_control.pickle_stats(means_path=f'{output_dir}/pos_means_{idx+1}.pickle',
+                                        covariances_path=f'{output_dir}/pos_covariances_{idx+1}.pickle')
+        neg_vector_control.pickle_stats(means_path=f'{output_dir}/neg_means_{idx+1}.pickle',
+                                        covariances_path=f'{output_dir}/neg_covariances_{idx+1}.pickle')
 
 
 if __name__ == '__main__':
@@ -86,6 +89,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', type=str, required=True)
     parser.add_argument('--checkpoint_steps', type=str, default='100,500,1000,5000')
     parser.add_argument('--last_token_offset', type=int, default=-1)
+    parser.add_argument('--compute_covariances', action='store_true')
 
     args = parser.parse_args()
 
@@ -98,4 +102,5 @@ if __name__ == '__main__':
         output_dir=args.output_dir,
         checkpoint_steps=set(map(int, args.checkpoint_steps.split(','))),
         last_token_offset=args.last_token_offset,
+        compute_covariances=args.compute_covariances,
     )

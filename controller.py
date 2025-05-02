@@ -1,4 +1,5 @@
 import logging
+import warnings
 import numpy as np
 import torch
 import abc
@@ -43,9 +44,6 @@ class VectorControl(abc.ABC):
     
     def reset(self):
         self._diffusion_step = 0
-
-    def between_steps(self, last_diffusion_step: int):
-        pass
     
     @abc.abstractmethod
     def forward(self, vector: torch.Tensor, diffusion_step: int, place_in_unet: str, block_index: int):
@@ -62,7 +60,6 @@ class VectorControl(abc.ABC):
         if self._current_attn_layer == self.num_attn_layers:
             self._current_attn_layer = 0
             self._current_position = defaultdict(int)
-            self.between_steps(self._diffusion_step)
             self._diffusion_step += 1
         return vector
 
@@ -210,8 +207,6 @@ class CrossAttentionOutputSteering(VectorControl):
                         self.cov[num_steer][place_in_unet].append((sigma_minus_half, sigma_plus_half))
         else:
             self.mu_neutral = None
-        
-        
 
         self.steering_cache = {}
 
@@ -237,7 +232,6 @@ class CrossAttentionOutputSteering(VectorControl):
         vector = vector.to(torch.float64)
 
         vector_steered = ((vector.reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ P.mT)).transpose(0, 1).reshape(batch_size, sequence_length, num_heads, hidden_dim) 
-        vector_steered = vector_steered.half()
         return vector_steered
 
 
@@ -264,8 +258,7 @@ class CrossAttentionOutputSteering(VectorControl):
         sim = torch.where(sim>0, sim, 0)
 
         # steer backward for beta*sim
-        vector -= self.beta * sim.to(vector.device) * b.to(vector.device)
-        return vector.half()
+        return vector - self.beta * sim.to(vector.device) * b.to(vector.device)
 
 
     def steer_forward_CASteer(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
@@ -277,8 +270,7 @@ class CrossAttentionOutputSteering(VectorControl):
 
         # vector = self.steer_backward_CASteer(vector, *steering_tensors)
 
-        vector += self.alpha * b.to(vector.device) * torch.norm(vector, dim=-1, keepdim=True).to(vector.device)
-        return vector
+        return vector + self.alpha * b.to(vector.device) * torch.norm(vector, dim=-1, keepdim=True).to(vector.device)
     
     def steer_forward_mean_matching(self, vector: torch.Tensor, mu_pos: torch.Tensor, mu_neg: torch.Tensor, 
                                     mu_neutral: torch.Tensor, cov: torch.Tensor) -> torch.Tensor:
@@ -323,6 +315,16 @@ class CrossAttentionOutputSteering(VectorControl):
 
     # [batch_size, sequence_length, num_heads, head_dim]
     def forward(self, vector: torch.Tensor, diffusion_step: int, place_in_unet: str, block_index: int):
+        # TODO: fix it properly sometime later
+        # Steer only the prompt part of SDXL classifier-free guidance method
+        batch_size = vector.shape[0]
+        if batch_size > 1:
+            batch_slice = slice(1, None)
+            warnings.warn('Steering only the prompt part of SDXL classifier-free guidance (assumed the batch_idx=0 is not conditioned on the prompt)')
+        else:
+            batch_slice = slice(None, None)
+
+
 
         if place_in_unet in ['LLM', 'up', 'mid'] or (place_in_unet == 'down' and not self.steer_only_up): 
             # if steering vectors are from turbo version, then there's only one key in self.steering_vectors, 
@@ -335,15 +337,15 @@ class CrossAttentionOutputSteering(VectorControl):
             if self.steer_type == 'casteer':
                 if self.steer_back:
                     for casteer_vectors in self.casteer_vectors:
-                        vector[1:, ...] = self.steer_backward_CASteer(vector[1:, ...], *casteer_vectors[num_steer][place_in_unet][block_index])
+                        vector[batch_slice, ...] = self.steer_backward_CASteer(vector[batch_slice, ...], *casteer_vectors[num_steer][place_in_unet][block_index])
                 else:
                     for casteer_vectors in self.casteer_vectors:
                         norm = torch.norm(vector, dim=-1, keepdim=True)
-                        vector[1:, ...] = self.steer_forward_CASteer(vector[1:, ...], *casteer_vectors[num_steer][place_in_unet][block_index])
+                        vector[batch_slice, ...] = self.steer_forward_CASteer(vector[batch_slice, ...], *casteer_vectors[num_steer][place_in_unet][block_index])
                         vector = vector / (torch.norm(vector, dim=-1, keepdim=True) + EPS)
                         vector = vector * norm
             elif self.steer_type == 'mean_matching':
-                vector[1:, ...] = self.steer_forward_mean_matching(vector[1:, ...],
+                vector[batch_slice, ...] = self.steer_forward_mean_matching(vector[batch_slice, ...],
                                                           self.mu_pos[num_steer][place_in_unet][block_index],
                                                           self.mu_neg[num_steer][place_in_unet][block_index],
                                                           self.mu_neutral[num_steer][place_in_unet][block_index],

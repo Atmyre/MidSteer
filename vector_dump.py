@@ -1,3 +1,4 @@
+from construct_prompts import pickle_stats
 from controller import EPS, VectorControl, VectorControlMode
 from collections import defaultdict
 import torch
@@ -14,7 +15,13 @@ class TokenAggregationMode(enum.StrEnum):
 
 
 class CrossAttentionOutputStatsCollector(VectorControl):
-    def __init__(self, mode: VectorControlMode, *, token_aggregation_mode: TokenAggregationMode, normalize: bool = False, last_token_offset: int = -1):
+    def __init__(self,
+                 mode: VectorControlMode,
+                 *,
+                 token_aggregation_mode: TokenAggregationMode,
+                 normalize: bool = False,
+                 last_token_offset: int = -1,
+                 compute_covariances: bool = True):
         super().__init__(mode=mode)
 
         self._cnt = defaultdict(lambda: defaultdict(list))
@@ -24,20 +31,24 @@ class CrossAttentionOutputStatsCollector(VectorControl):
         self._token_aggregation_mode = token_aggregation_mode
         self._last_token_offset = last_token_offset
         self._normalize = normalize
+        self._compute_covariances = compute_covariances
     
     def _update_statistics(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index):
         stat_count = vector.shape[1]
         stat_m = torch.sum(vector, dim=1)
-        stat_mm = (vector.mT @ vector)
+        if self._compute_covariances:
+            stat_mm = (vector.mT @ vector)
 
         if len(self._cnt[diffusion_step][place_in_unet]) <= block_index:
             self._cnt[diffusion_step][place_in_unet].append(stat_count)
             self._m[diffusion_step][place_in_unet].append(stat_m)
-            self._mm[diffusion_step][place_in_unet].append(stat_mm)
+            if self._compute_covariances:
+                self._mm[diffusion_step][place_in_unet].append(stat_mm)
         else:
             self._cnt[diffusion_step][place_in_unet][block_index] += stat_count
             self._m[diffusion_step][place_in_unet][block_index] += stat_m
-            self._mm[diffusion_step][place_in_unet][block_index] += stat_mm
+            if self._compute_covariances:
+                self._mm[diffusion_step][place_in_unet][block_index] += stat_mm
 
     # [batch_size, sequence_length, num_heads, head_dim]
     def forward(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index):
@@ -46,7 +57,7 @@ class CrossAttentionOutputStatsCollector(VectorControl):
         hidden_size = vector.shape[-1]
 
         vector_permuted = vector.permute(2, 0, 1, 3)  # [num_heads, batch_size, sequence_length, head_dim]
-        vec = convert_to_widest_dtype(vector_permuted.view(num_heads, -1, hidden_size), device=vector_permuted.device, force_double=True)
+        vec = convert_to_widest_dtype(vector_permuted.view(num_heads, -1, hidden_size), device=vector_permuted.device, force_double=self._compute_covariances)
         if self._token_aggregation_mode == TokenAggregationMode.AVERAGE:
             vec = torch.mean(vec, dim=1, keepdim=True)
         elif self._token_aggregation_mode == TokenAggregationMode.LAST:
@@ -81,6 +92,8 @@ class CrossAttentionOutputStatsCollector(VectorControl):
 
     @property
     def covariances(self):
+        if not self._compute_covariances:
+            raise ValueError('Covariances requested not computed (self._compute_covariances = False)')
         result = {}
         for diffusion_step in self._mm:
             result[diffusion_step] = {}
@@ -95,5 +108,8 @@ class CrossAttentionOutputStatsCollector(VectorControl):
                     )
         return result
 
-    def between_steps(self, last_diffusion_step: int):
-        super().between_steps(last_diffusion_step)
+    def pickle_stats(self, *, means_path: str = None, covariances_path: str = None):
+        if means_path is not None:
+            pickle_stats(self.means, means_path)
+        if self._compute_covariances and covariances_path is not None:
+            pickle_stats(self.covariances, covariances_path)
