@@ -3,6 +3,7 @@ import torch
 from steering_vectors import SteeringPatchHandle, guess_and_enhance_layer_config
 from torch.utils.hooks import RemovableHandle
 from dataclasses import dataclass
+from contextlib import contextmanager
 
 from steering_vectors.torch_utils import get_module, untuple_tensor
 from steering_vectors.layer_matching import (
@@ -13,10 +14,10 @@ from steering_vectors.layer_matching import (
 from controller import VectorControl
 
 
-
-def llm_patch_activations(
+@contextmanager
+def llm_register_vector_control(
     model,
-    control: VectorControl,
+    control: list[VectorControl],
     layer_type: str,
     layers_to_steer: tp.Iterable[int] | None = None,
     layer_config = None,
@@ -59,7 +60,6 @@ def llm_patch_activations(
     layer_config = guess_and_enhance_layer_config(
         model, layer_config, layer_type
     )
-    print(layer_config)
     hooks: list[RemovableHandle] = []
     if layer_type not in layer_config:
         raise ValueError(
@@ -68,13 +68,11 @@ def llm_patch_activations(
     matcher = layer_config[layer_type]
     matching_layers = collect_matching_layers(model, matcher)
 
-    layers = set(range(control.num_attn_layers))
+
+    layers = set(range(len(matching_layers)))
 
     if layers_to_steer is not None:
         layers = layers.intersection(layers_to_steer)
-
-    # print(layers)
-
 
     for layer_num in layers:
         layer_name = matching_layers[layer_num]
@@ -85,24 +83,27 @@ def llm_patch_activations(
             _create_vector_control_hook(control, layer_num, token_indices)
         )
         hooks.append(handle)
-    return SteeringPatchHandle(hooks)
-
+    try:
+        yield
+    finally:
+        for hook in hooks:
+            hook.remove()
 
 
 def _create_vector_control_hook(
-    control: VectorControl,
+    control: list[VectorControl],
     layer_num: int,
     token_indices: list[int] | slice | torch.Tensor
 ) -> tp.Any:
     """Create a hook function that adds the given target_activation to the model output"""
 
     def hook_fn(module: tp.Any, inputs: tp.Any, outputs: tp.Any) -> tp.Any:
-        # print(layer_num)
         original_tensor = untuple_tensor(outputs)
-#         print(original_tensor)
-        # print(original_tensor.shape)
-        modified_tensor = control.forward(original_tensor.unsqueeze(-2), 0, 'LLM', layer_num).squeeze(-2)
-        # print(modified_tensor.shape)
+        t = original_tensor.unsqueeze(-2)
+        for c in control:
+            if c.active:
+                t = c.forward(t, 0, 'LLM', layer_num)
+        modified_tensor = t.squeeze(-2)
 
         if isinstance(token_indices, torch.Tensor):
             mask = token_indices
@@ -116,11 +117,11 @@ def _create_vector_control_hook(
         )
         mask = mask.to(original_tensor.device)
 
-        # print(mask)
+        # TODO: do it properly (we don't now if it's generation step or forward step here)
+        if mask.shape[1] == 1:
+            mask = torch.ones_like(mask)
 
         original_tensor[None] = torch.where(mask == 1, modified_tensor, original_tensor)
-#         print(modified_tensor)
-        # print(original_tensor.shape)
         return outputs
 
     return hook_fn
