@@ -35,7 +35,8 @@ def gather_stats_for_prompts(
     stats_handler = CrossAttentionOutputStatsCollector(
         mode=control_mode,
         token_aggregation_mode=TokenAggregationMode.AVERAGE if patch_average else TokenAggregationMode.ALL,
-        normalize=normalize_vectors
+        normalize=normalize_vectors,
+        compute_covariances=True,
     )
     register_vector_controls(pipe.unet, stats_handler)
 
@@ -43,8 +44,8 @@ def gather_stats_for_prompts(
     for idx, prompt in tqdm.tqdm(enumerate(prompts), total=len(prompts)):
 
         if idx in checkpoint_steps:
-            pickle_stats(stats_handler.means, f'{output_dir}/means_{idx}.pickle')
-            pickle_stats(stats_handler.covariances, f'{output_dir}/covariances_{idx}.pickle')
+            stats_handler.pickle_stats(means_path=f'{output_dir}/means_{idx}.pickle',
+                                       covariances_path=f'{output_dir}/covariances_{idx}.pickle')
     
         image = run_model(
             model_type=model_type,
@@ -55,8 +56,8 @@ def gather_stats_for_prompts(
         )
         stats_handler.reset()
 
-    pickle_stats(stats_handler.means, f'{output_dir}/means_{idx}.pickle')
-    pickle_stats(stats_handler.covariances, f'{output_dir}/covariances_{idx}.pickle')
+    stats_handler.pickle_stats(means_path=f'{output_dir}/means_{idx+1}.pickle',
+                               covariances_path=f'{output_dir}/covariances_{idx+1}.pickle')
     
 
 
@@ -72,12 +73,14 @@ def gather_stats_for_prompt_pairs(
     pos_stats_handler = CrossAttentionOutputStatsCollector(
         mode=args.control_mode,
         token_aggregation_mode=TokenAggregationMode.AVERAGE if args.patch_average else TokenAggregationMode.ALL,
-        normalize=args.normalize_vectors
+        normalize=args.normalize_vectors,
+        compute_covariances=True,
     )
     neg_stats_handler = CrossAttentionOutputStatsCollector(
         mode=args.control_mode,
         token_aggregation_mode=TokenAggregationMode.AVERAGE if args.patch_average else TokenAggregationMode.ALL,
-        normalize=args.normalize_vectors
+        normalize=args.normalize_vectors,
+        compute_covariances=True,
     )
     
     register_vector_controls(pipe.unet, pos_stats_handler, neg_stats_handler)
@@ -91,10 +94,8 @@ def gather_stats_for_prompt_pairs(
             write_checkpoint(
                 output_dir=args.output_dir,
                 step=idx,
-                pos_means=pos_stats_handler.means,
-                pos_covariances=pos_stats_handler.covariances,
-                neg_means=neg_stats_handler.means,
-                neg_covariances=neg_stats_handler.covariances,
+                pos_handler=pos_stats_handler,
+                neg_handler=neg_stats_handler,
             )
 
         pos_stats_handler.active = True
@@ -121,46 +122,41 @@ def gather_stats_for_prompt_pairs(
 
     write_checkpoint(
         output_dir=args.output_dir,
-        step=idx,
-        pos_means=pos_stats_handler.means,
-        pos_covariances=pos_stats_handler.covariances,
-        neg_means=neg_stats_handler.means,
-        neg_covariances=neg_stats_handler.covariances,
+        step=idx+1,
+        pos_handler=pos_stats_handler,
+        neg_handler=neg_stats_handler,
     )
 
 
 def write_checkpoint(
         output_dir: str,
         step: int,
-        pos_means: dict,
-        pos_covariances: dict,
-        neg_means: dict,
-        neg_covariances: dict,
+        pos_handler: CrossAttentionOutputStatsCollector,
+        neg_handler: CrossAttentionOutputStatsCollector,
 ):
-    
-    pickle_stats(pos_means, f'{output_dir}/pos_means_{step}.pickle')
-    pickle_stats(pos_covariances, f'{output_dir}/pos_covariances_{step}.pickle')
-    pickle_stats(neg_means, f'{output_dir}/neg_means_{step}.pickle')
-    pickle_stats(neg_covariances, f'{output_dir}/neg_covariances_{step}.pickle')
+    pos_handler.pickle_stats(means_path=f'{output_dir}/pos_means_{step}.pickle',
+                             covariances_path=f'{output_dir}/pos_covariances_{step}.pickle')
+    neg_handler.pickle_stats(means_path=f'{output_dir}/neg_means_{step}.pickle',
+                             covariances_path=f'{output_dir}/neg_covariances_{step}.pickle')
 
-    casteer_vectors = calculate_casteer(pos_means=pos_means, neg_means=neg_means)
+    casteer_vectors = calculate_casteer(pos_means=pos_handler.means, neg_means=neg_handler.means)
     with open(f'{output_dir}/casteer_{step}.pickle', 'wb') as fout:
         pickle.dump(casteer_vectors, fout)
 
     mmsteer_transforms_forward = calculate_mmster(
-        pos_means=pos_means,
-        pos_covariances=pos_covariances,
-        neg_means=neg_means,
-        neg_covariances=neg_covariances,
+        pos_means=pos_handler.means,
+        pos_covariances=pos_handler.covariances,
+        neg_means=neg_handler.means,
+        neg_covariances=neg_handler.covariances,
     )
     with open(f'{output_dir}/mmsteer_forward_{step}.pickle', 'wb') as fout:
         pickle.dump(mmsteer_transforms_forward, fout)
 
     mmsteer_transforms_inverse = calculate_mmster(
-        pos_means=neg_means,
-        pos_covariances=neg_covariances,
-        neg_means=pos_means,
-        neg_covariances=pos_covariances,
+        pos_means=neg_handler.means,
+        pos_covariances=neg_handler.covariances,
+        neg_means=pos_handler.means,
+        neg_covariances=pos_handler.covariances,
     )
     with open(f'{output_dir}/mmsteer_inverse_{step}.pickle', 'wb') as fout:
         pickle.dump(mmsteer_transforms_inverse, fout)
