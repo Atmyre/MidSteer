@@ -79,6 +79,41 @@ class ComparisonDataset(Dataset):
         p_tokens = self.prompt_to_tokens(q_text, p_text)
         n_tokens = self.prompt_to_tokens(q_text, n_text)
         return p_tokens, n_tokens
+    
+class AlpacaDataset(Dataset):
+    def __init__(self, data_path: str, tokenizer: AutoTokenizer, use_chat: bool, device: tp.Any):
+        with open(data_path, "r") as f:
+            self.data = json.load(f)
+        self.tokenizer = tokenizer
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.use_chat = use_chat
+        self.device = device
+
+    def prompt_to_tokens(self, system_prompt: str | None, instruction: str | None, model_output: str):
+        if self.use_chat:
+            tokens = tokenize_llama_chat(
+                self.tokenizer,
+                system_prompt=system_prompt,
+                user_input=instruction,
+            )
+        else:
+            tokens = tokenize_llama_base(
+                self.tokenizer,
+                system_prompt=system_prompt,
+                user_input=instruction,
+            )
+        return torch.tensor(tokens, device=self.device).unsqueeze(0)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        item = self.data[idx]
+        inst_text = item["instruction"]
+        input_text = item["input"]
+        p_tokens = self.prompt_to_tokens(inst_text, input_text)
+        n_tokens = self.prompt_to_tokens(inst_text, input_text)
+        return p_tokens, n_tokens
 
 
 def init_model_and_tokenizer(model_name: str) -> tuple[AutoModelForCausalLM, AutoTokenizer]:

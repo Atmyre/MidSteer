@@ -2,9 +2,9 @@
 
 set -eoux pipefail
 
-prompt_file="./test_prompts/horse_prompts.txt"
+prompt_file="./test_prompts/neutral_prompts.txt"
 PREFIX="images/horse_motorcycle_10000_test"
-seeds="94,378"  # String representing list of seeds, separated by comma
+seeds="94,378,1000,42,34,56"  # String representing list of seeds, separated by comma
 
 for model in "sdxl"; do
 

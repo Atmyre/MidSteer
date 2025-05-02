@@ -309,14 +309,14 @@ class CrossAttentionOutputSteering(VectorControl):
         mu_pos = sigma_minus_half @ mu_pos
         mu_neg = sigma_minus_half @ mu_neg
 
-        denom = mu_neg.mT @ mu_neg + self.alpha + EPS
+        denom = mu_neg.mT @ mu_neg + EPS #+ self.alpha
 
-        A = torch.eye(hidden_dim, dtype=mu_pos.dtype, device=mu_pos.device)[None, ...] + sigma_plus_half@(((1.*mu_pos - mu_neg) @ mu_neg.mT / denom))@sigma_minus_half
+        A = torch.eye(hidden_dim, dtype=mu_pos.dtype, device=mu_pos.device)[None, ...] + sigma_plus_half@(((self.alpha*mu_pos - mu_neg) @ mu_neg.mT / denom))@sigma_minus_half
 
-        if self.alpha > 0:
-            b = mu_pos - A @ mu_neg
-        else:
-            b = mu_neutral - A @ mu_neutral
+#         if self.alpha > 0:
+#             b = mu_pos - A @ mu_neg
+#         else:
+        b = mu_neutral - A @ mu_neutral
 
         vector_steered = ((vector.reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ A.mT) + b.mT).transpose(0, 1).reshape(batch_size, sequence_length, num_heads, hidden_dim) 
         return vector_steered.half()
@@ -335,7 +335,7 @@ class CrossAttentionOutputSteering(VectorControl):
             if self.steer_type == 'casteer':
                 if self.steer_back:
                     for casteer_vectors in self.casteer_vectors:
-                        vector[1:, ...] = self.steer_backward_CASteer(vector[1:, ...], *casteer_vectors[num_steer][place_in_unet][block_index])
+                        vector[1:, ...] = self.steer_backward_CASteer_matrix_form(vector[1:, ...], *casteer_vectors[num_steer][place_in_unet][block_index])
                 else:
                     for casteer_vectors in self.casteer_vectors:
                         norm = torch.norm(vector, dim=-1, keepdim=True)
