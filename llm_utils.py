@@ -81,13 +81,22 @@ class ComparisonDataset(Dataset):
         return p_tokens, n_tokens
     
 class AlpacaDataset(Dataset):
-    def __init__(self, data_path: str, tokenizer: AutoTokenizer, use_chat: bool, device: tp.Any):
+    def __init__(self,
+                 data_path: str,
+                 tokenizer: AutoTokenizer,
+                 use_chat: bool,
+                 device: tp.Any,
+                 *,
+                 pos_concept: str | None = None,
+                 neg_concept: str | None = None):
         with open(data_path, "r") as f:
             self.data = json.load(f)
         self.tokenizer = tokenizer
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.use_chat = use_chat
         self.device = device
+        self._pos_concept = pos_concept
+        self._neg_concept = neg_concept
 
     def prompt_to_tokens(self, system_prompt: str | None, instruction: str | None):
         if self.use_chat:
@@ -111,10 +120,14 @@ class AlpacaDataset(Dataset):
         item = self.data[idx]
         inst_text = item["instruction"]
         input_text = item["input"]
-        inst_text1 = inst_text+' '+'Think about horses when you answer the question.'
-        inst_text2 = inst_text+' '+'Think about motorbikes when you answer the question.'
-        p_tokens = self.prompt_to_tokens(inst_text1, input_text)
-        n_tokens = self.prompt_to_tokens(inst_text2, input_text)
+        p_inst_text = inst_text
+        if self._pos_concept is not None:
+            p_inst_text += f' Think about {self._pos_concept} when you answer the question.'
+        n_inst_text = inst_text
+        if self._neg_concept is not None:
+            n_inst_text += f' Think about {self._neg_concept} when you answer the question.'
+        p_tokens = self.prompt_to_tokens(p_inst_text, input_text)
+        n_tokens = self.prompt_to_tokens(n_inst_text, input_text)
         return p_tokens, n_tokens
 
 
