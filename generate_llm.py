@@ -22,32 +22,48 @@ def main(
         beta: float,
         steer_back: bool,
         max_new_tokens: int,
+        mu_pos: dict,
+        mu_neg: dict,
+        mu_neutral: dict,
+        cov: dict,
+        steer_type: str,
+        leace_cov: dict,
+        leace_mean: dict,
 ):
     
     model, tokenizer = init_model_and_tokenizer(model_name=model_name)
     device = get_device()
 
+    if pos_means is not None and neg_means is not None:
+        num_layers = len(pos_means[0]['LLM'])
+        steering_vectors = {0: {'LLM': []}}
+        for idx in range(num_layers):
+            pos_mean = pos_means[0]['LLM'][idx]
+            neg_mean = neg_means[0]['LLM'][idx]
 
-    num_layers = len(pos_means[0]['LLM'])
-    steering_vectors = {0: {'LLM': []}}
-    for idx in range(num_layers):
-        pos_mean = pos_means[0]['LLM'][idx]
-        neg_mean = neg_means[0]['LLM'][idx]
-
-        vec = (pos_mean - neg_mean)
-        # vec /= torch.linalg.norm(vec, dim=-1, keepdim=True)
-        steering_vectors[0]['LLM'].append(vec)
+            vec = (pos_mean - neg_mean)
+            # vec /= torch.linalg.norm(vec, dim=-1, keepdim=True)
+            steering_vectors[0]['LLM'].append(vec)
+        steering_vectors = [steering_vectors]
+    else:
+        steering_vectors=None
 
 
 
     control = CrossAttentionOutputSteering(
         mode=VectorControlMode.ATTN_OUTPUT,
-        casteer_vectors=[steering_vectors],
-        steer_type='casteer',
+        casteer_vectors=steering_vectors,
+        steer_type=steer_type,
         alpha=alpha,
         beta=beta,
         steer_back=steer_back,
         device=device,
+        mu_pos=mu_pos,
+        mu_neg=mu_neg,
+        mu_neutral=mu_neutral,
+        cov=cov,
+        leace_cov=leace_cov,
+        leace_mean=leace_mean,
     )
 
     generation_config = GenerationConfig(max_new_tokens=max_new_tokens)
@@ -58,7 +74,7 @@ def main(
         inputs = tokenize_llama_base(tokenizer=tokenizer, user_input=prompt)
     inputs = torch.tensor(inputs, device=device).unsqueeze(0)
 
-    min_token_index = inputs.shape[1] - 1
+    min_token_index = 0#inputs.shape[1] - 1
 
     with llm_register_vector_control(
         model=model,
@@ -77,13 +93,20 @@ if __name__ == "__main__":
     parser.add_argument('--model_name', type=str, required=True)
     parser.add_argument('--layer_type', choices=['decoder_block', 'self_attn', 'mlp', 'input_layernorm', 'post_attention_layernorm'], required=True)
     parser.add_argument('--layers_to_steer', type=str, help='Comma separated list of layer indices to steer', default=None)
-    parser.add_argument('--pos_means', type=str, required=True)
-    parser.add_argument('--neg_means', type=str, required=True)
+    parser.add_argument('--pos_means', type=str, default=None)
+    parser.add_argument('--neg_means', type=str, default=None)
     parser.add_argument('--prompt', type=str, required=True)
     parser.add_argument('--alpha', type=float, default=0.0)
     parser.add_argument('--steer_back', action='store_true')
     parser.add_argument('--beta', type=float, default=2)
     parser.add_argument('--max_new_tokens', type=int, default=50)
+    parser.add_argument('--steer_type', type=str, choices=['casteer', 'mmsteer', 'leace', 'mean_matching'], default=None)
+    parser.add_argument('--leace_cov', type=str, default=None)
+    parser.add_argument('--leace_mean', type=str, default=None)
+    parser.add_argument('--mu_pos', type=str, default=None)  # path to mu_pos file
+    parser.add_argument('--mu_neg', type=str, default=None)  # path to mu_neg file
+    parser.add_argument('--mu_neutral', type=str, default=None)  # path to mu_neutral file
+    parser.add_argument('--cov', type=str, default=None)  # path to mu_neutral file
 
     args = parser.parse_args()
 
@@ -103,4 +126,11 @@ if __name__ == "__main__":
         beta=args.beta,
         steer_back=args.steer_back,
         max_new_tokens=args.max_new_tokens,
+        mu_pos=unpickle(args.mu_pos),
+        mu_neg=unpickle(args.mu_neg),
+        mu_neutral=unpickle(args.mu_neutral),
+        cov=unpickle(args.cov),
+        steer_type=args.steer_type,
+        leace_cov=unpickle(args.leace_cov),
+        leace_mean=unpickle(args.leace_mean),
     )
