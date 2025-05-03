@@ -131,11 +131,55 @@ class AlpacaDataset(Dataset):
         return p_tokens, n_tokens
 
 
-def init_model_and_tokenizer(model_name: str) -> tuple[AutoModelForCausalLM, AutoTokenizer]:
+class PairedQuestionsDataset(Dataset):
+    def __init__(self,
+                 data_path: str,
+                 tokenizer: AutoTokenizer,
+                 use_chat: bool,
+                 device: tp.Any,
+                 *,
+                 pos_concept: str = None,
+                 neg_concept: str = None):
+        with open(data_path, "r") as f:
+            self.data = json.load(f)
+        self.tokenizer = tokenizer
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.use_chat = use_chat
+        self.device = device
+        self._pos_concept = pos_concept
+        self._neg_concept = neg_concept
+
+    def prompt_to_tokens(self, system_prompt: str | None, instruction: str | None):
+        if self.use_chat:
+            tokens = tokenize_llama_chat(
+                self.tokenizer,
+                system_prompt=system_prompt,
+                user_input=instruction,
+            )
+        else:
+            raise ValueError("Not supported")
+        return torch.tensor(tokens, device=self.device).unsqueeze(0)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        pos_question = self.data[self._pos_concept][idx]
+        neg_question = self.data[self._neg_concept][idx]
+        p_inst_text = f' Think about {self._pos_concept} when you answer the question.'
+        n_inst_text = f' Think about {self._neg_concept} when you answer the question.'
+        p_tokens = self.prompt_to_tokens(p_inst_text, pos_question)
+        n_tokens = self.prompt_to_tokens(n_inst_text, neg_question)
+        return p_tokens, n_tokens
+
+
+
+
+def init_model_and_tokenizer(model_name: str, cache_dir: str | None = './cache') -> tuple[AutoModelForCausalLM, AutoTokenizer]:
     # ***REMOVED***
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        cache_dir='./cache',
+        cache_dir=cache_dir,
         torch_dtype=torch.float16,
         device_map='balanced',
         token='***REMOVED***'
@@ -143,7 +187,7 @@ def init_model_and_tokenizer(model_name: str) -> tuple[AutoModelForCausalLM, Aut
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_name,
-        cache_dir='./cache',
+        cache_dir=cache_dir,
         torch_dtype=torch.float16,
         device_map='balanced',
         token='***REMOVED***'

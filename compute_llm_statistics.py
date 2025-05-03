@@ -7,7 +7,7 @@ import torch
 from construct_prompts import pickle_stats, read_prompt_file
 from controller import VectorControlMode
 from llm_steering import llm_register_vector_control
-from llm_utils import ComparisonDataset, AlpacaDataset, init_model_and_tokenizer
+from llm_utils import ComparisonDataset, AlpacaDataset, PairedQuestionsDataset, init_model_and_tokenizer
 from utils import get_device
 from vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
 import tqdm
@@ -39,6 +39,12 @@ def main(
             'pos_concept': pos_concept,
             'neg_concept': neg_concept,
         }
+    elif dataset_type == 'paired_questions':
+        dataset_cls = PairedQuestionsDataset
+        dataset_kwargs = {
+            'pos_concept': pos_concept,
+            'neg_concept': neg_concept,
+        }
     else:
         raise ValueError(f'Unknown dataset type {dataset_type}')
 
@@ -49,6 +55,8 @@ def main(
         device=device,
         **dataset_kwargs,
     )
+
+    print(f'compute_covariances: {compute_covariances}')
 
     pos_vector_control = CrossAttentionOutputStatsCollector(
         mode=VectorControlMode.ATTN_OUTPUT,
@@ -98,7 +106,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, required=True)
     parser.add_argument('--layer_type', choices=['decoder_block', 'self_attn', 'mlp', 'input_layernorm', 'post_attention_layernorm'], required=True)
-    parser.add_argument('--dataset_type', type=str, choices=['rimsky', 'alpaca'], required=True)
+    parser.add_argument('--dataset_type', type=str, choices=['rimsky', 'alpaca', 'paired_questions'], required=True)
     parser.add_argument('--dataset_path', type=str, required=True)
     parser.add_argument('--pos_concept', type=str, default=None, help='Pos concept class (for Alpaca dataset type)')
     parser.add_argument('--neg_concept', type=str, default=None, help='Neg concept class (for Alpaca dataset type)')
