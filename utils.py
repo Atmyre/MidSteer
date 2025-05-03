@@ -1,3 +1,4 @@
+import pickle
 import torch
 import typing as tp
 
@@ -103,3 +104,29 @@ def convert_to_widest_dtype(vector: torch.Tensor, device: tp.Any, force_double: 
             return vector.to(device, dtype=torch.float32)
     else:
         return vector.to(device, dtype=torch.float64)
+
+
+class CPU_Unpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module == 'torch.storage' and name == '_load_from_bytes':
+            return lambda b: torch.load(io.BytesIO(b), map_location='cpu')
+        else: return super().find_class(module, name)
+
+
+def unpickle(path: str | None):
+    if path is None:
+        return None
+    try:
+        with open(path, 'rb') as fin:
+            return pickle.load(fin)
+    except:
+        with open(path, 'rb') as fin:
+            return CPU_Unpickler(fin).load()
+
+def unpickle_pack(path: str | None) -> list[dict]:
+    if path is None:
+        return None
+    result = []
+    for subpath in path.split(','):
+        result.append(unpickle(subpath))
+    return result
