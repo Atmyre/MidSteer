@@ -122,10 +122,10 @@ class AlpacaDataset(Dataset):
         input_text = item["input"]
         p_inst_text = inst_text
         if self._pos_concept is not None:
-            p_inst_text += f' Think about {self._pos_concept} when you answer the question.'
+            p_inst_text += ' ' + self._pos_concept
         n_inst_text = inst_text
         if self._neg_concept is not None:
-            n_inst_text += f' Think about {self._neg_concept} when you answer the question.'
+            n_inst_text += ' ' + self._neg_concept
         p_tokens = self.prompt_to_tokens(p_inst_text, input_text)
         n_tokens = self.prompt_to_tokens(n_inst_text, input_text)
         return p_tokens, n_tokens
@@ -166,8 +166,8 @@ class PairedQuestionsDataset(Dataset):
     def __getitem__(self, idx):
         pos_question = self.data[self._pos_concept][idx]
         neg_question = self.data[self._neg_concept][idx]
-        p_inst_text = f' Think about {self._pos_concept} when you answer the question.'
-        n_inst_text = f' Think about {self._neg_concept} when you answer the question.'
+        p_inst_text = ''#f'Answer the following question about {self._pos_concept}.'
+        n_inst_text = ''#f'Answer the following question about {self._neg_concept}.'
         p_tokens = self.prompt_to_tokens(p_inst_text, pos_question)
         n_tokens = self.prompt_to_tokens(n_inst_text, neg_question)
         return p_tokens, n_tokens
