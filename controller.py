@@ -77,11 +77,12 @@ class CrossAttentionOutputSteering(VectorControl):
         
         mmsteer_threshold: float=0.1,
         steer_only_up=False, 
-        alpha: float = 10.0,
-        beta: float = 2.0, 
+        alpha: float = None,
+        beta: float = None,
         steer_back: bool = False,
         device: Any,
         num_layers: int = None,
+        strength: float = None,
     ):
         super().__init__(mode=mode, num_layers=num_layers)
         self.device = device
@@ -89,10 +90,18 @@ class CrossAttentionOutputSteering(VectorControl):
         self.mmsteer_threshold = mmsteer_threshold
         
         self.steer_only_up = steer_only_up
-        self.alpha = alpha
-        self.beta = beta
         self.steer_back = steer_back
         self.steer_type = steer_type
+
+        if steer_type == 'casteer' and steer_back:
+            self.strength = beta
+        else:
+            self.strength = alpha
+
+        if strength is not None:
+            self.strength = strength
+        if self.strength is None:
+            raise ValueError("Steering strength not provided, specify with `strength` parameter")
 
         if steer_type == 'casteer':
             self.casteer_vectors = []
@@ -106,7 +115,7 @@ class CrossAttentionOutputSteering(VectorControl):
                                 b = b.unsqueeze(0)
                             b = convert_to_widest_dtype(torch.tensor(b), device=self.device).unsqueeze(-1)
                             
-                            res = self.beta*(b @ torch.linalg.pinv(b))
+                            res = self.strength*(b @ torch.linalg.pinv(b))
                             P = torch.eye(res.shape[1], dtype=res.dtype).unsqueeze(0).to(self.device) - res
                             
                             casteer_concept_transforms[num_steer][place_in_unet].append((b.squeeze(-1), P))
@@ -130,7 +139,7 @@ class CrossAttentionOutputSteering(VectorControl):
                             sigma = convert_to_widest_dtype(
                                 cov_concept[num_steer][place_in_unet][block_idx],
                                 device=self.device, force_double=False)
-                            sigma = torch.eye(sigma.shape[1], dtype=sigma.dtype, device=sigma.device).unsqueeze(0)
+                            # sigma = torch.eye(sigma.shape[1], dtype=sigma.dtype, device=sigma.device).unsqueeze(0)
                             m_neutral = convert_to_widest_dtype(
                                 mu_neutral_concept[num_steer][place_in_unet][block_idx],
                                 device=self.device, force_double=False)
@@ -142,17 +151,17 @@ class CrossAttentionOutputSteering(VectorControl):
                                 device=self.device, force_double=False) - m_neutral
                             steering_vector = m_pos - m_neg
 
-                            sigma_minus_half = sigma #fractional_matrix_power_cov_torch(sigma, -0.5, eps=1e-10)
-                            sigma_plus_half = sigma #fractional_matrix_power_cov_torch(sigma, 0.5, eps=1e-10)
+                            sigma_minus_half = fractional_matrix_power_cov_torch(sigma, -0.5, eps=1e-10)
+                            sigma_plus_half = fractional_matrix_power_cov_torch(sigma, 0.5, eps=1e-10)
 
                             if steer_type == 'leace':
                                 steering_vector = (sigma_minus_half @ steering_vector.unsqueeze(-1))
-                                res = - sigma_plus_half @ (self.alpha * (steering_vector @ torch.linalg.pinv(steering_vector))) @ sigma_minus_half
+                                res = - sigma_plus_half @ (self.strength * (steering_vector @ torch.linalg.pinv(steering_vector))) @ sigma_minus_half
                             elif steer_type == 'mean_matching':
                                 # pinv(x) = x.T / |x|^2
                                 m_pos = (sigma_minus_half @ m_pos.unsqueeze(-1))
                                 m_neg = (sigma_minus_half @ m_neg.unsqueeze(-1))
-                                res = sigma_plus_half @ ((self.alpha * m_pos - m_neg) @ torch.linalg.pinv(m_neg)) @ sigma_minus_half
+                                res = sigma_plus_half @ ((self.strength * m_pos - m_neg) @ torch.linalg.pinv(m_neg)) @ sigma_minus_half
                             else:
                                 raise ValueError(f"Unknown steering type {steer_type}")
 
@@ -215,7 +224,7 @@ class CrossAttentionOutputSteering(VectorControl):
         sim = torch.where(sim>0, sim, 0)
 
         # steer backward for beta*sim
-        return vector - self.beta * sim.to(vector.device) * b_norm.to(vector.device)
+        return vector - self.strength * sim.to(vector.device) * b_norm.to(vector.device)
 
 
     def steer_forward_CASteer(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
@@ -227,7 +236,7 @@ class CrossAttentionOutputSteering(VectorControl):
 
         # vector = self.steer_backward_CASteer(vector, *steering_tensors)
 
-        return vector + self.alpha * b.to(vector.device) * torch.norm(vector, dim=-1, keepdim=True).to(vector.device)
+        return vector + self.strength * b.to(vector.device) * torch.norm(vector, dim=-1, keepdim=True).to(vector.device)
 
     # [batch_size, sequence_length, num_heads, head_dim]
     def forward(self, vector: torch.Tensor, diffusion_step: int, place_in_unet: str, block_index: int):
@@ -273,11 +282,11 @@ class CrossAttentionOutputSteering(VectorControl):
                         W = W[None, ...]
                         b = b[None, :]
 
-                    if self.alpha != 1.0:
+                    if self.strength != 1.0:
                         W = W.float()
                         b = b.float()
                         I = torch.eye(W.shape[1], device=W.device)[None, ...]
-                        W_alpha = fractional_matrix_power_cov_torch(W, self.alpha)
+                        W_alpha = fractional_matrix_power_cov_torch(W, self.strength)
                         b_alpha = ((I - W_alpha) @ (I - W).inverse() @ b[..., None])[..., 0]
                         W_alpha = W_alpha.half()
                         b_alpha = b_alpha.half()

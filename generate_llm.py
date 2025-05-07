@@ -7,7 +7,8 @@ from transformers import GenerationConfig
 
 from controller import CrossAttentionOutputSteering, VectorControlMode
 from llm_steering import llm_register_vector_control
-from llm_utils import init_model_and_tokenizer, tokenize_llama_base, tokenize_llama_chat
+from llm_utils import init_model_and_tokenizer
+from CAA.utils.tokenize import tokenize_llama_base, tokenize_llama_chat
 from utils import get_device
 
 
@@ -49,7 +50,7 @@ def main(
     if 'chat' in model_name:
         inputs = tokenize_llama_chat(tokenizer=tokenizer, user_input=prompt)
     else:
-        inputs = tokenize_llama_base(tokenizer=tokenizer, user_input=prompt)
+        inputs = tokenize_llama_base(tokenizer=tokenizer, user_input=prompt, model_output='')
     inputs = torch.tensor(inputs, device=device).unsqueeze(0)
 
     min_token_index = inputs.shape[1] - 1
