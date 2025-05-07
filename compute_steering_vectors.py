@@ -44,7 +44,7 @@ def gather_stats_for_prompts(
     for idx, prompt in tqdm.tqdm(enumerate(prompts), total=len(prompts)):
 
         if idx in checkpoint_steps:
-            stats_handler.pickle_stats(means_path=f'{output_dir}/means_{idx}.pickle',
+            stats_handler.save_stats(means_path=f'{output_dir}/means_{idx}.pickle',
                                        covariances_path=f'{output_dir}/covariances_{idx}.pickle')
     
         image = run_model(
@@ -56,7 +56,7 @@ def gather_stats_for_prompts(
         )
         stats_handler.reset()
 
-    stats_handler.pickle_stats(means_path=f'{output_dir}/means_{idx+1}.pickle',
+    stats_handler.save_stats(means_path=f'{output_dir}/means_{idx+1}.pickle',
                                covariances_path=f'{output_dir}/covariances_{idx+1}.pickle')
     
 
@@ -134,9 +134,9 @@ def write_checkpoint(
         pos_handler: CrossAttentionOutputStatsCollector,
         neg_handler: CrossAttentionOutputStatsCollector,
 ):
-    pos_handler.pickle_stats(means_path=f'{output_dir}/pos_means_{step}.pickle',
+    pos_handler.save_stats(means_path=f'{output_dir}/pos_means_{step}.pickle',
                              covariances_path=f'{output_dir}/pos_covariances_{step}.pickle')
-    neg_handler.pickle_stats(means_path=f'{output_dir}/neg_means_{step}.pickle',
+    neg_handler.save_stats(means_path=f'{output_dir}/neg_means_{step}.pickle',
                              covariances_path=f'{output_dir}/neg_covariances_{step}.pickle')
 
     casteer_vectors = calculate_casteer(pos_means=pos_handler.means, neg_means=neg_handler.means)

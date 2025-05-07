@@ -108,8 +108,14 @@ class CrossAttentionOutputStatsCollector(VectorControl):
                     )
         return result
 
-    def pickle_stats(self, *, means_path: str = None, covariances_path: str = None):
+    def save_stats(self, *, means_path: str = None, covariances_path: str = None, use_torch_save: bool = False):
         if means_path is not None:
-            pickle_stats(self.means, means_path)
+            if use_torch_save:
+                torch.save(self.means, means_path)
+            else:
+                pickle_stats(self.means, means_path)
         if self._compute_covariances and covariances_path is not None:
-            pickle_stats(self.covariances, covariances_path)
+            if use_torch_save:
+                torch.save(self.covariances, covariances_path)
+            else:
+                pickle_stats(self.covariances, covariances_path)

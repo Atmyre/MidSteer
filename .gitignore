@@ -10,3 +10,12 @@ __pycache__/
 /steering_vectors/
 /images/
 /ckpt/
+
+
+/datasets_llm/raw/
+/CAA/vectors/
+/CAA/normalized_vectors/
+/CAA/activations/
+/CAA/analysis/
+/CAA/results/
+/CAA/external_vectors/

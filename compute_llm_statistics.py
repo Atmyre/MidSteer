@@ -1,10 +1,6 @@
 import argparse
-import enum
-import time
-from steering_vectors import record_activations
 import torch
 
-from construct_prompts import pickle_stats, read_prompt_file
 from controller import VectorControlMode
 from llm_steering import llm_register_vector_control
 from llm_utils import ComparisonDataset, AlpacaDataset, PairedQuestionsDataset, init_model_and_tokenizer
@@ -81,9 +77,9 @@ def main(
     ), torch.no_grad():
         for idx, (p_tokens, n_tokens) in enumerate(tqdm.tqdm(dataset, desc="Processing prompts")):
             if idx in checkpoint_steps:
-                pos_vector_control.pickle_stats(means_path=f'{output_dir}/pos_means_{idx}.pickle',
+                pos_vector_control.save_stats(means_path=f'{output_dir}/pos_means_{idx}.pickle',
                                                 covariances_path=f'{output_dir}/pos_covariances_{idx}.pickle')
-                neg_vector_control.pickle_stats(means_path=f'{output_dir}/neg_means_{idx}.pickle',
+                neg_vector_control.save_stats(means_path=f'{output_dir}/neg_means_{idx}.pickle',
                                                 covariances_path=f'{output_dir}/neg_covariances_{idx}.pickle')
 
             pos_vector_control.active = True
@@ -96,9 +92,9 @@ def main(
             _ = model.forward(n_tokens, use_cache=False)
             neg_vector_control.reset()
 
-        pos_vector_control.pickle_stats(means_path=f'{output_dir}/pos_means_{idx+1}.pickle',
+        pos_vector_control.save_stats(means_path=f'{output_dir}/pos_means_{idx+1}.pickle',
                                         covariances_path=f'{output_dir}/pos_covariances_{idx+1}.pickle')
-        neg_vector_control.pickle_stats(means_path=f'{output_dir}/neg_means_{idx+1}.pickle',
+        neg_vector_control.save_stats(means_path=f'{output_dir}/neg_means_{idx+1}.pickle',
                                         covariances_path=f'{output_dir}/neg_covariances_{idx+1}.pickle')
 
 
