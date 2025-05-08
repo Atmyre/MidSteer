@@ -102,6 +102,10 @@ class CrossAttentionOutputSteering(VectorControl):
             self.strength = strength
         if self.strength is None:
             raise ValueError("Steering strength not provided, specify with `strength` parameter")
+        
+        if self.strength < 0:
+            mu_pos, mu_neg = mu_neg, mu_pos
+            self.strength = -self.strength
 
         if steer_type == 'casteer':
             self.casteer_vectors = []

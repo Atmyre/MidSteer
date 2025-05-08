@@ -29,7 +29,8 @@ from CAA.behaviors import (
     load_mu_neutral,
 )
 from controller import CrossAttentionOutputSteering, VectorControlMode
-from utils import get_device
+from utils import get_device, unpickle
+import typing as tp
 
 load_dotenv()
 
@@ -115,7 +116,10 @@ def get_CAA_steering_vector(model: LlamaWrapper, settings: SteeringSettings, lay
 
 
 def test_steering(
-    layers: List[int], multipliers: List[int], settings: SteeringSettings, overwrite=False
+    model: LlamaWrapper, layers: List[int], multipliers: List[int], settings: SteeringSettings, device: tp.Any,
+    all_means: dict,
+    all_covs: dict,
+    overwrite=False,
 ):
     """
     layers: List of layers to test steering on.
@@ -137,15 +141,6 @@ def test_steering(
         "truthful_qa": get_truthful_qa_data(),
         "mmlu": get_mmlu_data(),
     }
-    device = get_device()
-    model = LlamaWrapper(
-        HUGGINGFACE_TOKEN,
-        size=settings.model_size,
-        use_chat=not settings.use_base_model,
-        override_model_weights_path=settings.override_model_weights_path,
-        control_type=steering_settings.control_type,
-        device=device,
-    )
     model.set_external_layer_type(settings.external_layer_type)
     model.set_external_layers_to_steer(None)  # Steer all layers
     a_token_id = model.tokenizer.convert_tokens_to_ids("A")
@@ -172,17 +167,16 @@ def test_steering(
                         layer, multiplier * get_CAA_steering_vector(model, settings, layer)
                     )
                 elif settings.control_type == 'external':
-
                     external_controllers = [CrossAttentionOutputSteering(
                         mode=VectorControlMode.ATTN_OUTPUT,
                         steer_type=settings.external_steer_type,
-                        strength=abs(multiplier),
+                        strength=multiplier,
                         steer_back=True,
                         device=device,
                         mu_pos=[load_external_vectors(behavior, settings.external_layer_type, model.model_name_path, 'pos')],
                         mu_neg=[load_external_vectors(behavior, settings.external_layer_type, model.model_name_path, 'neg')],
-                        mu_neutral=None,#[load_mu_neutral(settings.external_layer_type, model.model_name_path)],
-                        cov=None,#[load_cov_neutral(settings.external_layer_type, model.model_name_path)],
+                        mu_neutral=[all_means],
+                        cov=[all_covs],
                     )]
                     model.set_external_controllers(external_controllers)
                 result = process_methods[settings.type](
@@ -226,8 +220,15 @@ if __name__ == "__main__":
     parser.add_argument('--control_type', choices=['CAA', 'external'], default='CAA')
     parser.add_argument('--external_steer_type', choices=['casteer', 'leace', 'mean_matching'], default=None)
     parser.add_argument('--external_layer_type', choices=['decoder_block', 'self_attn', 'mlp', 'input_layernorm', 'post_attention_layernorm'], type=str, default=None)
+    parser.add_argument('--all_means', type=str, default=None)
+    parser.add_argument('--all_covs', type=str, default=None)
+
+
     
     args = parser.parse_args()
+
+    all_means = unpickle(args.all_means)
+    all_covs = unpickle(args.all_covs)
 
     steering_settings = SteeringSettings()
     steering_settings.type = args.type
@@ -241,12 +242,25 @@ if __name__ == "__main__":
     steering_settings.external_steer_type = args.external_steer_type
     steering_settings.external_layer_type = args.external_layer_type
 
+    device = get_device()
+    model = LlamaWrapper(
+        HUGGINGFACE_TOKEN,
+        size=steering_settings.model_size,
+        use_chat=not steering_settings.use_base_model,
+        override_model_weights_path=steering_settings.override_model_weights_path,
+        control_type=steering_settings.control_type,
+        device=device,
+    )
 
     for behavior in args.behaviors:
         steering_settings.behavior = behavior
         test_steering(
+            model=model,
             layers=args.layers,
             multipliers=args.multipliers,
             settings=steering_settings,
+            device=device,
             overwrite=args.overwrite,
+            all_means=all_means,
+            all_covs=all_covs,
         )

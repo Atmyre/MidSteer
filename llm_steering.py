@@ -78,6 +78,7 @@ def llm_register_vector_control(
         layer_name = matching_layers[layer_num]
 
         module = get_module(model, layer_name)
+        # print(layer_name, module)
         handle = module.register_forward_hook(
             # create the hook via function call since python only creates new scopes on functions
             _create_vector_control_hook(control, layer_num, token_indices)
