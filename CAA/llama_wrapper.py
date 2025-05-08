@@ -145,7 +145,7 @@ class LlamaWrapper:
             self.model.load_state_dict(t.load(override_model_weights_path))
         # if size != "7b":
         #     self.model = self.model.half()
-        self.model = self.model.to(self.device)
+        # self.model = self.model.to(self.device)
         if use_chat:
             self.END_STR = t.tensor(self.tokenizer.encode(ADD_FROM_POS_CHAT)[1:]).to(
                 self.device

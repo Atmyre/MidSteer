@@ -111,6 +111,7 @@ def plot_ab_results_for_layer(
     if (settings.override_vector is None) and (settings.override_vector_model is None) and (settings.override_model_weights_path is None):
         plt.title(f"{HUMAN_NAMES[settings.behavior]} - {settings.get_formatted_model_name()}", fontsize=11)
     plt.tight_layout()
+    os.makedirs(os.path.dirname(save_to), exist_ok=True)
     plt.savefig(save_to, format="png")
     # Save data in all_results used for plotting as .txt
     with open(save_to.replace(".png", ".txt"), "w") as f, open(save_to.replace(".png", ".tex"), "w") as f_tex:
