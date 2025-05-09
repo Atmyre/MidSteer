@@ -166,8 +166,6 @@ class CrossAttentionOutputSteering(VectorControl):
                                 m_pos = (sigma_minus_half @ m_pos.unsqueeze(-1))
                                 m_neg = (sigma_minus_half @ m_neg.unsqueeze(-1))
                                 res = sigma_plus_half @ ((self.strength * m_pos - m_neg) @ torch.linalg.pinv(m_neg)) @ sigma_minus_half
-                            else:
-                                raise ValueError(f"Unknown steering type {steer_type}")
 
                             P = torch.eye(res.shape[1], dtype=res.dtype, device=res.device).unsqueeze(0) + res
                             b = m_neutral - (P @ m_neutral.unsqueeze(-1)).squeeze(-1)
@@ -198,7 +196,6 @@ class CrossAttentionOutputSteering(VectorControl):
         num_heads = vector.shape[2]
         hidden_dim = vector.shape[3]
         (_,P) = steering_tensors
-        vector = vector.to(torch.float64)
 
         vector_steered = ((vector.reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ P.to(vector.device).mT)).transpose(0, 1).reshape(batch_size, sequence_length, num_heads, hidden_dim) 
         return vector_steered
@@ -254,6 +251,8 @@ class CrossAttentionOutputSteering(VectorControl):
             batch_slice = slice(None, None)
 
         vector = vector.detach().clone()
+        ...
+        # TODO: check correct dtype to speed up generation
 
         if place_in_unet in ['LLM', 'up', 'mid'] or (place_in_unet == 'down' and not self.steer_only_up): 
             # if steering vectors are from turbo version, then there's only one key in self.steering_vectors, 
