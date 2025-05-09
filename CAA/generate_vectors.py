@@ -14,7 +14,7 @@ from tqdm import tqdm
 import os
 from dotenv import load_dotenv
 from controller import VectorControlMode
-from llama_wrapper import LlamaWrapper
+from CAA.llama_wrapper import LlamaWrapper
 import argparse
 from typing import List
 from llm_steering import llm_register_vector_control

@@ -19,3 +19,5 @@ __pycache__/
 /CAA/analysis/
 /CAA/results/
 /CAA/external_vectors/
+
+/concept_flipping/vectors/

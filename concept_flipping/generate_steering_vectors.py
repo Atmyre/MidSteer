@@ -1,0 +1,86 @@
+import argparse
+import torch
+
+from concept_flipping.dataset import QuestionsDataset
+from controller import VectorControlMode
+from llm_steering import llm_register_vector_control
+from llm_utils import init_model_and_tokenizer
+from utils import get_device
+from vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
+import tqdm
+
+
+from transformers import AutoModelForCausalLM
+from transformers import AutoTokenizer
+
+
+def compute_vectors(
+        model: AutoModelForCausalLM,
+        tokenizer: AutoTokenizer,
+        device: torch.device,
+        use_chat: bool,
+        layer_type: str,
+        topic: str,
+        token_aggregation_mode: TokenAggregationMode,
+        last_token_offset: int,
+        normalize_vectors: bool,
+):
+
+    dataset = QuestionsDataset(
+        data_path=f'concept_flipping/questions/{topic}_questions_batch_*.json',
+        tokenizer=tokenizer,
+        use_chat=use_chat,
+        device=device,
+    )
+
+    vector_control = CrossAttentionOutputStatsCollector(
+        mode=VectorControlMode.ATTN_OUTPUT,
+        token_aggregation_mode=token_aggregation_mode,
+        normalize=normalize_vectors,
+        last_token_offset=last_token_offset,
+        compute_covariances=False,
+    )
+
+
+    with llm_register_vector_control(
+        model=model,
+        control=[vector_control],
+        layer_type=layer_type,
+    ), torch.no_grad():
+        for tokens in tqdm.tqdm(dataset, desc=f"Processing prompts for {topic}"):
+            _ = model.forward(tokens)
+            vector_control.reset()
+        vector_control.save_stats(
+            means_path=f'concept_flipping/vectors/{topic}_means.pt',
+            use_torch_save=True
+        )
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model_name', type=str, required=True)
+    parser.add_argument('--layer_type', choices=['decoder_block', 'self_attn', 'mlp', 'input_layernorm', 'post_attention_layernorm'], required=True)
+    parser.add_argument('--topics', type=str, nargs='+', required=True, help='List of topics to generate steering vectors for')
+    parser.add_argument('--token_aggregation_mode', type=TokenAggregationMode, choices=[str(x) for x in TokenAggregationMode], required=True)
+    parser.add_argument('--normalize_vectors', action='store_true')
+    parser.add_argument('--last_token_offset', type=int, default=-1)
+
+    args = parser.parse_args()
+
+
+    model, tokenizer = init_model_and_tokenizer(model_name=args.model_name)
+    use_chat = 'chat' in args.model_name
+    device = get_device()
+
+    for topic in args.topics:
+        compute_vectors(
+            model=model,
+            tokenizer=tokenizer,
+            device=device,
+            use_chat=use_chat,
+            layer_type=args.layer_type,
+            topic=topic,
+            token_aggregation_mode=args.token_aggregation_mode,
+            normalize_vectors=args.normalize_vectors,
+            last_token_offset=args.last_token_offset,
+        )

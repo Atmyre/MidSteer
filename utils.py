@@ -117,11 +117,14 @@ def unpickle(path: str | None):
     if path is None:
         return None
     try:
-        with open(path, 'rb') as fin:
-            return pickle.load(fin)
+        return torch.load(path, weights_only=False)
     except:
-        with open(path, 'rb') as fin:
-            return CPU_Unpickler(fin).load()
+        try:
+            with open(path, 'rb') as fin:
+                return pickle.load(fin)
+        except:
+            with open(path, 'rb') as fin:
+                return CPU_Unpickler(fin).load()
 
 def unpickle_pack(path: str | None) -> list[dict]:
     if path is None:

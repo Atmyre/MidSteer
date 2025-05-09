@@ -17,3 +17,5 @@ steering_vectors
 
 python-dotenv==1.0.0
 openai
+bert-score
+nltk
