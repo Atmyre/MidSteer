@@ -28,6 +28,7 @@ def dummy_context_manager():
 
 
 def main(
+        model_name: str,
         model: AutoModelForCausalLM,
         tokenizer: AutoTokenizer,
         device: torch.device,
@@ -65,8 +66,11 @@ def main(
     generation_config = GenerationConfig(max_new_tokens=max_new_tokens, top_k=1)
 
     if steer_type is not None:
-        mu_pos = unpickle(f'concept_flipping/vectors/{source_concept}_means.pt')
-        mu_neg = unpickle(f'concept_flipping/vectors/{target_concept}_means.pt')
+        # Clean model name by removing any forward slashes
+        clean_model_name = model_name.replace('/', '_')
+
+        mu_pos = unpickle(f'concept_flipping/vectors/{clean_model_name}_{layer_type}_{source_concept}_means.pt')
+        mu_neg = unpickle(f'concept_flipping/vectors/{clean_model_name}_{layer_type}_{target_concept}_means.pt')
 
         if steer_type == 'mean_matching':
             mu_pos, mu_neg = mu_neg, mu_pos
@@ -112,10 +116,15 @@ def main(
             })
             pprint(results[-1])
 
-    if alpaca_eval:
-        output_path = f'concept_flipping/results/alpaca_instruct/{steer_type}_{strength}_{layer_type}_{source_concept}_to_{target_concept}.json'
+    if steer_type is None:
+        prefix = 'None'
     else:
-        output_path = f'concept_flipping/results/concepts/{steer_type}_{strength}_{layer_type}_{source_concept}_to_{target_concept}.json'
+        prefix = f'{steer_type}_{strength}'
+
+    if alpaca_eval:
+        output_path = f'concept_flipping/results/alpaca_instruct/{prefix}_{clean_model_name}_{layer_type}_{source_concept}_to_{target_concept}.json'
+    else:
+        output_path = f'concept_flipping/results/concepts/{prefix}_{clean_model_name}_{layer_type}_{source_concept}_to_{target_concept}.json'
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, 'w') as f:
@@ -151,6 +160,7 @@ if __name__ == "__main__":
     device = get_device()
 
     main(
+        model_name=args.model_name,
         model=model,
         tokenizer=tokenizer,
         device=device,

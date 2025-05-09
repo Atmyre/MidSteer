@@ -93,11 +93,11 @@ if __name__ == "__main__":
         basename = os.path.basename(steered_file)
         # Reconstruct unsteered filename by replacing steering type with None
         if basename.startswith('casteer_'):
-            unsteered_basename = 'None_' + basename.removeprefix('casteer_')
+            unsteered_basename = 'None_' + '_'.join(basename.removeprefix('casteer_').split('_')[1:])
         elif basename.startswith('leace_'):
-            unsteered_basename = 'None_' + basename.removeprefix('leace_')
+            unsteered_basename = 'None_' + '_'.join(basename.removeprefix('leace_').split('_')[1:])
         elif basename.startswith('mean_matching_'):
-            unsteered_basename = 'None_' + basename.removeprefix('mean_matching_')
+            unsteered_basename = 'None_' + '_'.join(basename.removeprefix('mean_matching_').split('_')[1:])
         else:
             raise ValueError(f"Unknown steering type {basename}")
 
