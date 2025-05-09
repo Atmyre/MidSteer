@@ -24,6 +24,7 @@ def compute_vectors(
         token_aggregation_mode: TokenAggregationMode,
         last_token_offset: int,
         normalize_vectors: bool,
+        model_name: str,
 ):
 
     dataset = QuestionsDataset(
@@ -41,6 +42,8 @@ def compute_vectors(
         compute_covariances=False,
     )
 
+    # Clean model name by removing any forward slashes
+    clean_model_name = model_name.replace('/', '_')
 
     with llm_register_vector_control(
         model=model,
@@ -51,7 +54,7 @@ def compute_vectors(
             _ = model.forward(tokens)
             vector_control.reset()
         vector_control.save_stats(
-            means_path=f'concept_flipping/vectors/{topic}_means.pt',
+            means_path=f'concept_flipping/vectors/{clean_model_name}_{layer_type}_{topic}_means.pt',
             use_torch_save=True
         )
 
@@ -83,4 +86,5 @@ if __name__ == '__main__':
             token_aggregation_mode=args.token_aggregation_mode,
             normalize_vectors=args.normalize_vectors,
             last_token_offset=args.last_token_offset,
+            model_name=args.model_name,
         )
