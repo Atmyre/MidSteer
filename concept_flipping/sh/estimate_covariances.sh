@@ -5,7 +5,7 @@ set -eoux pipefail
 model_name=meta-llama/Llama-2-7b-chat-hf
 layer_type=self_attn
 token_aggregation_mode=all
-num_samples=1000
+num_samples=10000
 
 
 CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python concept_flipping/estimate_covariances.py \
