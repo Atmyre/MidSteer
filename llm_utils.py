@@ -107,11 +107,15 @@ class PairedQuestionsDataset(Dataset):
 
 
 def init_model_and_tokenizer(model_name: str, cache_dir: str | None = './cache') -> tuple[AutoModelForCausalLM, AutoTokenizer]:
+    if '3.1' in model_name:
+        torch_dtype = torch.bfloat16
+    else:
+        torch_dtype = torch.float16
     # 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
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         cache_dir=cache_dir,
-        torch_dtype=torch.float16,
+        torch_dtype=torch_dtype,
         device_map='balanced',
         token='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'
     )
@@ -119,7 +123,7 @@ def init_model_and_tokenizer(model_name: str, cache_dir: str | None = './cache')
     tokenizer = AutoTokenizer.from_pretrained(
         model_name,
         cache_dir=cache_dir,
-        torch_dtype=torch.float16,
+        torch_dtype=torch_dtype,
         device_map='balanced',
         token='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'
     )

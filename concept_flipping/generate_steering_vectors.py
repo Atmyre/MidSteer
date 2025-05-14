@@ -1,6 +1,8 @@
 import argparse
+import os
 import torch
 
+from concept_flipping.paths import get_vector_path
 from concept_flipping.dataset import QuestionsDataset
 from controller import VectorControlMode
 from llm_steering import llm_register_vector_control
@@ -53,8 +55,14 @@ def compute_vectors(
         for tokens in tqdm.tqdm(dataset, desc=f"Processing prompts for {topic}"):
             _ = model.forward(tokens)
             vector_control.reset()
+        output_path = get_vector_path(
+            model_name=model_name,
+            layer_type=layer_type,
+            topic=topic,
+        )
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         vector_control.save_stats(
-            means_path=f'concept_flipping/vectors/{clean_model_name}_{layer_type}_{topic}_means.pt',
+            means_path=output_path,
             use_torch_save=True
         )
 
