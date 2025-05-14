@@ -19,6 +19,7 @@ def main(
         normalize_vectors: bool,
         last_token_offset: int,
         num_samples: int | None = None,
+        use_chat: bool = False,
 ):
     model, tokenizer = init_model_and_tokenizer(model_name=model_name)
     device = get_device()
@@ -26,6 +27,7 @@ def main(
     dataset = AlpacaDataset(
         data_path=f'concept_flipping/eval/alpaca_instruct/alpaca_data.json',
         tokenizer=tokenizer,
+        use_chat=use_chat,
         device=device,
         dataset_slice=slice(-num_samples, None),  # Estimate covariance on last num_samples examples to avoid bias
     )
@@ -68,6 +70,7 @@ if __name__ == '__main__':
 
     # Create cov directory if it doesn't exist
     Path('concept_flipping/cov').mkdir(parents=True, exist_ok=True)
+    use_chat = 'chat' in args.model_name
 
     main(
         model_name=args.model_name,
@@ -76,4 +79,5 @@ if __name__ == '__main__':
         normalize_vectors=args.normalize_vectors,
         last_token_offset=args.last_token_offset,
         num_samples=args.num_samples,
+        use_chat=use_chat,
     )
