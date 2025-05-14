@@ -83,14 +83,14 @@ class AlpacaDataset(QuestionsDataset):
                  use_chat: bool,
                  device: tp.Any,
                  instruction: str=ALPACA_DEFAULT_INSTRUCTION,
-                 num_samples: int=None,
+                 dataset_slice: slice = None,
                  seed: int=42):
         super().__init__(data_path, tokenizer, use_chat, device, instruction)
 
         random.seed(seed)
         random.shuffle(self.data)
-        if num_samples is not None:
-            self.data = self.data[:num_samples]
+        if dataset_slice is not None:
+            self.data = self.data[dataset_slice]
 
 
     def __getitem__(self, idx):

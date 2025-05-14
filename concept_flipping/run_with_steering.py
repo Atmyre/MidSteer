@@ -54,7 +54,7 @@ def main(
             tokenizer=tokenizer,
             use_chat=use_chat,
             device=device,
-            num_samples=alpaca_num_samples,
+            dataset_slice=slice(0, alpaca_num_samples),
         )
     else:
         dataset = QuestionsDataset(
