@@ -8,6 +8,7 @@ import torch
 import tqdm
 
 from concept_flipping.dataset import QuestionsDataset, AlpacaDataset
+from concept_flipping.paths import get_results_path, get_vector_path
 from utils import unpickle, unpickle_pack
 from transformers import GenerationConfig
 
@@ -69,8 +70,8 @@ def main(
         # Clean model name by removing any forward slashes
         clean_model_name = model_name.replace('/', '_')
 
-        mu_pos = unpickle(f'concept_flipping/vectors/{clean_model_name}_{layer_type}_{source_concept}_means.pt')
-        mu_neg = unpickle(f'concept_flipping/vectors/{clean_model_name}_{layer_type}_{target_concept}_means.pt')
+        mu_pos = unpickle(get_vector_path(model_name, layer_type, source_concept))
+        mu_neg = unpickle(get_vector_path(model_name, layer_type, target_concept))
 
         if steer_type == 'mean_matching':
             mu_pos, mu_neg = mu_neg, mu_pos
@@ -114,18 +115,17 @@ def main(
                 "prompt": prompt,
                 "output": decoded.split(prompt)[1],
             })
-            pprint(results[-1])
 
-    if steer_type is None:
-        prefix = 'None'
-    else:
-        prefix = f'{steer_type}_{strength}'
-
-    if alpaca_eval:
-        output_path = f'concept_flipping/results/alpaca_instruct/{prefix}_{clean_model_name}_{layer_type}_{source_concept}_to_{target_concept}.json'
-    else:
-        output_path = f'concept_flipping/results/concepts/{prefix}_{clean_model_name}_{layer_type}_{source_concept}_to_{target_concept}.json'
-
+    output_path = get_results_path(
+        model_name=model_name,
+        layer_type=layer_type,
+        source_concept=source_concept,
+        target_concept=target_concept,
+        eval_num_samples=alpaca_num_samples,
+        steer_type=steer_type,
+        strength=strength,
+        alpaca_eval=alpaca_eval,
+    )
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, 'w') as f:
         json.dump(results, f)

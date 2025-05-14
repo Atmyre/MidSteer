@@ -10,6 +10,27 @@ from transformers import AutoTokenizer
 from CAA.utils.tokenize import tokenize_llama_chat, tokenize_llama_base
 
 
+def tokenize_with_chat_template(
+        tokenizer: AutoTokenizer,
+        user_input: str,
+        system_prompt: str | None = None,
+) -> torch.Tensor:
+    conversation = []
+    if system_prompt is not None:
+        conversation.append({
+            "role": "system",
+            "content": system_prompt
+        })
+    conversation.append({
+        "role": "user",
+        "content": user_input
+    })
+    return tokenizer.apply_chat_template(
+        conversation=conversation,
+        add_generation_prompt=True,
+        return_tensors='pt',
+    )
+
 class QuestionsDataset(Dataset):
     def __init__(self,
                  data_path: str,
