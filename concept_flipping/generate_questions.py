@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from pprint import pprint
 import argparse
+import concurrent.futures
 
 # Initialize OpenAI client
 client = openai.OpenAI()
@@ -84,23 +85,43 @@ def parse_args():
     
     return parser.parse_args()
 
+def process_batch(topic: str, model: str, questions_per_batch: int, batch_num: int):
+    """Generates and saves a batch of questions."""
+    print(f"Generating batch {batch_num} for topic {topic}...")
+    questions = generate_questions_batch(topic, model, questions_per_batch)
+    if questions:
+        save_questions(questions, topic, batch_num)
+
 def main():
     args = parse_args()
     
-    for topic in args.topics:
-        print(f"\nGenerating questions about {topic}...")
-        
-        batches_per_topic = args.total_questions // args.questions_per_batch
-        
-        for batch in range(batches_per_topic):
-            print(f"Generating batch {batch + 1}/{batches_per_topic}...")
+
+    batches_per_topic = args.total_questions // args.questions_per_batch
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = []
+        for topic in args.topics:
+            print(f"\\nSubmitting tasks for topic: {topic}...")
             
-            questions = generate_questions_batch(topic, args.model, args.questions_per_batch)
-            if questions:
-                save_questions(questions, topic, batch + 1)
-            
-            # Add a small delay between batches to avoid rate limiting
-            time.sleep(2)
+            for batch_idx in range(batches_per_topic):
+                # concurrent.futures.Executor.submit returns a Future object.
+                # A Future object encapsulates the asynchronous execution of a callable.
+                future = executor.submit(
+                    process_batch,
+                    topic,
+                    args.model,
+                    args.questions_per_batch,
+                    batch_idx + 1,  # batch_num is 1-indexed
+                )
+                futures.append(future)
+
+        # Wait for all futures to complete and handle potential exceptions
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                future.result()  # Raise any exception caught during task execution
+            except Exception as exc:
+                print(f'A batch generation task generated an exception: {exc}')
+            else:
+                print(f"A batch generation task completed successfully.")
 
 if __name__ == "__main__":
     main()
