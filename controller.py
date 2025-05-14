@@ -187,7 +187,8 @@ class CrossAttentionOutputSteering(VectorControl):
         batch_size = vector.shape[0]
         sequence_length = vector.shape[1]
 
-        vector_steered = ((vector.reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ P.to(vector.device).mT) + b.to(vector.device).unsqueeze(1)).transpose(0, 1).reshape(batch_size, sequence_length, num_heads, hidden_dim) 
+        vector_steered = ((
+            convert_to_widest_dtype(vector, device=self.device).reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ P.to(vector.device).mT) + b.to(vector.device).unsqueeze(1)).transpose(0, 1).reshape(batch_size, sequence_length, num_heads, hidden_dim) 
         return vector_steered
     
     def steer_backward_CASteer_matrix_form(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
