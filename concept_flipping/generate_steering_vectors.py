@@ -54,7 +54,7 @@ def compute_vectors(
             model=model,
             control=[vector_control],
             layer_type=layer_type,
-            min_token_index=tokens.shape[1],
+            min_token_index=tokens.shape[1] - 1,
         ), torch.no_grad():
             _ = model.generate(tokens, generation_config=generation_config)
             vector_control.reset()

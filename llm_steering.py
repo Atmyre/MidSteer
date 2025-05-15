@@ -81,7 +81,7 @@ def llm_register_vector_control(
         # print(layer_name, module)
         handle = module.register_forward_hook(
             # create the hook via function call since python only creates new scopes on functions
-            _create_vector_control_hook(control, layer_num, token_indices)
+            _create_vector_control_hook(control, layer_num, token_indices, min_token_index)
         )
         hooks.append(handle)
     try:
@@ -94,7 +94,8 @@ def llm_register_vector_control(
 def _create_vector_control_hook(
     control: list[VectorControl],
     layer_num: int,
-    token_indices: list[int] | slice | torch.Tensor
+    token_indices: list[int] | slice | torch.Tensor,
+    min_token_index: int | None
 ) -> tp.Any:
     """Create a hook function that adds the given target_activation to the model output"""
 
@@ -103,7 +104,7 @@ def _create_vector_control_hook(
         t = original_tensor.unsqueeze(-2)
         for c in control:
             if c.active:
-                t = c.forward(t, 0, 'LLM', layer_num)
+                t = c.forward(t, 0, 'LLM', layer_num, min_token_index)
         modified_tensor = t.squeeze(-2)
 
         if isinstance(token_indices, torch.Tensor):

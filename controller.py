@@ -46,7 +46,7 @@ class VectorControl(abc.ABC):
         self._diffusion_step = 0
     
     @abc.abstractmethod
-    def forward(self, vector: torch.Tensor, diffusion_step: int, place_in_unet: str, block_index: int):
+    def forward(self, vector: torch.Tensor, diffusion_step: int, place_in_unet: str, block_index: int, min_token_index: int = None):
         raise NotImplementedError
 
     def __call__(self, vector, place_in_unet: str):
