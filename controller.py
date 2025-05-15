@@ -241,7 +241,7 @@ class CrossAttentionOutputSteering(VectorControl):
         return vector + self.strength * b.to(vector.device) * torch.norm(vector, dim=-1, keepdim=True).to(vector.device)
 
     # [batch_size, sequence_length, num_heads, head_dim]
-    def forward(self, vector: torch.Tensor, diffusion_step: int, place_in_unet: str, block_index: int):
+    def forward(self, vector: torch.Tensor, diffusion_step: int, place_in_unet: str, block_index: int, min_token_index: int = None):
         # TODO: fix it properly sometime later
         # Steer only the prompt part of SDXL classifier-free guidance method
         batch_size = vector.shape[0]
