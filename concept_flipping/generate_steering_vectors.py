@@ -14,7 +14,7 @@ import tqdm
 
 from transformers import AutoModelForCausalLM
 from transformers import AutoTokenizer
-
+from transformers import GenerationConfig
 
 def compute_vectors(
         model: AutoModelForCausalLM,
@@ -27,6 +27,8 @@ def compute_vectors(
         last_token_offset: int,
         normalize_vectors: bool,
         model_name: str,
+        max_new_tokens: int,
+        num_samples: int,
 ):
 
     dataset = QuestionsDataset(
@@ -34,6 +36,7 @@ def compute_vectors(
         tokenizer=tokenizer,
         use_chat=use_chat,
         device=device,
+        dataset_slice=slice(0, num_samples),
     )
 
     vector_control = CrossAttentionOutputStatsCollector(
@@ -44,16 +47,16 @@ def compute_vectors(
         compute_covariances=False,
     )
 
-    # Clean model name by removing any forward slashes
-    clean_model_name = model_name.replace('/', '_')
+    generation_config = GenerationConfig(max_new_tokens=max_new_tokens, top_k=1)
 
-    with llm_register_vector_control(
-        model=model,
-        control=[vector_control],
-        layer_type=layer_type,
-    ), torch.no_grad():
-        for tokens in tqdm.tqdm(dataset, desc=f"Processing prompts for {topic}"):
-            _ = model.forward(tokens)
+    for tokens in tqdm.tqdm(dataset, desc=f"Processing prompts for {topic}"):
+        with llm_register_vector_control(
+            model=model,
+            control=[vector_control],
+            layer_type=layer_type,
+            min_token_index=tokens.shape[1],
+        ), torch.no_grad():
+            _ = model.generate(tokens, generation_config=generation_config)
             vector_control.reset()
         output_path = get_vector_path(
             model_name=model_name,
@@ -75,7 +78,8 @@ if __name__ == '__main__':
     parser.add_argument('--token_aggregation_mode', type=TokenAggregationMode, choices=[str(x) for x in TokenAggregationMode], required=True)
     parser.add_argument('--normalize_vectors', action='store_true')
     parser.add_argument('--last_token_offset', type=int, default=-1)
-
+    parser.add_argument('--max_new_tokens', type=int, default=150)
+    parser.add_argument('--num_samples', type=int, default=1000)
     args = parser.parse_args()
 
 
@@ -95,4 +99,6 @@ if __name__ == '__main__':
             normalize_vectors=args.normalize_vectors,
             last_token_offset=args.last_token_offset,
             model_name=args.model_name,
+            max_new_tokens=args.max_new_tokens,
+            num_samples=args.num_samples,
         )

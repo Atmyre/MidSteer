@@ -37,7 +37,9 @@ class QuestionsDataset(Dataset):
                  tokenizer: AutoTokenizer,
                  use_chat: bool,
                  device: tp.Any,
-                 instruction: str=None):
+                 instruction: str=None,
+                 dataset_slice: slice | None = None,
+                 seed: int | None = None):
         # Find all files matching the glob pattern
         matching_files = glob.glob(data_path)
         if not matching_files:
@@ -49,6 +51,12 @@ class QuestionsDataset(Dataset):
             with open(file_path, "r") as f:
                 file_data = json.load(f)
                 self.data.extend(file_data)
+
+        if seed is not None:
+            random.seed(seed)
+            random.shuffle(self.data)
+        if dataset_slice is not None:
+            self.data = self.data[dataset_slice]
                     
         self.tokenizer = tokenizer
         self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -83,14 +91,10 @@ class AlpacaDataset(QuestionsDataset):
                  use_chat: bool,
                  device: tp.Any,
                  instruction: str=ALPACA_DEFAULT_INSTRUCTION,
-                 dataset_slice: slice = None,
-                 seed: int=42):
-        super().__init__(data_path, tokenizer, use_chat, device, instruction)
+                 dataset_slice: slice | None = None,
+                 seed: int | None = None):
+        super().__init__(data_path, tokenizer, use_chat, device, instruction, dataset_slice, seed)
 
-        random.seed(seed)
-        random.shuffle(self.data)
-        if dataset_slice is not None:
-            self.data = self.data[dataset_slice]
 
 
     def __getitem__(self, idx):
