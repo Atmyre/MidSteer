@@ -64,12 +64,13 @@ class QuestionsDataset(Dataset):
         self.device = device
         self.instruction = instruction
 
-    def prompt_to_tokens(self, system_prompt: str | None, user_input: str | None):
+    def prompt_to_tokens(self, system_prompt: str | None, user_input: str | None, model_output: str | None = None):
         if self.use_chat:
             tokens = tokenize_llama_chat(
                 self.tokenizer,
                 system_prompt=system_prompt,
                 user_input=user_input,
+                model_output=model_output,
             )
         else:
             raise ValueError("Not supported")
@@ -92,14 +93,19 @@ class AlpacaDataset(QuestionsDataset):
                  device: tp.Any,
                  instruction: str=ALPACA_DEFAULT_INSTRUCTION,
                  dataset_slice: slice | None = None,
-                 seed: int | None = None):
+                 seed: int | None = None,
+                 include_model_output: bool = False):
         super().__init__(data_path, tokenizer, use_chat, device, instruction, dataset_slice, seed)
-
+        self.include_model_output = include_model_output
 
 
     def __getitem__(self, idx):
         user_input = self.data[idx]['instruction']
         item_input = self.data[idx]['input']
+        if self.include_model_output:
+            model_output = self.data[idx]['output']
+        else:
+            model_output = None
         if item_input:
             user_input += f"\n\n{item_input}"
-        return self.prompt_to_tokens(system_prompt=self.instruction, user_input=user_input)
+        return self.prompt_to_tokens(system_prompt=self.instruction, user_input=user_input, model_output=model_output)
