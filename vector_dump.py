@@ -13,6 +13,7 @@ class TokenAggregationMode(enum.StrEnum):
     LAST = 'last'
     AVERAGE = 'average'
 
+i = 0
 
 class CrossAttentionOutputStatsCollector(VectorControl):
     def __init__(self,
@@ -51,12 +52,18 @@ class CrossAttentionOutputStatsCollector(VectorControl):
                 self._mm[diffusion_step][place_in_unet][block_index] += stat_mm
 
     # [batch_size, sequence_length, num_heads, head_dim]
-    def forward(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index):
+    def forward(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index, min_token_index: int = None):
         batch_size = vector.shape[0]
         num_heads = vector.shape[-2]
         hidden_size = vector.shape[-1]
 
-        vector_permuted = vector.permute(2, 0, 1, 3)  # [num_heads, batch_size, sequence_length, head_dim]
+        if min_token_index is not None and vector.shape[1] > 1:
+            vector_slices = vector[:, min_token_index:, :, :]
+        else:
+            vector_slices = vector
+
+
+        vector_permuted = vector_slices.permute(2, 0, 1, 3)  # [num_heads, batch_size, sequence_length, head_dim]
         vec = convert_to_widest_dtype(vector_permuted.view(num_heads, -1, hidden_size), device=vector_permuted.device, force_double=self._compute_covariances)
         if self._token_aggregation_mode == TokenAggregationMode.AVERAGE:
             vec = torch.mean(vec, dim=1, keepdim=True)
