@@ -30,6 +30,7 @@ def main(
         use_chat=use_chat,
         device=device,
         dataset_slice=slice(-num_samples, None),  # Estimate covariance on last num_samples examples to avoid bias
+        include_model_output=True,
     )
 
     vector_control = CrossAttentionOutputStatsCollector(
