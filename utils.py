@@ -77,30 +77,32 @@ def get_num_denoising_steps(model: str) -> int:
         raise ValueError('Unknown model type')
 
 
-def run_model(model_type: str, pipe, prompt: str, seed: int, device: torch.device):
+def run_model(model_type: str, pipe, prompt: str, seed: int, device: torch.device, num_images: int = 1):
     if model_type in ['sd14', 'sd21', 'sdxl']:
-        image = pipe(prompt=prompt,
+        images = pipe(prompt=prompt,
                      num_inference_steps=get_num_denoising_steps(model_type),
                      generator=torch.Generator(device=device).manual_seed(seed),
-#                      guidance_scale=0.0
-                    ).images[0]
+                     num_images_per_prompt=num_images,
+                    ).images
 
     elif model_type in ['sd21-turbo', 'sdxl-turbo']:
-        image = pipe(prompt=prompt,
+        images = pipe(prompt=prompt,
                      num_inference_steps=get_num_denoising_steps(model_type),
                      guidance_scale=0.0,
                      generator=torch.Generator(device=device).manual_seed(seed),
-                    ).images[0]
+                     num_images_per_prompt=num_images,
+                    ).images
     elif model_type in ['flux-schnell']:
-        image = pipe(
+        images = pipe(
             prompt,
             guidance_scale=0.0,
             num_inference_steps=1,
             max_sequence_length=256,
             generator=torch.Generator(device=device).manual_seed(seed),
-        ).images[0]
+            num_images_per_prompt=num_images,
+        ).images
 
-    return image
+    return images
 
 
 def fractional_matrix_power_cov_torch(mat: torch.Tensor, alpha: float, eps=1e-10) -> torch.Tensor:

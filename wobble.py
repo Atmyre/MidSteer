@@ -95,7 +95,7 @@ def run(
 
             if not os.path.exists(path):
                 print(f'Generating original for prompt={prompt}, seed={seed}')
-                image = run_model(model, pipe, prompt, seed, device=device)
+                image = run_model(model, pipe, prompt, seed, device=device)[0]
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 image.save(path)
             else:
@@ -110,7 +110,7 @@ def run(
                     continue
                 
                 print(f'Generating {i}-th wobble for prompt={prompt}, seed={seed}')
-                image = run_model(model, pipe, prompt, seed, device=device)
+                image = run_model(model, pipe, prompt, seed, device=device)[0]
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 image.save(path)
 
