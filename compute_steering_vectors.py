@@ -53,7 +53,7 @@ def gather_stats_for_prompts(
             prompt=prompt,
             seed=0,
             device=device,
-        )
+        )[0]
         stats_handler.reset()
 
     stats_handler.save_stats(means_path=f'{output_dir}/means_{idx+1}.pickle',
@@ -106,7 +106,7 @@ def gather_stats_for_prompt_pairs(
             prompt=pos_prompt,
             seed=0,
             device=device,
-        )
+        )[0]
         pos_stats_handler.reset()
 
         pos_stats_handler.active = False
@@ -117,7 +117,7 @@ def gather_stats_for_prompt_pairs(
             prompt=neg_prompt,
             seed=0,
             device=device,
-        )
+        )[0]
         neg_stats_handler.reset()
 
     write_checkpoint(
