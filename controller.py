@@ -198,7 +198,8 @@ class CrossAttentionOutputSteering(VectorControl):
         hidden_dim = vector.shape[3]
         (_,P) = steering_tensors
 
-        vector_steered = ((vector.reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ P.to(vector.device).mT)).transpose(0, 1).reshape(batch_size, sequence_length, num_heads, hidden_dim) 
+        vector_steered = ((
+            convert_to_widest_dtype(vector, device=self.device).reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ P.to(vector.device).mT)).transpose(0, 1).reshape(batch_size, sequence_length, num_heads, hidden_dim) 
         return vector_steered
 
     # steering backward, i.e. removing notion from vector
@@ -266,7 +267,7 @@ class CrossAttentionOutputSteering(VectorControl):
             if self.steer_type == 'casteer':
                 if self.steer_back:
                     for casteer_vectors in self.casteer_vectors:
-                        vector[batch_slice, ...] = self.steer_backward_CASteer(vector[batch_slice, ...], *casteer_vectors[num_steer][place_in_unet][block_index])
+                        vector[batch_slice, ...] = self.steer_backward_CASteer_matrix_form(vector[batch_slice, ...], *casteer_vectors[num_steer][place_in_unet][block_index])
                 else:
                     for casteer_vectors in self.casteer_vectors:
                         norm = torch.norm(vector, dim=-1, keepdim=True)

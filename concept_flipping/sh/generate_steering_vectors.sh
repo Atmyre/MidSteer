@@ -12,5 +12,5 @@ CUDA_VISIBLE_DEVICES=4 PYTHONPATH=. python concept_flipping/generate_steering_ve
     --layer_type $layer_type \
     --topics horses motorcycles \
     --token_aggregation_mode all \
-    --max_new_tokens 50 \
-    --num_samples 100
+    --max_new_tokens 150 \
+    --num_samples 1000

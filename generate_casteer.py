@@ -17,7 +17,7 @@ import argparse
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo'], default="sd14")
+parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux-schnell'], default="sd14")
 parser.add_argument('--control_mode', type=VectorControlMode, choices=[str(x) for x in VectorControlMode], default='attn_output', help='Vector control mode')
 parser.add_argument('--prompt', type=str, default=None)
 parser.add_argument('--prompt_file', type=str, default=None, help="Path to text file with prompts, one per line.")

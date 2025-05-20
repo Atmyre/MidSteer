@@ -1,6 +1,7 @@
 import pickle
 import torch
 import typing as tp
+from diffusers import FluxPipeline
 
 from diffusers import StableDiffusionPipeline, DiffusionPipeline, AutoPipelineForText2Image
 
@@ -19,6 +20,7 @@ def init_pipeline_for_model(model: str) -> DiffusionPipeline:
             torch_dtype=torch.float16, 
             cache_dir='./cache',
             device_map='balanced',
+            safety_checker=None,
         )
     elif model == 'sd21':
         pipe = StableDiffusionPipeline.from_pretrained(
@@ -43,6 +45,7 @@ def init_pipeline_for_model(model: str) -> DiffusionPipeline:
             variant="fp16",
             cache_dir='./cache',
             device_map='balanced',
+            safety_checker=None,
         )
     elif model == 'sdxl-turbo':
         pipe = AutoPipelineForText2Image.from_pretrained(
@@ -51,7 +54,15 @@ def init_pipeline_for_model(model: str) -> DiffusionPipeline:
             variant="fp16",
             cache_dir='./cache',
             device_map='balanced',
+            safety_checker=None,
         )
+    elif model == 'flux-schnell':
+        pipe = FluxPipeline.from_pretrained(
+            "black-forest-labs/FLUX.1-schnell", 
+            torch_dtype=torch.bfloat16,
+            token='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'
+        )
+        pipe.enable_model_cpu_offload()
     return pipe
 
 
@@ -80,6 +91,14 @@ def run_model(model_type: str, pipe, prompt: str, seed: int, device: torch.devic
                      guidance_scale=0.0,
                      generator=torch.Generator(device=device).manual_seed(seed),
                     ).images[0]
+    elif model_type in ['flux-schnell']:
+        image = pipe(
+            prompt,
+            guidance_scale=0.0,
+            num_inference_steps=1,
+            max_sequence_length=256,
+            generator=torch.Generator(device=device).manual_seed(seed),
+        ).images[0]
 
     return image
 
