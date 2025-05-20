@@ -22,37 +22,37 @@ CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python concept_flipping/run_with_steering.py
     --mu_neutral $mu_neutral_path \
     --cov_neutral $cov_neutral_path &
 
-CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python concept_flipping/run_with_steering.py \
-    --model_name $model_name \
-    --layer_type $layer_type \
-    --source_concept $source_concept \
-    --target_concept $target_concept \
-    --steer_type leace \
-    --strength 2.0 \
-    --max_new_tokens $max_new_tokens \
-    --mu_neutral $mu_neutral_path \
-    --cov_neutral $cov_neutral_path &
-
-CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python concept_flipping/run_with_steering.py \
-    --model_name $model_name \
-    --layer_type $layer_type \
-    --source_concept $source_concept \
-    --target_concept $target_concept \
-    --steer_type mean_matching \
-    --strength 1.5 \
-    --max_new_tokens $max_new_tokens \
-    --mu_neutral $mu_neutral_path \
-    --cov_neutral $cov_neutral_path &
-
-CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python concept_flipping/run_with_steering.py \
-    --model_name $model_name \
-    --layer_type $layer_type \
-    --source_concept $source_concept \
-    --target_concept $target_concept \
-    --steer_type mean_matching \
-    --strength 2.0 \
-    --max_new_tokens $max_new_tokens \
-    --mu_neutral $mu_neutral_path \
-    --cov_neutral $cov_neutral_path &
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python concept_flipping/run_with_steering.py \
+#     --model_name $model_name \
+#     --layer_type $layer_type \
+#     --source_concept $source_concept \
+#     --target_concept $target_concept \
+#     --steer_type leace \
+#     --strength 2.0 \
+#     --max_new_tokens $max_new_tokens \
+#     --mu_neutral $mu_neutral_path \
+#     --cov_neutral $cov_neutral_path &
+# 
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python concept_flipping/run_with_steering.py \
+#     --model_name $model_name \
+#     --layer_type $layer_type \
+#     --source_concept $source_concept \
+#     --target_concept $target_concept \
+#     --steer_type mean_matching \
+#     --strength 1.5 \
+#     --max_new_tokens $max_new_tokens \
+#     --mu_neutral $mu_neutral_path \
+#     --cov_neutral $cov_neutral_path &
+# 
+# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python concept_flipping/run_with_steering.py \
+#     --model_name $model_name \
+#     --layer_type $layer_type \
+#     --source_concept $source_concept \
+#     --target_concept $target_concept \
+#     --steer_type mean_matching \
+#     --strength 2.0 \
+#     --max_new_tokens $max_new_tokens \
+#     --mu_neutral $mu_neutral_path \
+#     --cov_neutral $cov_neutral_path &
 
 wait
