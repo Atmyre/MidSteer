@@ -1,4 +1,5 @@
 import os
+import numpy as np
 import json
 import argparse
 from typing import Dict, List
@@ -39,7 +40,7 @@ def score_text(model: AutoModelForCausalLM, tokenizer: AutoTokenizer, text: str,
             )
             response = model.forward(inputs.to(model.device))
             logits_slice = response.logits[0, -1, digits_token_ids]
-            ret = torch.argmax(logits_slice)
+            ret = torch.argmax(logits_slice).cpu().detach().numpy()
             
         
         return ret
@@ -104,6 +105,7 @@ def main():
         scores = [r['score'] for r in results]
         avg_score = sum(scores) / len(scores)
         print(f"Average score = {avg_score:.2f}")
+        print(f"Std = {np.std(scores)}")
         
         # Save results to file
         # scores_dir = os.path.join('concept_flipping', 'scores')

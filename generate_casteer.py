@@ -39,7 +39,7 @@ parser.add_argument(
     default='output.png',
     help='Output path to image or directory, in case of multiple images'
 )
-parser.add_argument('--steer_type', type=str, choices=['casteer', 'mmsteer', 'leace', 'mean_matching'], default=None)
+parser.add_argument('--steer_type', type=str, choices=['casteer', 'mmsteer', 'leace', 'mean_matching', 'interpret'], default=None)
 parser.add_argument('--num_images_per_prompt', type=int, default=1)
 args = parser.parse_args()
 
@@ -76,6 +76,8 @@ if not args.not_steer:
     )
     
     register_vector_controls(pipe.unet, controller)
+else:
+    controller = None
 
 if args.num_images_per_prompt == 1:
     for prompt in prompts:
@@ -95,28 +97,34 @@ if args.num_images_per_prompt == 1:
                 continue
             print(f'Generating for prompt={prompt}, seed={seed}')
             images = run_model(args.model, pipe, prompt, seed, device=device, num_images=args.num_images_per_prompt)
+            if controller is not None:
+                controller.reset()
             if os.path.dirname(path):
                 os.makedirs(os.path.dirname(path), exist_ok=True)
             images[0].save(path)
 else:
-    if len(seeds) > 1:
-        raise ValueError('num_images_per_prompt > 1 is not supported for multiple seeds')
-    seed = seeds[0]
-    for prompt in prompts:
+#     if len(seeds) > 1:
+#         raise ValueError('num_images_per_prompt > 1 is not supported for multiple seeds')
+#     seed = seeds[0]
+    
+    for seed in seeds:
+        for prompt in prompts:
 
-        if args.not_steer:
-            file = 'orig.png'
-        elif args.steer_back and args.steer_type == 'casteer':
-            file = f'casteer_{args.beta:g}.png'
-        else:
-            file = f'{args.steer_type}_{args.alpha:g}.png'
-        path = f'{args.output}/{prompt}/{{seed}}/{file}'
-        if os.path.exists(path.format(seed=0)):
-            print(f'{path} already exists, skipping!')
-            continue
-        print(f'Generating for prompt={prompt}, seed={seed}')
-        images = run_model(args.model, pipe, prompt, seed, device=device, num_images=args.num_images_per_prompt)
-        for i, image in enumerate(images):
-            if os.path.dirname(path.format(seed=i)):
-                os.makedirs(os.path.dirname(path.format(seed=i)), exist_ok=True)
-            image.save(path.format(seed=i))
+            if args.not_steer:
+                file = 'orig.png'
+            elif args.steer_back and args.steer_type == 'casteer':
+                file = f'casteer_{args.beta:g}.png'
+            else:
+                file = f'{args.steer_type}_{args.alpha:g}.png'
+            path = f'{args.output}/{prompt}/{{seed}}/{file}'
+            if os.path.exists(path.format(seed=0)):
+                print(f'{path} already exists, skipping!')
+                continue
+            print(f'Generating for prompt={prompt}, seed={seed}')
+            images = run_model(args.model, pipe, prompt, seed, device=device, num_images=args.num_images_per_prompt)
+            if controller is not None:
+                controller.reset()
+            for i, image in enumerate(images):
+                if os.path.dirname(path.format(seed=i)):
+                    os.makedirs(os.path.dirname(path.format(seed=i)), exist_ok=True)
+                image.save(path.format(seed=seed*args.num_images_per_prompt+i))
