@@ -34,7 +34,7 @@ def main(
         tokenizer: AutoTokenizer,
         device: torch.device,
         use_chat: bool,
-        layer_type: str,
+        layer_type: list[str],
         layers_to_steer: list[int] | None,
         source_concept: str,
         target_concept: str,
@@ -70,8 +70,9 @@ def main(
     generation_config = GenerationConfig(max_new_tokens=max_new_tokens, top_k=1)
 
     if steer_type is not None:
-        mu_pos = unpickle(get_vector_path(model_name, layer_type, source_concept))
-        mu_neg = unpickle(get_vector_path(model_name, layer_type, target_concept))
+        # TODO: proper
+        mu_pos = unpickle(get_vector_path(model_name, layer_type[0], source_concept))
+        mu_neg = unpickle(get_vector_path(model_name, layer_type[0], target_concept))
 
         if steer_type == 'mean_matching':
             mu_pos, mu_neg = mu_neg, mu_pos
@@ -126,7 +127,7 @@ def main(
 
     output_path = get_results_path(
         model_name=model_name,
-        layer_type=layer_type,
+        layer_type=layer_type[0],  # TODO: proper
         source_concept=source_concept,
         target_concept=target_concept,
         eval_num_samples=alpaca_num_samples,
