@@ -109,3 +109,20 @@ class AlpacaDataset(QuestionsDataset):
         if item_input:
             user_input += f"\n\n{item_input}"
         return self.prompt_to_tokens(system_prompt=self.instruction, user_input=user_input, model_output=model_output)
+
+
+class TemplateDataset(QuestionsDataset):
+    def __init__(self,
+                 template_path: str,
+                 concept: str,
+                 tokenizer: AutoTokenizer,
+                 use_chat: bool,
+                 device: tp.Any,
+                 instruction: str=None,
+                 dataset_slice: slice | None = None,
+                 seed: int | None = None):
+        super().__init__(template_path, tokenizer, use_chat, device, instruction, dataset_slice, seed)
+        self.concept = concept
+
+    def __getitem__(self, idx):
+        return self.prompt_to_tokens(system_prompt=self.instruction, user_input=self.data[idx].format(self.concept))
