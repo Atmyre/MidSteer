@@ -22,7 +22,7 @@ def tokenize_llama_chat(
     if user_input is not None:
         input_content += f"{B_INST} {user_input.strip()} {E_INST} "
     if model_output is not None:
-        input_content += f"{model_output.strip()}"
+        input_content += f" {model_output.strip()}"
     return tokenizer.encode(input_content)
 
 
