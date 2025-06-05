@@ -10,7 +10,7 @@ layer_type=self_attn
 CUDA_VISIBLE_DEVICES=4 PYTHONPATH=. python concept_flipping/generate_steering_vectors.py \
     --model_name $model_name \
     --layer_type $layer_type \
-    --topics horses motorcycles \
-    --token_aggregation_mode all \
-    --max_new_tokens 150 \
+    --topics horses motorcycles cats dogs \
+    --token_aggregation_mode last \
+    --max_new_tokens 1 \
     --num_samples 1000

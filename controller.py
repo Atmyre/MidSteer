@@ -107,7 +107,7 @@ class CrossAttentionOutputSteering(VectorControl):
             mu_pos, mu_neg = mu_neg, mu_pos
             self.strength = -self.strength
 
-        if steer_type == 'casteer':
+        if steer_type in ('casteer', 'interpret'):
             self.casteer_vectors = []
             for mu_pos_concept, mu_neg_concept in zip(mu_pos, mu_neg):
                 casteer_concept_transforms = defaultdict(lambda: defaultdict(list))
@@ -228,6 +228,18 @@ class CrossAttentionOutputSteering(VectorControl):
 
         # steer backward for beta*sim
         return vector - self.strength * sim.to(vector.device) * b_norm.to(vector.device)
+    
+    def interpret(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
+        batch_size = vector.shape[0]
+        sequence_length = vector.shape[1]
+        num_heads = vector.shape[2]
+        hidden_dim = vector.shape[3]
+        (b,_) = steering_tensors
+
+        b_norm = b / torch.linalg.norm(b, dim=-1, keepdim=True)
+
+        # steer backward for beta*sim
+        return b_norm.to(vector.device)
 
 
     def steer_forward_CASteer(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
@@ -246,34 +258,43 @@ class CrossAttentionOutputSteering(VectorControl):
         # TODO: fix it properly sometime later
         # Steer only the prompt part of SDXL classifier-free guidance method
         batch_size = vector.shape[0]
-        if batch_size > 1:
-            batch_slice = slice(1, None)
-            warnings.warn('Steering only the prompt part of SDXL classifier-free guidance (assumed the batch_idx=0 is not conditioned on the prompt)')
-        else:
-            batch_slice = slice(None, None)
+#         print(f'BS: {batch_size}')
+#         if batch_size > 1:
+#             batch_slice = slice(1, None)
+#             warnings.warn('Steering only the prompt part of SDXL classifier-free guidance (assumed the batch_idx=0 is not conditioned on the prompt)')
+#         else:
+        batch_slice = slice(None, None)
+#         print(batch_size)
 
         vector = vector.detach().clone()
         ...
         # TODO: check correct dtype to speed up generation
 
-        if place_in_unet in ['LLM', 'up', 'mid'] or (place_in_unet == 'down' and not self.steer_only_up): 
+        if place_in_unet in ['LLM', 'up'] or (place_in_unet == 'down' and not self.steer_only_up): 
             # if steering vectors are from turbo version, then there's only one key in self.steering_vectors, 
             # and we'll use it for all the steps of generation
             # if steering vectors are from full version, then there's a key in self.steering_vectors
             # for each of the generation steps 
-            num_steer = 0 #if len(list(self.steering_vectors.keys()))==1 else diffusion_step
+            num_steer = 0#diffusion_step #if len(list(self.steering_vectors.keys()))==1 else diffusion_step
+#             print(f'diffusion step={num_steer}')
 
-            # norm = torch.norm(vector, dim=-1, keepdim=True)
+            norm = torch.norm(vector, dim=-1, keepdim=True)
             if self.steer_type == 'casteer':
                 if self.steer_back:
                     for casteer_vectors in self.casteer_vectors:
-                        vector[batch_slice, ...] = self.steer_backward_CASteer_matrix_form(vector[batch_slice, ...], *casteer_vectors[num_steer][place_in_unet][block_index])
+                        vector[batch_slice, ...] = self.steer_backward_CASteer(vector[batch_slice, ...], *casteer_vectors[num_steer][place_in_unet][block_index])
+                    vector = vector / (torch.norm(vector, dim=-1, keepdim=True)+EPS)
+                    vector = vector * norm
                 else:
                     for casteer_vectors in self.casteer_vectors:
                         norm = torch.norm(vector, dim=-1, keepdim=True)
                         vector[batch_slice, ...] = self.steer_forward_CASteer(vector[batch_slice, ...], *casteer_vectors[num_steer][place_in_unet][block_index])
                         vector = vector / (torch.norm(vector, dim=-1, keepdim=True) + EPS)
                         vector = vector * norm
+            elif self.steer_type == 'interpret':
+                vector[batch_slice, ...] = self.interpret(vector[batch_slice, ...], *self.casteer_vectors[0][num_steer][place_in_unet][block_index])
+                vector = vector / (torch.norm(vector, dim=-1, keepdim=True)+EPS)
+                vector = vector * norm
             elif self.steer_type in ('leace', 'mean_matching'):
                 for leace_vectors in self.leace_transforms:
                     vector[batch_slice, ...] = self.steer_transform(vector[batch_slice, ...], *leace_vectors[num_steer][place_in_unet][block_index])

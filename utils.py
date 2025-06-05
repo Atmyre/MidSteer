@@ -60,7 +60,8 @@ def init_pipeline_for_model(model: str) -> DiffusionPipeline:
         pipe = FluxPipeline.from_pretrained(
             "black-forest-labs/FLUX.1-schnell", 
             torch_dtype=torch.bfloat16,
-            token='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'
+            token='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',
+#             device_map='balanced'
         )
         pipe.enable_model_cpu_offload()
     return pipe
@@ -98,7 +99,7 @@ def run_model(model_type: str, pipe, prompt: str, seed: int, device: torch.devic
             guidance_scale=0.0,
             num_inference_steps=1,
             max_sequence_length=256,
-            generator=torch.Generator(device=device).manual_seed(seed),
+            generator=torch.Generator('cpu').manual_seed(seed),
             num_images_per_prompt=num_images,
         ).images
 

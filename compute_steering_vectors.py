@@ -74,13 +74,13 @@ def gather_stats_for_prompt_pairs(
         mode=args.control_mode,
         token_aggregation_mode=TokenAggregationMode.AVERAGE if args.patch_average else TokenAggregationMode.ALL,
         normalize=args.normalize_vectors,
-        compute_covariances=True,
+        compute_covariances=False,
     )
     neg_stats_handler = CrossAttentionOutputStatsCollector(
         mode=args.control_mode,
         token_aggregation_mode=TokenAggregationMode.AVERAGE if args.patch_average else TokenAggregationMode.ALL,
         normalize=args.normalize_vectors,
-        compute_covariances=True,
+        compute_covariances=False,
     )
     
     register_vector_controls(pipe.unet, pos_stats_handler, neg_stats_handler)
@@ -143,23 +143,23 @@ def write_checkpoint(
     with open(f'{output_dir}/casteer_{step}.pickle', 'wb') as fout:
         pickle.dump(casteer_vectors, fout)
 
-    mmsteer_transforms_forward = calculate_mmster(
-        pos_means=pos_handler.means,
-        pos_covariances=pos_handler.covariances,
-        neg_means=neg_handler.means,
-        neg_covariances=neg_handler.covariances,
-    )
-    with open(f'{output_dir}/mmsteer_forward_{step}.pickle', 'wb') as fout:
-        pickle.dump(mmsteer_transforms_forward, fout)
+#     mmsteer_transforms_forward = calculate_mmster(
+#         pos_means=pos_handler.means,
+#         pos_covariances=pos_handler.covariances,
+#         neg_means=neg_handler.means,
+#         neg_covariances=neg_handler.covariances,
+#     )
+#     with open(f'{output_dir}/mmsteer_forward_{step}.pickle', 'wb') as fout:
+#         pickle.dump(mmsteer_transforms_forward, fout)
 
-    mmsteer_transforms_inverse = calculate_mmster(
-        pos_means=neg_handler.means,
-        pos_covariances=neg_handler.covariances,
-        neg_means=pos_handler.means,
-        neg_covariances=pos_handler.covariances,
-    )
-    with open(f'{output_dir}/mmsteer_inverse_{step}.pickle', 'wb') as fout:
-        pickle.dump(mmsteer_transforms_inverse, fout)
+#     mmsteer_transforms_inverse = calculate_mmster(
+#         pos_means=neg_handler.means,
+#         pos_covariances=neg_handler.covariances,
+#         neg_means=pos_handler.means,
+#         neg_covariances=pos_handler.covariances,
+#     )
+#     with open(f'{output_dir}/mmsteer_inverse_{step}.pickle', 'wb') as fout:
+#         pickle.dump(mmsteer_transforms_inverse, fout)
 
 
 def calculate_casteer(pos_means: dict, neg_means: dict) -> dict:
@@ -245,6 +245,7 @@ def run(args: argparse.Namespace):
     elif args.mode == 'file':
         prompts_pos = read_prompt_file(args.prompts_pos_file)
         prompts_neg = read_prompt_file(args.prompts_neg_file)
+        
 
 
     os.makedirs(args.output_dir, exist_ok=True)
