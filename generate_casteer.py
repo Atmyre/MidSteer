@@ -10,7 +10,7 @@ from utils import unpickle, unpickle_pack
 from utils import get_device, init_pipeline_for_model, run_model
 
 # local imports
-from controller import CrossAttentionOutputSteering, VectorControlMode, register_vector_controls
+from controller import CrossAttentionOutputSteering, ModelToSteer, VectorControlMode, register_vector_controls
 
 # parsing arguments
 import argparse
@@ -61,6 +61,7 @@ pipe = init_pipeline_for_model(args.model)
 if not args.not_steer:
     controller = CrossAttentionOutputSteering(
         mode=args.control_mode,
+        model_to_steer=ModelToSteer.UNET,
         mmsteer_vectors=unpickle(args.mmsteer_vectors),
         mu_pos=unpickle_pack(args.mu_pos),
         mu_neg=unpickle_pack(args.mu_neg),
