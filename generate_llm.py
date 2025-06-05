@@ -5,7 +5,7 @@ import torch
 from utils import unpickle, unpickle_pack
 from transformers import GenerationConfig
 
-from controller import CrossAttentionOutputSteering, VectorControlMode
+from controller import CrossAttentionOutputSteering, ModelToSteer, VectorControlMode
 from llm_steering import llm_register_vector_control
 from llm_utils import init_model_and_tokenizer
 from CAA.utils.tokenize import tokenize_llama_base, tokenize_llama_chat
@@ -34,6 +34,7 @@ def main(
 
     control = CrossAttentionOutputSteering(
         mode=VectorControlMode.ATTN_OUTPUT,
+        model_to_steer=ModelToSteer.LLAMA,
         steer_type=steer_type,
         alpha=alpha,
         beta=beta,

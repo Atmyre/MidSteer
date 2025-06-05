@@ -7,12 +7,12 @@ from contextlib import contextmanager
 import torch
 import tqdm
 
-from concept_flipping.dataset import QuestionsDataset, AlpacaDataset
+from concept_flipping.dataset import QuestionsDataset, AlpacaDataset, TemplateDataset
 from concept_flipping.paths import get_results_path, get_vector_path
 from utils import unpickle, unpickle_pack
 from transformers import GenerationConfig
 
-from controller import CrossAttentionOutputSteering, VectorControlMode
+from controller import CrossAttentionOutputSteering, ModelToSteer, VectorControlMode
 from llm_steering import llm_register_vector_control
 from llm_utils import init_model_and_tokenizer
 from CAA.utils.tokenize import tokenize_llama_base, tokenize_llama_chat
@@ -46,6 +46,8 @@ def main(
         steer_type: str | None,
         alpaca_eval: bool,
         alpaca_num_samples: int | None,
+        samples_per_question: int,
+        generation_temperature: float,
 ):
     
     if alpaca_eval:
@@ -57,8 +59,9 @@ def main(
             dataset_slice=slice(0, alpaca_num_samples),
         )
     else:
-        dataset = QuestionsDataset(
-            data_path=f'concept_flipping/eval/concepts/{source_concept}.json',
+        dataset = TemplateDataset(
+            template_path=f'concept_flipping/eval/concepts/template.json',
+            concept=source_concept,
             tokenizer=tokenizer,
             use_chat=use_chat,
             device=device,
@@ -67,9 +70,6 @@ def main(
     generation_config = GenerationConfig(max_new_tokens=max_new_tokens, top_k=1)
 
     if steer_type is not None:
-        # Clean model name by removing any forward slashes
-        clean_model_name = model_name.replace('/', '_')
-
         mu_pos = unpickle(get_vector_path(model_name, layer_type, source_concept))
         mu_neg = unpickle(get_vector_path(model_name, layer_type, target_concept))
 
@@ -78,6 +78,7 @@ def main(
 
         control = CrossAttentionOutputSteering(
             mode=VectorControlMode.ATTN_OUTPUT,
+            model_to_steer=ModelToSteer.LLAMA,
             steer_type=steer_type,
             steer_back=True,
             device=device,
@@ -89,6 +90,13 @@ def main(
         )
     else:
         control = None
+
+    generation_config = GenerationConfig(
+        max_new_tokens=max_new_tokens,
+        do_sample=(samples_per_question > 1),
+        num_return_sequences=samples_per_question,
+        temperature=generation_temperature
+    )
 
 
     results = []
@@ -106,15 +114,15 @@ def main(
             context_manager = dummy_context_manager()
 
         with context_manager, torch.no_grad():
-            outputs = model.generate(tokens, generation_config=generation_config)
+            outputs = model.generate(tokens, generation_config=generation_config, pad_token_id=tokenizer.eos_token_id)
             prompt = tokenizer.decode(token_ids=tokens[0])
-            decoded = tokenizer.decode(token_ids=outputs[0])
+            decoded = tokenizer.batch_decode(outputs)
 
-            results.append({
-                "raw_output": decoded,
+            results.extend([{
+                "raw_output": text,
                 "prompt": prompt,
-                "output": decoded.split(prompt)[1],
-            })
+                "output": text.split(prompt)[1],
+            } for text in decoded])
 
     output_path = get_results_path(
         model_name=model_name,
@@ -137,11 +145,12 @@ if __name__ == "__main__":
     parser.add_argument('--model_name', type=str, required=True)
     parser.add_argument('--target_concept', type=str, required=True, help='Name of the positive concept')
     parser.add_argument('--source_concept', type=str, required=True, help='Name of the negative concept')
-    parser.add_argument('--layer_type', choices=['decoder_block', 'self_attn', 'mlp', 'input_layernorm', 'post_attention_layernorm'], required=True)
+    parser.add_argument('--layer_type', choices=['decoder_block', 'self_attn', 'mlp', 'input_layernorm', 'post_attention_layernorm', 'q_proj', 'k_proj', 'v_proj', 'o_proj'], nargs='+', required=True)
     parser.add_argument('--layers_to_steer', type=str, help='Comma separated list of layer indices to steer', default=None)
     parser.add_argument('--alpaca_eval', action='store_true', help='Use alpaca eval dataset')
     parser.add_argument('--alpaca_num_samples', type=int, default=None, help='Number of samples to use for alpaca eval')
-
+    parser.add_argument('--samples_per_question', type=int, default=1, help='Number of output samples to generate for each question')
+    parser.add_argument('--generation_temperature', type=float, default=1.0, help='Temperature for generation')
     parser.add_argument('--strength', type=float, default=2.0)
     parser.add_argument('--max_new_tokens', type=int, default=150)
     parser.add_argument('--steer_type', type=str, choices=['casteer', 'leace', 'mean_matching'], default=None)
@@ -176,4 +185,6 @@ if __name__ == "__main__":
         steer_type=args.steer_type,
         alpaca_eval=args.alpaca_eval,
         alpaca_num_samples=args.alpaca_num_samples,
+        samples_per_question=args.samples_per_question,
+        generation_temperature=args.generation_temperature,
     )

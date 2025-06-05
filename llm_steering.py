@@ -14,15 +14,21 @@ from steering_vectors.layer_matching import (
 from controller import VectorControl
 
 
+ADDITIONAL_LAYER_CONFIG = {
+    "q_proj": "model.layers.{num}.self_attn.q_proj",
+    "k_proj": "model.layers.{num}.self_attn.k_proj",
+    "v_proj": "model.layers.{num}.self_attn.v_proj",
+    "o_proj": "model.layers.{num}.self_attn.o_proj",
+}
+
+
 @contextmanager
 def llm_register_vector_control(
     model,
     control: list[VectorControl],
-    layer_type: str,
+    layer_type: str | list[str],
     layers_to_steer: tp.Iterable[int] | None = None,
-    layer_config = None,
-    min_token_index = None,
-    token_indices = None):
+    min_token_index = None):
     """
     Patch the activations of the given model with this steering vector.
     This will modify the model in-place, and return a handle that can be used to undo the patching.
@@ -47,43 +53,39 @@ def llm_register_vector_control(
         >>> model.forward(...)
         >>> handle.remove()
     """
-    assert (min_token_index is None) or (token_indices is None), (
-        "Can not pass both min_token_index and token_indices"
-    )
-    if isinstance(token_indices, torch.Tensor):
-        assert torch.all(
-            torch.logical_or(token_indices == 0, token_indices == 1)
-        ), "token_indices tensor must be a mask (containing only 0s and 1s)"
-    token_indices = (
-        token_indices if token_indices is not None else slice(min_token_index, None)
-    )
-    layer_config = guess_and_enhance_layer_config(
-        model, layer_config, layer_type
-    )
+    layer_config = guess_and_enhance_layer_config(model, ADDITIONAL_LAYER_CONFIG)
     hooks: list[RemovableHandle] = []
-    if layer_type not in layer_config:
-        raise ValueError(
-            f"layer_type {layer_type} not provided in layer config"
-        )
-    matcher = layer_config[layer_type]
-    matching_layers = collect_matching_layers(model, matcher)
 
 
-    layers = set(range(len(matching_layers)))
+    if isinstance(layer_type, str):
+        layer_types = [layer_type]
+    else:
+        layer_types = layer_type
 
-    if layers_to_steer is not None:
-        layers = layers.intersection(layers_to_steer)
+    for layer_type in layer_types:
+        if layer_type not in layer_config:
+            raise ValueError(
+                f"layer_type {layer_type} not provided in layer config"
+            )
+        matcher = layer_config[layer_type]
+        matching_layers = collect_matching_layers(model, matcher)
 
-    for layer_num in layers:
-        layer_name = matching_layers[layer_num]
 
-        module = get_module(model, layer_name)
-        # print(layer_name, module)
-        handle = module.register_forward_hook(
-            # create the hook via function call since python only creates new scopes on functions
-            _create_vector_control_hook(control, layer_num, token_indices, min_token_index)
-        )
-        hooks.append(handle)
+        layers = set(range(len(matching_layers)))
+
+        if layers_to_steer is not None:
+            layers = layers.intersection(layers_to_steer)
+
+        for layer_num in layers:
+            layer_name = matching_layers[layer_num]
+
+            module = get_module(model, layer_name)
+            # print(layer_name, module)
+            handle = module.register_forward_hook(
+                # create the hook via function call since python only creates new scopes on functions
+                _create_vector_control_hook(control, layer_type, layer_num, min_token_index)
+            )
+            hooks.append(handle)
     try:
         yield
     finally:
@@ -93,8 +95,8 @@ def llm_register_vector_control(
 
 def _create_vector_control_hook(
     control: list[VectorControl],
+    layer_type: str,
     layer_num: int,
-    token_indices: list[int] | slice | torch.Tensor,
     min_token_index: int | None
 ) -> tp.Any:
     """Create a hook function that adds the given target_activation to the model output"""
@@ -104,20 +106,12 @@ def _create_vector_control_hook(
         t = original_tensor.unsqueeze(-2)
         for c in control:
             if c.active:
-                t = c.forward(t, 0, 'LLM', layer_num, min_token_index)
+                t = c.forward(t, 0, layer_type, layer_num, min_token_index)
         modified_tensor = t.squeeze(-2)
 
-        if isinstance(token_indices, torch.Tensor):
-            mask = token_indices
-        else:
-            mask = torch.zeros(original_tensor.shape[1])
-            mask[token_indices] = 1
-        mask = (
-            mask.reshape(1, -1, 1)
-            if len(mask.shape) == 1
-            else mask.reshape(mask.shape[0], -1, 1)
-        )
-        mask = mask.to(original_tensor.device)
+        mask = torch.zeros(original_tensor.shape[1])
+        mask[slice(min_token_index, None)] = 1
+        mask = mask.reshape(1, -1, 1).to(original_tensor.device)
 
         # TODO: do it properly (we don't now if it's generation step or forward step here)
         if mask.shape[1] == 1:

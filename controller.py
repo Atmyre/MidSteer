@@ -23,6 +23,10 @@ class VectorControlMode(enum.StrEnum):
     ATTN_KEY_VALUE = 'attn_key_value'
 
 
+class ModelToSteer(enum.StrEnum):
+    UNET = 'unet'
+    LLAMA = 'llama'
+
 
 # Define Controller for BasicTransformerBlock
 class VectorControl(abc.ABC):
@@ -63,10 +67,12 @@ class VectorControl(abc.ABC):
             self._diffusion_step += 1
         return vector
 
+
 class CrossAttentionOutputSteering(VectorControl):
     def __init__(
         self,
         mode: VectorControlMode,
+        model_to_steer: ModelToSteer,
         *,
         mmsteer_vectors=None,
         mu_pos=None,
@@ -177,6 +183,7 @@ class CrossAttentionOutputSteering(VectorControl):
             raise ValueError(f'Unknown steer_type = {steer_type}')
 
         self.steering_cache = {}
+        self.model_to_steer = model_to_steer
 
 
     def steer_transform(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
@@ -255,28 +262,26 @@ class CrossAttentionOutputSteering(VectorControl):
 
     # [batch_size, sequence_length, num_heads, head_dim]
     def forward(self, vector: torch.Tensor, diffusion_step: int, place_in_unet: str, block_index: int, min_token_index: int = None):
-        # TODO: fix it properly sometime later
-        # Steer only the prompt part of SDXL classifier-free guidance method
         batch_size = vector.shape[0]
-#         print(f'BS: {batch_size}')
-#         if batch_size > 1:
-#             batch_slice = slice(1, None)
-#             warnings.warn('Steering only the prompt part of SDXL classifier-free guidance (assumed the batch_idx=0 is not conditioned on the prompt)')
-#         else:
-        batch_slice = slice(None, None)
-#         print(batch_size)
+        if batch_size > 1 and self.model_to_steer == ModelToSteer.UNET:
+            # TODO: fix it properly sometime later
+            # Steer only the prompt part of SDXL classifier-free guidance method
+            batch_slice = slice(1, None)
+            warnings.warn('Steering only the prompt part of SDXL classifier-free guidance (assumed the batch_idx=0 is not conditioned on the prompt)')
+        else:
+            batch_slice = slice(None, None)
 
         vector = vector.detach().clone()
         ...
         # TODO: check correct dtype to speed up generation
 
-        if place_in_unet in ['LLM', 'up'] or (place_in_unet == 'down' and not self.steer_only_up): 
+        if self.model_to_steer == ModelToSteer.LLAMA or (place_in_unet in ['up', 'mid'] or (place_in_unet == 'down' and not self.steer_only_up)): 
             # if steering vectors are from turbo version, then there's only one key in self.steering_vectors, 
             # and we'll use it for all the steps of generation
             # if steering vectors are from full version, then there's a key in self.steering_vectors
             # for each of the generation steps 
-            num_steer = 0#diffusion_step #if len(list(self.steering_vectors.keys()))==1 else diffusion_step
 #             print(f'diffusion step={num_steer}')
+            num_steer = diffusion_step  # TODO: check if this is correct
 
             norm = torch.norm(vector, dim=-1, keepdim=True)
             if self.steer_type == 'casteer':
