@@ -8,7 +8,7 @@ import torch
 import tqdm
 
 from concept_flipping.dataset import QuestionsDataset, AlpacaDataset, TemplateDataset
-from concept_flipping.paths import get_results_path, get_vector_path
+from concept_flipping.paths import get_results_path
 from utils import unpickle, unpickle_pack
 from transformers import GenerationConfig
 
@@ -37,8 +37,10 @@ def main(
         layer_type: list[str],
         layers_to_steer: list[int] | None,
         source_concept: str,
-        target_concept: str,
+        source_concept_path: str,
+        target_concept_path: str,
         strength: float,
+        output_dir: str,
 
         max_new_tokens: int,
         mu_neutral: list[dict],
@@ -66,13 +68,11 @@ def main(
             use_chat=use_chat,
             device=device,
         )
-    
-    generation_config = GenerationConfig(max_new_tokens=max_new_tokens, top_k=1)
 
     if steer_type is not None:
         # TODO: proper
-        mu_pos = unpickle(get_vector_path(model_name, layer_type[0], source_concept))
-        mu_neg = unpickle(get_vector_path(model_name, layer_type[0], target_concept))
+        mu_pos = unpickle(source_concept_path)
+        mu_neg = unpickle(target_concept_path)
 
         if steer_type == 'mean_matching':
             mu_pos, mu_neg = mu_neg, mu_pos
@@ -101,7 +101,7 @@ def main(
 
 
     results = []
-    for tokens in tqdm.tqdm(dataset, desc=f"Processing prompts for {source_concept} -> {target_concept}"):
+    for tokens in tqdm.tqdm(dataset, desc=f"Processing prompts for source concept {source_concept}"):
 
         if steer_type is not None:
             context_manager = llm_register_vector_control(
@@ -125,17 +125,8 @@ def main(
                 "output": text.split(prompt)[1],
             } for text in decoded])
 
-    output_path = get_results_path(
-        model_name=model_name,
-        layer_type=layer_type[0],  # TODO: proper
-        source_concept=source_concept,
-        target_concept=target_concept,
-        eval_num_samples=alpaca_num_samples,
-        steer_type=steer_type,
-        strength=strength,
-        alpaca_eval=alpaca_eval,
-    )
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    output_path = os.path.join(output_dir, "results.json")
+    os.makedirs(output_dir, exist_ok=True)
     with open(output_path, 'w') as f:
         json.dump(results, f)
 
@@ -144,8 +135,9 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, required=True)
-    parser.add_argument('--target_concept', type=str, required=True, help='Name of the positive concept')
-    parser.add_argument('--source_concept', type=str, required=True, help='Name of the negative concept')
+    parser.add_argument('--target_concept_path', type=str, required=True, help='Path to the target concept')
+    parser.add_argument('--source_concept', type=str, required=True, help='Name of the source concept')
+    parser.add_argument('--source_concept_path', type=str, required=True, help='Path to the source concept')
     parser.add_argument('--layer_type', choices=['decoder_block', 'self_attn', 'mlp', 'input_layernorm', 'post_attention_layernorm', 'q_proj', 'k_proj', 'v_proj', 'o_proj'], nargs='+', required=True)
     parser.add_argument('--layers_to_steer', type=str, help='Comma separated list of layer indices to steer', default=None)
     parser.add_argument('--alpaca_eval', action='store_true', help='Use alpaca eval dataset')
@@ -157,6 +149,7 @@ if __name__ == "__main__":
     parser.add_argument('--steer_type', type=str, choices=['casteer', 'leace', 'mean_matching'], default=None)
     parser.add_argument('--mu_neutral', type=str, default=None, help='path to mu_neutral file (for leace and mean_matching)')
     parser.add_argument('--cov_neutral', type=str, default=None, help='path to cov file (for leace and mean_matching)')
+    parser.add_argument('--output_dir', type=str, required=True)
 
     args = parser.parse_args()
 
@@ -178,8 +171,10 @@ if __name__ == "__main__":
         layer_type=args.layer_type,
         layers_to_steer=layers_to_steer,
         source_concept=args.source_concept,
-        target_concept=args.target_concept,
+        source_concept_path=args.source_concept_path,
+        target_concept_path=args.target_concept_path,
         strength=args.strength,
+        output_dir=args.output_dir,
         max_new_tokens=args.max_new_tokens,
         mu_neutral=unpickle_pack(args.mu_neutral),
         cov_neutral=unpickle_pack(args.cov_neutral),

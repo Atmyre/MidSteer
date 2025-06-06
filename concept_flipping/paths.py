@@ -2,28 +2,6 @@ import os
 from typing import Optional
 
 
-def get_vector_path(
-    model_name: str,
-    layer_type: str,
-    topic: str,
-) -> str:
-    """
-    Generate the path for vector output files.
-    
-    Args:
-        model_name: Name of the model (will be cleaned by replacing '/' with '_')
-        layer_type: Type of layer (e.g., 'decoder_block', 'self_attn', etc.)
-        topic: Topic name
-        num_samples: Optional number of samples, if None will not be included in filename
-        
-    Returns:
-        Path to the vector file
-    """
-    clean_model_name = model_name.replace('/', '_')
-    filename = f"{clean_model_name}_{layer_type}_{topic}_means.pt"
-    return os.path.join('concept_flipping', 'vectors', filename)
-
-
 def get_results_path(
     model_name: str,
     layer_type: str,
@@ -62,30 +40,3 @@ def get_results_path(
         return os.path.join('concept_flipping', 'results', 'alpaca_instruct', filename)
     else:
         return os.path.join('concept_flipping', 'results', 'concepts', filename) 
-
-
-def get_cov_path(
-    model_name: str,
-    layer_type: str,
-    stats_type: str,
-    num_samples: int | None = None,
-) -> str:
-    """
-    Generate the path for covariance output files.
-
-    Args:
-        model_name: Name of the model (will be cleaned by replacing '/' with '_')
-        layer_type: Type of layer (e.g., 'decoder_block', 'self_attn', etc.)
-        num_samples: Optional number of samples, if None will not be included in filename
-
-    Returns:
-        Path to the covariance file
-    """
-    clean_model_name = model_name.replace('/', '_')
-
-    if num_samples is not None:
-        filename = f"{clean_model_name}_{layer_type}_{stats_type}_{num_samples}.pt"
-    else:
-        filename = f"{clean_model_name}_{layer_type}_{stats_type}.pt"
-
-    return os.path.join('concept_flipping', 'cov', filename)

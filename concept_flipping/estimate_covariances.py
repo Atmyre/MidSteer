@@ -1,8 +1,8 @@
 import argparse
+import os
 import torch
 from pathlib import Path
 
-from concept_flipping.paths import get_cov_path
 from controller import VectorControlMode
 from llm_steering import llm_register_vector_control
 from llm_utils import init_model_and_tokenizer
@@ -14,10 +14,11 @@ import tqdm
 
 def main(
         model_name: str,
-        layer_type: str,
+        layer_type: list[str],
         token_aggregation_mode: TokenAggregationMode,
         normalize_vectors: bool,
         last_token_offset: int,
+        output_dir: str,
         num_samples: int | None = None,
         use_chat: bool = False,
 ):
@@ -51,9 +52,10 @@ def main(
             _ = model.forward(tokens, use_cache=False)
             vector_control.reset()
 
+        os.makedirs(output_dir, exist_ok=True)
         vector_control.save_stats(
-            means_path=get_cov_path(model_name, layer_type, 'means', num_samples),
-            covariances_path=get_cov_path(model_name, layer_type, 'covariances', num_samples),
+            means_path=os.path.join(output_dir, "means.pt"),
+            covariances_path=os.path.join(output_dir, "covariances.pt"),
             use_torch_save=True
         )
 
@@ -61,16 +63,15 @@ def main(
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, required=True)
-    parser.add_argument('--layer_type', choices=['decoder_block', 'self_attn', 'mlp', 'input_layernorm', 'post_attention_layernorm'], required=True)
+    parser.add_argument('--layer_type', choices=['decoder_block', 'self_attn', 'mlp', 'input_layernorm', 'post_attention_layernorm', 'q_proj', 'k_proj', 'v_proj', 'o_proj'], nargs='+', required=True)
     parser.add_argument('--token_aggregation_mode', type=TokenAggregationMode, choices=[str(x) for x in TokenAggregationMode], required=True)
     parser.add_argument('--normalize_vectors', action='store_true')
     parser.add_argument('--last_token_offset', type=int, default=-1)
     parser.add_argument('--num_samples', type=int, default=None)
+    parser.add_argument('--output_dir', type=str, required=True)
 
     args = parser.parse_args()
 
-    # Create cov directory if it doesn't exist
-    Path('concept_flipping/cov').mkdir(parents=True, exist_ok=True)
     use_chat = 'chat' in args.model_name
 
     main(
@@ -81,4 +82,5 @@ if __name__ == '__main__':
         last_token_offset=args.last_token_offset,
         num_samples=args.num_samples,
         use_chat=use_chat,
+        output_dir=args.output_dir,
     )

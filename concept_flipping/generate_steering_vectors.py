@@ -2,7 +2,6 @@ import argparse
 import os
 import torch
 
-from concept_flipping.paths import get_vector_path
 from concept_flipping.dataset import QuestionsDataset
 from controller import VectorControlMode
 from llm_steering import llm_register_vector_control
@@ -26,9 +25,9 @@ def compute_vectors(
         token_aggregation_mode: TokenAggregationMode,
         last_token_offset: int,
         normalize_vectors: bool,
-        model_name: str,
         max_new_tokens: int,
         num_samples: int,
+        output_dir: str,
 ):
 
     dataset = QuestionsDataset(
@@ -47,7 +46,7 @@ def compute_vectors(
         compute_covariances=False,
     )
 
-    generation_config = GenerationConfig(max_new_tokens=max_new_tokens, top_k=1)
+    generation_config = GenerationConfig(max_new_tokens=max_new_tokens)
 
     for tokens in tqdm.tqdm(dataset, desc=f"Processing prompts for {topic}"):
         with llm_register_vector_control(
@@ -58,12 +57,8 @@ def compute_vectors(
         ), torch.no_grad():
             _ = model.generate(tokens, generation_config=generation_config)
             vector_control.reset()
-        output_path = get_vector_path(
-            model_name=model_name,
-            layer_type=layer_type,
-            topic=topic,
-        )
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        output_path = os.path.join(output_dir, f"{topic}.json")
+        os.makedirs(output_dir, exist_ok=True)
         vector_control.save_stats(
             means_path=output_path,
             use_torch_save=True
@@ -80,6 +75,7 @@ if __name__ == '__main__':
     parser.add_argument('--last_token_offset', type=int, default=-1)
     parser.add_argument('--max_new_tokens', type=int, default=150)
     parser.add_argument('--num_samples', type=int, default=1000)
+    parser.add_argument('--output_dir', type=str, required=True)
     args = parser.parse_args()
 
 
@@ -98,7 +94,7 @@ if __name__ == '__main__':
             token_aggregation_mode=args.token_aggregation_mode,
             normalize_vectors=args.normalize_vectors,
             last_token_offset=args.last_token_offset,
-            model_name=args.model_name,
+            output_dir=args.output_dir,
             max_new_tokens=args.max_new_tokens,
             num_samples=args.num_samples,
         )
