@@ -96,6 +96,10 @@ for source_concept in "${!concept_pairs[@]}"; do
 
     wait
 
+    CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python concept_flipping/llama_scoring.py \
+        --concept $source_concept $target_concept \
+        --dir $results_subdir
+
 done
 
 

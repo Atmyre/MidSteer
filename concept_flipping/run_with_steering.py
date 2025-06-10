@@ -51,7 +51,12 @@ def main(
         samples_per_question: int,
         generation_temperature: float,
 ):
-    
+    output_path = os.path.join(output_dir, "results.json")
+    if os.path.exists(output_path):
+        print(f"File {output_path} already exists. Skipping generation.")
+        return
+    os.makedirs(output_dir, exist_ok=True)
+
     if alpaca_eval:
         dataset = AlpacaDataset(
             data_path=f'concept_flipping/eval/alpaca_instruct/alpaca_data.json',
@@ -125,8 +130,6 @@ def main(
                 "output": text.split(prompt)[1],
             } for text in decoded])
 
-    output_path = os.path.join(output_dir, "results.json")
-    os.makedirs(output_dir, exist_ok=True)
     with open(output_path, 'w') as f:
         json.dump(results, f)
 

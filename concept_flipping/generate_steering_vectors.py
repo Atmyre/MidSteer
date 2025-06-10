@@ -29,6 +29,11 @@ def compute_vectors(
         num_samples: int,
         output_dir: str,
 ):
+    output_path = os.path.join(output_dir, f"{topic}.json")
+    if os.path.exists(output_path):
+        print(f"File {output_path} already exists. Skipping generation.")
+        return
+    os.makedirs(output_dir, exist_ok=True)
 
     dataset = QuestionsDataset(
         data_path=f'concept_flipping/questions/{topic}_questions_batch_*.json',
@@ -57,8 +62,6 @@ def compute_vectors(
         ), torch.no_grad():
             _ = model.generate(tokens, generation_config=generation_config)
             vector_control.reset()
-        output_path = os.path.join(output_dir, f"{topic}.json")
-        os.makedirs(output_dir, exist_ok=True)
         vector_control.save_stats(
             means_path=output_path,
             use_torch_save=True
