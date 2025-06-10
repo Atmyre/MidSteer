@@ -22,6 +22,9 @@ def main(
         num_samples: int | None = None,
         use_chat: bool = False,
 ):
+    if os.path.exists(os.path.join(output_dir, "means.pt")) and os.path.exists(os.path.join(output_dir, "covariances.pt")):
+        print(f"File {output_dir}/means.pt and {output_dir}/covariances.pt already exist. Skipping estimation.")
+        return
     model, tokenizer = init_model_and_tokenizer(model_name=model_name)
     device = get_device()
 

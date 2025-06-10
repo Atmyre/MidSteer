@@ -1,8 +1,10 @@
 import os
+import glob
 import numpy as np
 import json
 import argparse
 from typing import Dict, List
+import pandas as pd
 import torch
 import tqdm
 from pydantic import BaseModel
@@ -84,38 +86,36 @@ def process_file(model: AutoModelForCausalLM, tokenizer: AutoTokenizer, concept:
 
 def main():
     parser = argparse.ArgumentParser(description='Score text relevance to a concept using GPT')
-    parser.add_argument('concept', type=str, help='Concept to score against')
-    parser.add_argument('filename', type=str, help='JSON file to process')
+    parser.add_argument('--concept', type=str, nargs='+', help='Concept to score against')
+    parser.add_argument('--dir', type=str, help='Subdirectory to process')
     parser.add_argument('--model_name', type=str, default="meta-llama/Llama-3.1-8B-Instruct")
     
     args = parser.parse_args()
-
-
     model, tokenizer = init_model_and_tokenizer(model_name=args.model_name)
-    # help(tokenizer)
 
-    # Process file and get scores
-    results = process_file(model, tokenizer, args.concept, args.filename)
-    
-    # Calculate and display average score
-    print(f"\nScoring results for concept: {args.concept}")
-    print("-" * 50)
-    
-    if results:
-        scores = [r['score'] for r in results]
-        avg_score = sum(scores) / len(scores)
-        print(f"Average score = {avg_score:.2f}")
-        print(f"Std = {np.std(scores)}")
-        
-        # Save results to file
-        # scores_dir = os.path.join('concept_flipping', 'scores')
-        # os.makedirs(scores_dir, exist_ok=True)
-        # output_file = os.path.join(scores_dir, f"scores_{args.concept}_{os.path.basename(args.filename)}")
-        # with open(output_file, 'w') as f:
-        #     json.dump(results, f, indent=4)
-        # print(f"\nResults saved to {output_file}")
-    else:
-        print("No valid scores were generated.")
+    files = glob.glob(f'**/*.json', recursive=True, root_dir=args.dir)
+
+    data = {
+        'file': [],
+        'avg_score': [],
+        'std': [],
+        'concept': [],
+    }
+
+    for concept in args.concept:
+        for file in files:
+            file_path = os.path.join(args.dir, file)
+            results = process_file(model, tokenizer, concept, file_path)
+            scores = [r['score'] for r in results]
+
+            data['file'].append(file)
+            data['avg_score'].append(np.mean(scores))
+            data['std'].append(np.std(scores))
+            data['concept'].append(concept)
+
+    df = pd.DataFrame(data)
+    df.to_csv(f'{args.dir}/scores.tsv', index=False, sep='\t', encoding='utf-8')
+
 
 if __name__ == "__main__":
     main()
