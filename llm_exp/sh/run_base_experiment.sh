@@ -52,12 +52,13 @@ for source_concept in "${!concept_pairs[@]}"; do
     results_subdir="$results_dir/${source_concept}_to_${target_concept}"
     mkdir -p "$results_subdir"
 
+    # Define evaluation parameters as arrays
+    declare -a eval_params=(
+        "--samples_per_question $eval_samples_per_question --max_new_tokens $eval_max_new_tokens --output_dir $results_subdir/eval"
+        "--alpaca_eval --alpaca_num_samples $alpaca_num_samples --samples_per_question $alpaca_samples_per_question --max_new_tokens $alpaca_max_new_tokens --output_dir $results_subdir/alpaca"
+    )
 
-    alpaca_eval_params="--alpaca_eval --alpaca_num_samples $alpaca_num_samples --samples_per_question $alpaca_samples_per_question --max_new_tokens $alpaca_max_new_tokens --output_dir $results_subdir/alpaca"
-    regular_eval_params="--samples_per_question $eval_samples_per_question --max_new_tokens $eval_max_new_tokens --output_dir $results_subdir/eval"
-
-
-    for params in $regular_eval_params $alpaca_eval_params; do
+    for params in "${eval_params[@]}"; do
         CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python concept_flipping/run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
