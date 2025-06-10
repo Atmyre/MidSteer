@@ -137,9 +137,9 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, required=True)
-    parser.add_argument('--target_concept_path', type=str, required=True, help='Path to the target concept')
+    parser.add_argument('--target_concept_path', type=str, required=False, help='Path to the target concept')
     parser.add_argument('--source_concept', type=str, required=True, help='Name of the source concept')
-    parser.add_argument('--source_concept_path', type=str, required=True, help='Path to the source concept')
+    parser.add_argument('--source_concept_path', type=str, required=False, help='Path to the source concept')
     parser.add_argument('--layer_type', choices=['decoder_block', 'self_attn', 'mlp', 'input_layernorm', 'post_attention_layernorm', 'q_proj', 'k_proj', 'v_proj', 'o_proj'], nargs='+', required=True)
     parser.add_argument('--layers_to_steer', type=str, help='Comma separated list of layer indices to steer', default=None)
     parser.add_argument('--alpaca_eval', action='store_true', help='Use alpaca eval dataset')
