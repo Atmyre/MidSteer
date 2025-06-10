@@ -63,6 +63,13 @@ for source_concept in "${!concept_pairs[@]}"; do
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept $source_concept \
+            --strength 0.0 \
+            $params &
+
+        CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python concept_flipping/run_with_steering.py \
+            --model_name $model_name \
+            --layer_type $layer_type \
+            --source_concept $source_concept \
             --source_concept_path $steering_vectors_dir/$source_concept.json \
             --target_concept_path $steering_vectors_dir/$target_concept.json \
             --steer_type casteer \
@@ -71,7 +78,7 @@ for source_concept in "${!concept_pairs[@]}"; do
             --cov_neutral $covariances_dir/covariances.pt \
             $params &
 
-        CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python concept_flipping/run_with_steering.py \
+        CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python concept_flipping/run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept $source_concept \
@@ -86,7 +93,7 @@ for source_concept in "${!concept_pairs[@]}"; do
 
         i=0
         for strength in 1.0 1.5 2.0 2.5; do
-            gpu_id=$((2 + i))
+            gpu_id=$((3 + i))
             CUDA_VISIBLE_DEVICES=$gpu_id PYTHONPATH=. python concept_flipping/run_with_steering.py \
                 --model_name $model_name \
                 --layer_type $layer_type \
