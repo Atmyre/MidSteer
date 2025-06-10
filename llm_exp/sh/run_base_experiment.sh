@@ -31,10 +31,10 @@ wait
 
 
 alpaca_num_samples=1000
-alpaca_max_new_tokens=50
+alpaca_max_new_tokens=100
 alpaca_samples_per_question=1
 
-eval_max_new_tokens=150
+eval_max_new_tokens=100
 eval_samples_per_question=10
 
 
