@@ -51,7 +51,7 @@ def main(
         samples_per_question: int,
         generation_temperature: float,
 ):
-    output_path = os.path.join(output_dir, "results.json")
+    output_path = os.path.join(output_dir, f'{steer_type}_{strength:.1f}.json')
     if os.path.exists(output_path):
         print(f"File {output_path} already exists. Skipping generation.")
         return
@@ -125,7 +125,6 @@ def main(
             decoded = tokenizer.batch_decode(outputs)
 
             results.extend([{
-                "raw_output": text,
                 "prompt": prompt,
                 "output": text.split(prompt)[1],
             } for text in decoded])

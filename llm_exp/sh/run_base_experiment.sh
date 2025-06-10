@@ -30,8 +30,13 @@ CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python concept_flipping/generate_steering_ve
 wait
 
 
+alpaca_num_samples=1000
+alpaca_max_new_tokens=50
+alpaca_samples_per_question=1
 
-eval_tokens=150
+eval_max_new_tokens=150
+eval_samples_per_question=10
+
 
 results_dir=./llm_exp/results/llama-2-7b-chat-hf/self_attn
 
@@ -48,57 +53,67 @@ for source_concept in "${!concept_pairs[@]}"; do
     mkdir -p "$results_subdir"
 
 
-    CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python concept_flipping/run_with_steering.py \
-        --model_name $model_name \
-        --layer_type $layer_type \
-        --source_concept $source_concept \
-        --source_concept_path $steering_vectors_dir/$source_concept.json \
-        --target_concept_path $steering_vectors_dir/$target_concept.json \
-        --steer_type casteer \
-        --strength 2.0 \
-        --max_new_tokens $eval_tokens \
-        --mu_neutral $covariances_dir/means.pt \
-        --cov_neutral $covariances_dir/covariances.pt \
-        --output_dir $results_subdir/casteer_2.0 &
+    alpaca_eval_params="--alpaca_eval --alpaca_num_samples $alpaca_num_samples --samples_per_question $alpaca_samples_per_question --max_new_tokens $alpaca_max_new_tokens --output_dir $results_subdir/alpaca"
+    regular_eval_params="--samples_per_question $eval_samples_per_question --max_new_tokens $eval_max_new_tokens --output_dir $results_subdir/eval"
 
 
-    CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python concept_flipping/run_with_steering.py \
-        --model_name $model_name \
-        --layer_type $layer_type \
-        --source_concept $source_concept \
-        --source_concept_path $steering_vectors_dir/$source_concept.json \
-        --target_concept_path $steering_vectors_dir/$target_concept.json \
-        --steer_type leace \
-        --strength 2.0 \
-        --max_new_tokens $eval_tokens \
-        --mu_neutral $covariances_dir/means.pt \
-        --cov_neutral $covariances_dir/covariances.pt \
-        --output_dir $results_subdir/leace_2.0 &
-
-
-    i=0
-    for strength in 1.0 1.5 2.0 2.5; do
-        gpu_id=$((2 + i))
-        CUDA_VISIBLE_DEVICES=$gpu_id PYTHONPATH=. python concept_flipping/run_with_steering.py \
+    for params in $regular_eval_params $alpaca_eval_params; do
+        CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python concept_flipping/run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept $source_concept \
             --source_concept_path $steering_vectors_dir/$source_concept.json \
             --target_concept_path $steering_vectors_dir/$target_concept.json \
-            --steer_type mean_matching \
-            --strength $strength \
-            --max_new_tokens $eval_tokens \
+            --steer_type casteer \
+            --strength 2.0 \
             --mu_neutral $covariances_dir/means.pt \
             --cov_neutral $covariances_dir/covariances.pt \
-            --output_dir $results_subdir/mean_matching_${strength} &
-        i=$((i + 1))
+            $params &
+
+        CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python concept_flipping/run_with_steering.py \
+            --model_name $model_name \
+            --layer_type $layer_type \
+            --source_concept $source_concept \
+            --source_concept_path $steering_vectors_dir/$source_concept.json \
+            --target_concept_path $steering_vectors_dir/$target_concept.json \
+            --steer_type leace \
+            --strength 2.0 \
+            --mu_neutral $covariances_dir/means.pt \
+            --cov_neutral $covariances_dir/covariances.pt \
+            $params &
+
+
+        i=0
+        for strength in 1.0 1.5 2.0 2.5; do
+            gpu_id=$((2 + i))
+            CUDA_VISIBLE_DEVICES=$gpu_id PYTHONPATH=. python concept_flipping/run_with_steering.py \
+                --model_name $model_name \
+                --layer_type $layer_type \
+                --source_concept $source_concept \
+                --source_concept_path $steering_vectors_dir/$source_concept.json \
+                --target_concept_path $steering_vectors_dir/$target_concept.json \
+                --steer_type mean_matching \
+                --strength $strength \
+                --mu_neutral $covariances_dir/means.pt \
+                --cov_neutral $covariances_dir/covariances.pt \
+                $params &
+            i=$((i + 1))
+        done
+
+        wait
     done
 
-    wait
 
     CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python concept_flipping/llama_scoring.py \
         --concept $source_concept $target_concept \
-        --dir $results_subdir
+        --dir $results_subdir/eval &
+
+    CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python concept_flipping/alpaca_scoring.py \
+        --dir $results_subdir/alpaca &
+
+
+    wait
+
 
 done
 
