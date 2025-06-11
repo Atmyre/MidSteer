@@ -29,7 +29,7 @@ def compute_vectors(
         num_samples: int,
         output_dir: str,
 ):
-    output_path = os.path.join(output_dir, f"{topic}.json")
+    output_path = os.path.join(output_dir, f"{topic}.pt")
     if os.path.exists(output_path):
         print(f"File {output_path} already exists. Skipping generation.")
         return
