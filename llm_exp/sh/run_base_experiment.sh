@@ -70,8 +70,8 @@ for source_concept in "${!concept_pairs[@]}"; do
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept $source_concept \
-            --source_concept_path $steering_vectors_dir/$source_concept.json \
-            --target_concept_path $steering_vectors_dir/$target_concept.json \
+            --source_concept_path $steering_vectors_dir/$source_concept.pt \
+            --target_concept_path $steering_vectors_dir/$target_concept.pt \
             --steer_type casteer \
             --strength 2.0 \
             --mu_neutral $covariances_dir/means.pt \
@@ -82,8 +82,8 @@ for source_concept in "${!concept_pairs[@]}"; do
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept $source_concept \
-            --source_concept_path $steering_vectors_dir/$source_concept.json \
-            --target_concept_path $steering_vectors_dir/$target_concept.json \
+            --source_concept_path $steering_vectors_dir/$source_concept.pt \
+            --target_concept_path $steering_vectors_dir/$target_concept.pt \
             --steer_type leace \
             --strength 2.0 \
             --mu_neutral $covariances_dir/means.pt \
@@ -98,8 +98,8 @@ for source_concept in "${!concept_pairs[@]}"; do
                 --model_name $model_name \
                 --layer_type $layer_type \
                 --source_concept $source_concept \
-                --source_concept_path $steering_vectors_dir/$source_concept.json \
-                --target_concept_path $steering_vectors_dir/$target_concept.json \
+                --source_concept_path $steering_vectors_dir/$source_concept.pt \
+                --target_concept_path $steering_vectors_dir/$target_concept.pt \
                 --steer_type mean_matching \
                 --strength $strength \
                 --mu_neutral $covariances_dir/means.pt \
