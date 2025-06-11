@@ -1,10 +1,10 @@
 #! /usr/bin/env bash
-#SBATCH --job-name=midsteer_base_experiment
+#SBATCH --job-name=midsteer_base_experiment-mlp
 #SBATCH --partition=h100-camera-train
 #SBATCH --gres=gpu:1
 #SBATCH --time=24:00:00
-#SBATCH --output=slurm_base_experiment-%j.out
-#SBATCH --error=slurm_base_experiment-%j.err
+#SBATCH --output=slurm_base_experiment-mlp-%j.out
+#SBATCH --error=slurm_base_experiment-mlp-%j.err
 
 
 set -eoux pipefail
@@ -14,7 +14,7 @@ export PYTHONPATH=.
 python=../miniconda3/bin/python
 
 model_name=meta-llama/Llama-2-7b-chat-hf
-layer_type=self_attn
+layer_type=mlp
 covariances_dir=./llm_exp/cov/llama-2-7b-chat-hf/$layer_type
 
 topics="horses motorcycles cats dogs"
