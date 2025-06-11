@@ -154,6 +154,4 @@ for source_concept in "${!concept_pairs[@]}"; do
     srun $python concept_flipping/alpaca_scoring.py \
         --dir $results_subdir/alpaca
 
-
-
 done
