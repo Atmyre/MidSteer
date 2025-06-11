@@ -1,32 +1,54 @@
 #! /usr/bin/env bash
-#SBATCH --job-name=midsteer_base_experiment
 #SBATCH --partition=h100-camera-train
 #SBATCH --gres=gpu:1
 #SBATCH --time=24:00:00
-#SBATCH --output=slurm_base_experiment-%j.out
-#SBATCH --error=slurm_base_experiment-%j.err
+#SBATCH --output=./llm_exp/logs/slurm-%x-%j.out
+#SBATCH --error=./llm_exp/logs/slurm-%x-%j.err
 
 
 set -eoux pipefail
+
+# Check if required arguments are provided
+if [ $# -lt 3 ]; then
+    echo "Usage: $0 <layer_type> <num_covariances> <token_aggregation_mode>"
+    echo "Example: $0 self_attn 20000 all" 
+    exit 1
+fi
+
+layer_type=$1
+num_covariances=$2
+token_aggregation_mode=$3
+
 
 export PYTHONPATH=.
 
 python=../miniconda3/bin/python
 
 model_name=meta-llama/Llama-2-7b-chat-hf
-layer_type=self_attn
-covariances_dir=./llm_exp/cov/llama-2-7b-chat-hf/$layer_type
+covariances_dir=./llm_exp/cov/llama-2-7b-chat-hf/$layer_type/$token_aggregation_mode/$num_covariances
 
 topics="horses motorcycles cats dogs"
 steering_vectors_dir=./llm_exp/steering_vectors/llama-2-7b-chat-hf/$layer_type
 
+if [ $num_covariances -eq 0 ]; then
+    srun $python concept_flipping/estimate_covariances.py \
+        --model_name $model_name \
+        --layer_type $layer_type \
+        --token_aggregation_mode $token_aggregation_mode \
+        --num_samples 10 \
+        --output_dir $covariances_dir
 
-srun $python concept_flipping/estimate_covariances.py \
-    --model_name $model_name \
-    --layer_type $layer_type \
-    --token_aggregation_mode all \
-    --num_samples 20000 \
-    --output_dir $covariances_dir
+    additional_params="--identity_cov"
+else
+    srun $python concept_flipping/estimate_covariances.py \
+        --model_name $model_name \
+        --layer_type $layer_type \
+        --token_aggregation_mode $token_aggregation_mode \
+        --num_samples $num_covariances \
+        --output_dir $covariances_dir
+
+    additional_params=""
+fi
 
 
 srun $python concept_flipping/generate_steering_vectors.py \
@@ -48,7 +70,7 @@ eval_max_new_tokens=100
 eval_samples_per_question=10
 
 
-results_dir=./llm_exp/results/llama-2-7b-chat-hf/$layer_type
+results_dir=./llm_exp/results/llama-2-7b-chat-hf/$SLURM_JOB_NAME
 
 # Iterate over concept pairs
 declare -A concept_pairs=(
@@ -74,6 +96,7 @@ for source_concept in "${!concept_pairs[@]}"; do
             --layer_type $layer_type \
             --source_concept $source_concept \
             --strength 0.0 \
+            $additional_params \
             $params
 
         srun $python concept_flipping/run_with_steering.py \
@@ -86,6 +109,7 @@ for source_concept in "${!concept_pairs[@]}"; do
             --strength 2.0 \
             --mu_neutral $covariances_dir/means.pt \
             --cov_neutral $covariances_dir/covariances.pt \
+            $additional_params \
             $params
 
         srun $python concept_flipping/run_with_steering.py \
@@ -98,6 +122,7 @@ for source_concept in "${!concept_pairs[@]}"; do
             --strength 2.0 \
             --mu_neutral $covariances_dir/means.pt \
             --cov_neutral $covariances_dir/covariances.pt \
+            $additional_params \
             $params
 
 
@@ -114,6 +139,7 @@ for source_concept in "${!concept_pairs[@]}"; do
                 --strength $strength \
                 --mu_neutral $covariances_dir/means.pt \
                 --cov_neutral $covariances_dir/covariances.pt \
+                $additional_params \
                 $params
             i=$((i + 1))
         done
@@ -131,6 +157,3 @@ for source_concept in "${!concept_pairs[@]}"; do
 
 
 done
-
-
-
