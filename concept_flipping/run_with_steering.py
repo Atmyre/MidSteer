@@ -50,6 +50,7 @@ def main(
         alpaca_num_samples: int | None,
         samples_per_question: int,
         generation_temperature: float,
+        identity_cov: bool,
 ):
     output_path = os.path.join(output_dir, f'{steer_type}_{strength:.1f}.json')
     if os.path.exists(output_path):
@@ -93,6 +94,7 @@ def main(
             mu_neutral=mu_neutral,
             cov=cov_neutral,
             strength=strength,
+            identity_cov=identity_cov,
         )
     else:
         control = None
@@ -151,6 +153,7 @@ if __name__ == "__main__":
     parser.add_argument('--steer_type', type=str, choices=['casteer', 'leace', 'mean_matching'], default=None)
     parser.add_argument('--mu_neutral', type=str, default=None, help='path to mu_neutral file (for leace and mean_matching)')
     parser.add_argument('--cov_neutral', type=str, default=None, help='path to cov file (for leace and mean_matching)')
+    parser.add_argument('--identity_cov', action='store_true', help='Use identity covariance matrix for leace and mean_matching')
     parser.add_argument('--output_dir', type=str, required=True)
 
     args = parser.parse_args()
@@ -180,6 +183,7 @@ if __name__ == "__main__":
         max_new_tokens=args.max_new_tokens,
         mu_neutral=unpickle_pack(args.mu_neutral),
         cov_neutral=unpickle_pack(args.cov_neutral),
+        identity_cov=args.identity_cov,
         steer_type=args.steer_type,
         alpaca_eval=args.alpaca_eval,
         alpaca_num_samples=args.alpaca_num_samples,
