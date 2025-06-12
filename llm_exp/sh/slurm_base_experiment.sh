@@ -155,3 +155,79 @@ for source_concept in "${!concept_pairs[@]}"; do
         --dir $results_subdir/alpaca
 
 done
+
+
+
+declare -A concepts_to_steer=(
+    ["horses"]="cows"
+    ["dogs"]="wolves"
+)
+
+for source_concept in "${!concept_pairs[@]}"; do
+    target_concept="${concept_pairs[$source_concept]}"
+    concept_to_steer="${concepts_to_steer[$source_concept]}"
+    
+    results_subdir="$results_dir/${source_concept}_to_${target_concept}__${concept_to_steer}"
+    mkdir -p "$results_subdir"
+
+    params="--samples_per_question $eval_samples_per_question --max_new_tokens $eval_max_new_tokens --output_dir $results_subdir/eval"
+
+    srun $python concept_flipping/run_with_steering.py \
+        --model_name $model_name \
+        --layer_type $layer_type \
+        --source_concept $concept_to_steer \
+        --strength 0.0 \
+        $additional_params \
+        $params
+
+    srun $python concept_flipping/run_with_steering.py \
+        --model_name $model_name \
+        --layer_type $layer_type \
+        --source_concept $concept_to_steer \
+        --source_concept_path $steering_vectors_dir/$source_concept.pt \
+        --target_concept_path $steering_vectors_dir/$target_concept.pt \
+        --steer_type casteer \
+        --strength 2.0 \
+        --mu_neutral $covariances_dir/means.pt \
+        --cov_neutral $covariances_dir/covariances.pt \
+        $additional_params \
+        $params
+
+    srun $python concept_flipping/run_with_steering.py \
+        --model_name $model_name \
+        --layer_type $layer_type \
+        --source_concept $concept_to_steer \
+        --source_concept_path $steering_vectors_dir/$source_concept.pt \
+        --target_concept_path $steering_vectors_dir/$target_concept.pt \
+        --steer_type leace \
+        --strength 2.0 \
+        --mu_neutral $covariances_dir/means.pt \
+        --cov_neutral $covariances_dir/covariances.pt \
+        $additional_params \
+        $params
+
+
+    i=0
+    for strength in 1.0 1.5 2.0 2.5; do
+        gpu_id=$((3 + i))
+        srun $python concept_flipping/run_with_steering.py \
+            --model_name $model_name \
+            --layer_type $layer_type \
+            --source_concept $concept_to_steer \
+            --source_concept_path $steering_vectors_dir/$source_concept.pt \
+            --target_concept_path $steering_vectors_dir/$target_concept.pt \
+            --steer_type mean_matching \
+            --strength $strength \
+            --mu_neutral $covariances_dir/means.pt \
+            --cov_neutral $covariances_dir/covariances.pt \
+            $additional_params \
+            $params
+        i=$((i + 1))
+    done
+
+
+    srun $python concept_flipping/llama_scoring.py \
+        --concept $source_concept $target_concept $concept_to_steer \
+        --dir $results_subdir/eval
+
+done
