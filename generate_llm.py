@@ -2,12 +2,13 @@ import argparse
 
 import torch
 
-from utils import unpickle, unpickle_pack
+from core.pickle import unpickle
+from core.pickle import unpickle_pack
 from transformers import GenerationConfig
 
-from controller import CrossAttentionOutputSteering, ModelToSteer, VectorControlMode
-from llm_steering import llm_register_vector_control
-from llm_utils import init_model_and_tokenizer
+from core.controller import CrossAttentionOutputSteering, ModelToSteer, VectorControlMode
+from core.llm_steering import llm_register_vector_control
+from utils import init_llm_model_and_tokenizer
 from CAA.utils.tokenize import tokenize_llama_base, tokenize_llama_chat
 from utils import get_device
 
@@ -28,7 +29,7 @@ def main(
         steer_type: str,
 ):
     
-    model, tokenizer = init_model_and_tokenizer(model_name=model_name)
+    model, tokenizer = init_llm_model_and_tokenizer(model_name=model_name)
     device = get_device()
 
 

@@ -7,14 +7,14 @@ from contextlib import contextmanager
 import torch
 import tqdm
 
-from concept_flipping.dataset import ALPACA_DEFAULT_INSTRUCTION, QuestionsDataset, AlpacaDataset, TemplateDataset
-from concept_flipping.paths import get_results_path
-from utils import unpickle, unpickle_pack
+from dataset import ALPACA_DEFAULT_INSTRUCTION, QuestionsDataset, AlpacaDataset, TemplateDataset
+from core.pickle import unpickle
+from core.pickle import unpickle_pack
 from transformers import GenerationConfig
 
-from controller import CrossAttentionOutputSteering, ModelToSteer, VectorControlMode
-from llm_steering import llm_register_vector_control
-from llm_utils import init_model_and_tokenizer
+from core.controller import CrossAttentionOutputSteering, ModelToSteer, VectorControlMode
+from core.llm_steering import llm_register_vector_control
+from utils import init_llm_model_and_tokenizer
 from CAA.utils.tokenize import tokenize_llama_base, tokenize_llama_chat
 from utils import get_device
 
@@ -62,7 +62,7 @@ def main(
 
     if alpaca_eval:
         dataset = AlpacaDataset(
-            data_path=f'concept_flipping/eval/alpaca_instruct/alpaca_data.json',
+            data_path=f'llm_exp/datasets/eval/alpaca_instruct/alpaca_data.json',
             tokenizer=tokenizer,
             use_chat=use_chat,
             device=device,
@@ -70,7 +70,7 @@ def main(
         )
     else:
         dataset = TemplateDataset(
-            template_path=f'concept_flipping/eval/concepts/template.json',
+            template_path=f'llm_exp/datasets/eval/concepts/template.json',
             concept=source_concept,
             tokenizer=tokenizer,
             use_chat=use_chat,
@@ -169,7 +169,7 @@ if __name__ == "__main__":
     else:
         layers_to_steer = None
 
-    model, tokenizer = init_model_and_tokenizer(model_name=args.model_name)
+    model, tokenizer = init_llm_model_and_tokenizer(model_name=args.model_name)
     use_chat = 'chat' in args.model_name
     device = get_device()
 

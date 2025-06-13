@@ -12,12 +12,13 @@ import torch
 
 # local imports
 from construct_prompts import get_prompts_concrete, get_prompts_style, get_prompts_human_related, pickle_stats, read_prompt_file
-from controller import VectorControlMode, register_vector_controls
-from utils import fractional_matrix_power_cov_torch, get_device, init_pipeline_for_model, run_model
+from core.controller import VectorControlMode, register_vector_controls
+from core.math import fractional_matrix_power_cov_torch
+from utils import get_device, init_pipeline_for_image_model, run_image_model
 
 # parsing arguments
 import argparse
-from vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
+from core.vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
 
 
 
@@ -47,7 +48,7 @@ def gather_stats_for_prompts(
             stats_handler.save_stats(means_path=f'{output_dir}/means_{idx}.pickle',
                                        covariances_path=f'{output_dir}/covariances_{idx}.pickle')
     
-        image = run_model(
+        image = run_image_model(
             model_type=model_type,
             pipe=pipe,
             prompt=prompt,
@@ -100,7 +101,7 @@ def gather_stats_for_prompt_pairs(
 
         pos_stats_handler.active = True
         neg_stats_handler.active = False
-        image = run_model(
+        image = run_image_model(
             model_type=args.model,
             pipe=pipe,
             prompt=pos_prompt,
@@ -111,7 +112,7 @@ def gather_stats_for_prompt_pairs(
 
         pos_stats_handler.active = False
         neg_stats_handler.active = True
-        image = run_model(
+        image = run_image_model(
             model_type=args.model,
             pipe=pipe,
             prompt=neg_prompt,
@@ -227,7 +228,7 @@ def calculate_mmster(
 
 
 def run(args: argparse.Namespace):
-    pipe = init_pipeline_for_model(args.model)
+    pipe = init_pipeline_for_image_model(args.model)
     pipe.set_progress_bar_config(disable=True)
 
     device = get_device()

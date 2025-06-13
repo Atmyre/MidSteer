@@ -1,11 +1,11 @@
 from construct_prompts import pickle_stats
-from controller import EPS, VectorControl, VectorControlMode
+from core.controller import EPS, VectorControl, VectorControlMode
 from collections import defaultdict
 import torch
 import numpy as np
 import functools
 import enum
-from utils import convert_to_widest_dtype
+from core.math import convert_to_widest_dtype
 
 
 class TokenAggregationMode(enum.StrEnum):

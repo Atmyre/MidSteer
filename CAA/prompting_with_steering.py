@@ -28,8 +28,9 @@ from CAA.behaviors import (
     load_external_vectors,
     load_mu_neutral,
 )
-from controller import CrossAttentionOutputSteering, ModelToSteer, VectorControlMode
-from utils import get_device, unpickle
+from core.controller import CrossAttentionOutputSteering, ModelToSteer, VectorControlMode
+from core.pickle import unpickle
+from utils import get_device
 import typing as tp
 
 load_dotenv()

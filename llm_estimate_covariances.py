@@ -3,12 +3,12 @@ import os
 import torch
 from pathlib import Path
 
-from controller import VectorControlMode
-from llm_steering import llm_register_vector_control
-from llm_utils import init_model_and_tokenizer
+from core.controller import VectorControlMode
+from core.llm_steering import llm_register_vector_control
+from utils import init_llm_model_and_tokenizer
 from utils import get_device
-from vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
-from concept_flipping.dataset import AlpacaDataset
+from core.vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
+from dataset import AlpacaDataset
 from transformers import GenerationConfig
 import tqdm
 
@@ -27,11 +27,11 @@ def main(
     if os.path.exists(os.path.join(output_dir, "means.pt")) and os.path.exists(os.path.join(output_dir, "covariances.pt")):
         print(f"File {output_dir}/means.pt and {output_dir}/covariances.pt already exist. Skipping estimation.")
         return
-    model, tokenizer = init_model_and_tokenizer(model_name=model_name)
+    model, tokenizer = init_llm_model_and_tokenizer(model_name=model_name)
     device = get_device()
 
     dataset = AlpacaDataset(
-        data_path=f'concept_flipping/eval/alpaca_instruct/alpaca_data.json',
+        data_path=f'llm_exp/datasets/eval/alpaca_instruct/alpaca_data.json',
         tokenizer=tokenizer,
         use_chat=use_chat,
         device=device,

@@ -8,7 +8,8 @@ from typing import Optional, Dict, Any
 
 import enum
 import torch.nn.functional as F
-from utils import fractional_matrix_power_cov_torch, convert_to_widest_dtype
+from core.math import fractional_matrix_power_cov_torch
+from core.math import convert_to_widest_dtype
 
 
 logger = logging.getLogger()
