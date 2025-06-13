@@ -7,7 +7,7 @@ from contextlib import contextmanager
 import torch
 import tqdm
 
-from concept_flipping.dataset import QuestionsDataset, AlpacaDataset, TemplateDataset
+from concept_flipping.dataset import ALPACA_DEFAULT_INSTRUCTION, QuestionsDataset, AlpacaDataset, TemplateDataset
 from concept_flipping.paths import get_results_path
 from utils import unpickle, unpickle_pack
 from transformers import GenerationConfig
@@ -51,6 +51,8 @@ def main(
         samples_per_question: int,
         generation_temperature: float,
         identity_cov: bool,
+        use_alpaca_system_prompt: bool,
+        zero_mu_neutral: bool,
 ):
     output_path = os.path.join(output_dir, f'{steer_type}_{strength:.1f}.json')
     if os.path.exists(output_path):
@@ -73,6 +75,7 @@ def main(
             tokenizer=tokenizer,
             use_chat=use_chat,
             device=device,
+            instruction=ALPACA_DEFAULT_INSTRUCTION if use_alpaca_system_prompt else None,
         )
 
     if steer_type is not None:
@@ -95,6 +98,7 @@ def main(
             cov=cov_neutral,
             strength=strength,
             identity_cov=identity_cov,
+            zero_mu_neutral=zero_mu_neutral,
         )
     else:
         control = None
@@ -154,7 +158,9 @@ if __name__ == "__main__":
     parser.add_argument('--mu_neutral', type=str, default=None, help='path to mu_neutral file (for leace and mean_matching)')
     parser.add_argument('--cov_neutral', type=str, default=None, help='path to cov file (for leace and mean_matching)')
     parser.add_argument('--identity_cov', action='store_true', help='Use identity covariance matrix for leace and mean_matching')
+    parser.add_argument('--zero_mu_neutral', action='store_true', help='Use zero mu_neutral for leace and mean_matching')
     parser.add_argument('--output_dir', type=str, required=True)
+    parser.add_argument('--use_alpaca_system_prompt', action='store_true', help='Use alpaca instruction for eval set')
 
     args = parser.parse_args()
 
@@ -189,4 +195,6 @@ if __name__ == "__main__":
         alpaca_num_samples=args.alpaca_num_samples,
         samples_per_question=args.samples_per_question,
         generation_temperature=args.generation_temperature,
+        use_alpaca_system_prompt=args.use_alpaca_system_prompt,
+        zero_mu_neutral=args.zero_mu_neutral,
     )

@@ -89,7 +89,8 @@ class CrossAttentionOutputSteering(VectorControl):
         device: Any,
         num_layers: int = None,
         strength: float = None,
-        identity_cov: bool = False,
+        identity_cov: bool = False, 
+        zero_mu_neutral: bool = False,
     ):
         super().__init__(mode=mode, num_layers=num_layers)
         self.device = device
@@ -155,6 +156,8 @@ class CrossAttentionOutputSteering(VectorControl):
                             m_neutral = convert_to_widest_dtype(
                                 mu_neutral_concept[num_steer][place_in_unet][block_idx],
                                 device=self.device, force_double=False)
+                            if zero_mu_neutral:
+                                m_neutral = torch.zeros_like(m_neutral)
                             m_pos = convert_to_widest_dtype(
                                 mu_pos_concept[num_steer][place_in_unet][block_idx],
                                 device=self.device, force_double=False) - m_neutral
