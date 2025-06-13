@@ -9,6 +9,7 @@ from llm_utils import init_model_and_tokenizer
 from utils import get_device
 from vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
 from concept_flipping.dataset import AlpacaDataset
+from transformers import GenerationConfig
 import tqdm
 
 
@@ -21,6 +22,7 @@ def main(
         output_dir: str,
         num_samples: int | None = None,
         use_chat: bool = False,
+        max_new_tokens: int = 1,
 ):
     if os.path.exists(os.path.join(output_dir, "means.pt")) and os.path.exists(os.path.join(output_dir, "covariances.pt")):
         print(f"File {output_dir}/means.pt and {output_dir}/covariances.pt already exist. Skipping estimation.")
@@ -45,22 +47,23 @@ def main(
         compute_covariances=True,
     )
 
-    with llm_register_vector_control(
-        model=model,
-        control=[vector_control],
-        layer_type=layer_type,
-    ), torch.no_grad():
-        for tokens in tqdm.tqdm(dataset, desc="Processing prompts"):
-            vector_control.active = True
-            _ = model.forward(tokens, use_cache=False)
-            vector_control.reset()
+    generation_config = GenerationConfig(max_new_tokens=max_new_tokens)
 
-        os.makedirs(output_dir, exist_ok=True)
-        vector_control.save_stats(
-            means_path=os.path.join(output_dir, "means.pt"),
-            covariances_path=os.path.join(output_dir, "covariances.pt"),
-            use_torch_save=True
-        )
+    for tokens in tqdm.tqdm(dataset, desc=f"Processing prompts"):
+        with llm_register_vector_control(
+            model=model,
+            control=[vector_control],
+            layer_type=layer_type,
+            min_token_index=tokens.shape[1] - 1,
+        ), torch.no_grad():
+            _ = model.generate(tokens, generation_config=generation_config)
+            vector_control.reset()
+    os.makedirs(output_dir, exist_ok=True)
+    vector_control.save_stats(
+        means_path=os.path.join(output_dir, "means.pt"),
+        covariances_path=os.path.join(output_dir, "covariances.pt"),
+        use_torch_save=True
+    )
 
 
 if __name__ == '__main__':
@@ -71,6 +74,7 @@ if __name__ == '__main__':
     parser.add_argument('--normalize_vectors', action='store_true')
     parser.add_argument('--last_token_offset', type=int, default=-1)
     parser.add_argument('--num_samples', type=int, default=None)
+    parser.add_argument('--max_new_tokens', type=int, default=1)
     parser.add_argument('--output_dir', type=str, required=True)
 
     args = parser.parse_args()
@@ -85,5 +89,6 @@ if __name__ == '__main__':
         last_token_offset=args.last_token_offset,
         num_samples=args.num_samples,
         use_chat=use_chat,
+        max_new_tokens=args.max_new_tokens,
         output_dir=args.output_dir,
     )

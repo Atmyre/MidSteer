@@ -9,15 +9,25 @@
 set -eoux pipefail
 
 # Check if required arguments are provided
-if [ $# -lt 3 ]; then
-    echo "Usage: $0 <layer_type> <num_covariances> <token_aggregation_mode>"
-    echo "Example: $0 self_attn 20000 all" 
+if [ $# -lt 4 ]; then
+    echo "Usage: $0 <layer_type> <num_covariances> <token_aggregation_mode> <max_new_tokens> [--use_alpaca_system_prompt]"
+    echo "Example: $0 self_attn 20000 all 100" 
+    echo "Example with optional flag: $0 self_attn 20000 all 100 --use_alpaca_system_prompt"
     exit 1
 fi
 
+# Parse arguments
 layer_type=$1
 num_covariances=$2
 token_aggregation_mode=$3
+max_new_tokens=$4
+use_alpaca_system_prompt=""
+
+# Check for optional argument
+if [ $# -eq 5 ] && [ "$5" = "--use_alpaca_system_prompt" ]; then
+    use_alpaca_system_prompt="--use_alpaca_system_prompt"
+fi
+
 
 
 export PYTHONPATH=.
@@ -36,15 +46,17 @@ if [ $num_covariances -eq 0 ]; then
         --layer_type $layer_type \
         --token_aggregation_mode $token_aggregation_mode \
         --num_samples 10 \
+        --max_new_tokens $max_new_tokens \
         --output_dir $covariances_dir
 
-    additional_params="--identity_cov"
+    additional_params="--identity_cov --zero_mu_neutral"
 else
     srun $python concept_flipping/estimate_covariances.py \
         --model_name $model_name \
         --layer_type $layer_type \
         --token_aggregation_mode $token_aggregation_mode \
         --num_samples $num_covariances \
+        --max_new_tokens $max_new_tokens \
         --output_dir $covariances_dir
 
     additional_params=""
@@ -97,6 +109,7 @@ for source_concept in "${!concept_pairs[@]}"; do
             --source_concept $source_concept \
             --strength 0.0 \
             $additional_params \
+            $use_alpaca_system_prompt \
             $params
 
         srun $python concept_flipping/run_with_steering.py \
@@ -110,6 +123,7 @@ for source_concept in "${!concept_pairs[@]}"; do
             --mu_neutral $covariances_dir/means.pt \
             --cov_neutral $covariances_dir/covariances.pt \
             $additional_params \
+            $use_alpaca_system_prompt \
             $params
 
         srun $python concept_flipping/run_with_steering.py \
@@ -123,6 +137,7 @@ for source_concept in "${!concept_pairs[@]}"; do
             --mu_neutral $covariances_dir/means.pt \
             --cov_neutral $covariances_dir/covariances.pt \
             $additional_params \
+            $use_alpaca_system_prompt \
             $params
 
 
@@ -140,6 +155,7 @@ for source_concept in "${!concept_pairs[@]}"; do
                 --mu_neutral $covariances_dir/means.pt \
                 --cov_neutral $covariances_dir/covariances.pt \
                 $additional_params \
+                $use_alpaca_system_prompt \
                 $params
             i=$((i + 1))
         done
@@ -178,6 +194,7 @@ for source_concept in "${!concept_pairs[@]}"; do
         --source_concept $concept_to_steer \
         --strength 0.0 \
         $additional_params \
+        $use_alpaca_system_prompt \
         $params
 
     srun $python concept_flipping/run_with_steering.py \
@@ -191,6 +208,7 @@ for source_concept in "${!concept_pairs[@]}"; do
         --mu_neutral $covariances_dir/means.pt \
         --cov_neutral $covariances_dir/covariances.pt \
         $additional_params \
+        $use_alpaca_system_prompt \
         $params
 
     srun $python concept_flipping/run_with_steering.py \
@@ -204,6 +222,7 @@ for source_concept in "${!concept_pairs[@]}"; do
         --mu_neutral $covariances_dir/means.pt \
         --cov_neutral $covariances_dir/covariances.pt \
         $additional_params \
+        $use_alpaca_system_prompt \
         $params
 
 
@@ -221,6 +240,7 @@ for source_concept in "${!concept_pairs[@]}"; do
             --mu_neutral $covariances_dir/means.pt \
             --cov_neutral $covariances_dir/covariances.pt \
             $additional_params \
+            $use_alpaca_system_prompt \
             $params
         i=$((i + 1))
     done
