@@ -13,11 +13,11 @@ from transformers import AutoTokenizer
 from tqdm import tqdm
 import os
 from dotenv import load_dotenv
-from controller import VectorControlMode
+from core.controller import VectorControlMode
 from CAA.llama_wrapper import LlamaWrapper
 import argparse
 from typing import List
-from llm_steering import llm_register_vector_control
+from core.llm_steering import llm_register_vector_control
 from utils import get_device
 from CAA.utils.tokenize import tokenize_llama_base, tokenize_llama_chat
 from CAA.behaviors import (
@@ -30,7 +30,7 @@ from CAA.behaviors import (
     get_activations_path,
     ALL_BEHAVIORS
 )
-from vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
+from core.vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
 
 load_dotenv()
 

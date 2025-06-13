@@ -4,7 +4,7 @@ from CAA.utils.helpers import make_tensor_save_suffix
 import json
 import torch as t
 
-from utils import unpickle
+from core.pickle import unpickle
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 

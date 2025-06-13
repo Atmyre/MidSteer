@@ -2,12 +2,12 @@ import argparse
 import os
 import torch
 
-from concept_flipping.dataset import ALPACA_DEFAULT_INSTRUCTION, QuestionsDataset
-from controller import VectorControlMode
-from llm_steering import llm_register_vector_control
-from llm_utils import init_model_and_tokenizer
+from dataset import ALPACA_DEFAULT_INSTRUCTION, QuestionsDataset
+from core.controller import VectorControlMode
+from core.llm_steering import llm_register_vector_control
+from utils import init_llm_model_and_tokenizer
 from utils import get_device
-from vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
+from core.vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
 import tqdm
 
 
@@ -37,7 +37,7 @@ def compute_vectors(
     os.makedirs(output_dir, exist_ok=True)
 
     dataset = QuestionsDataset(
-        data_path=f'concept_flipping/questions/{topic}_questions_batch_*.json',
+        data_path=f'llm_exp/datasets/train/{topic}_questions_batch_*.json',
         tokenizer=tokenizer,
         use_chat=use_chat,
         device=device,
@@ -85,7 +85,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-    model, tokenizer = init_model_and_tokenizer(model_name=args.model_name)
+    model, tokenizer = init_llm_model_and_tokenizer(model_name=args.model_name)
     use_chat = 'chat' in args.model_name
     device = get_device()
 

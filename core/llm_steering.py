@@ -11,7 +11,7 @@ from steering_vectors.layer_matching import (
     guess_and_enhance_layer_config,
 )
 
-from controller import VectorControl
+from core.controller import VectorControl
 
 
 ADDITIONAL_LAYER_CONFIG = {

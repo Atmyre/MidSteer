@@ -6,11 +6,12 @@ from collections import defaultdict
 import time
 
 from diffusers import StableDiffusionPipeline, DiffusionPipeline, AutoPipelineForText2Image
-from utils import unpickle, unpickle_pack
-from utils import get_device, init_pipeline_for_model, run_model
+from core.pickle import unpickle
+from core.pickle import unpickle_pack
+from utils import get_device, init_pipeline_for_image_model, run_image_model
 
 # local imports
-from controller import CrossAttentionOutputSteering, ModelToSteer, VectorControlMode, register_vector_controls
+from core.controller import CrossAttentionOutputSteering, ModelToSteer, VectorControlMode, register_vector_controls
 
 # parsing arguments
 import argparse
@@ -56,7 +57,7 @@ seeds = list(map(int, args.seed.split(",")))
 
 
 device = get_device()
-pipe = init_pipeline_for_model(args.model)
+pipe = init_pipeline_for_image_model(args.model)
 
 if not args.not_steer:
     controller = CrossAttentionOutputSteering(
@@ -97,7 +98,7 @@ if args.num_images_per_prompt == 1:
                 print(f'{path} already exists, skipping!')
                 continue
             print(f'Generating for prompt={prompt}, seed={seed}')
-            images = run_model(args.model, pipe, prompt, seed, device=device, num_images=args.num_images_per_prompt)
+            images = run_image_model(args.model, pipe, prompt, seed, device=device, num_images=args.num_images_per_prompt)
             if controller is not None:
                 controller.reset()
             if os.path.dirname(path):
@@ -122,7 +123,7 @@ else:
                 print(f'{path} already exists, skipping!')
                 continue
             print(f'Generating for prompt={prompt}, seed={seed}')
-            images = run_model(args.model, pipe, prompt, seed, device=device, num_images=args.num_images_per_prompt)
+            images = run_image_model(args.model, pipe, prompt, seed, device=device, num_images=args.num_images_per_prompt)
             if controller is not None:
                 controller.reset()
             for i, image in enumerate(images):

@@ -1,9 +1,9 @@
-import pickle
 import torch
-import typing as tp
 from diffusers import FluxPipeline
 
 from diffusers import StableDiffusionPipeline, DiffusionPipeline, AutoPipelineForText2Image
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
 
 def get_device() -> torch.device:
     if torch.cuda.is_available():
@@ -13,7 +13,7 @@ def get_device() -> torch.device:
     return torch.device('cpu')
 
 
-def init_pipeline_for_model(model: str) -> DiffusionPipeline:
+def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
     if model == 'sd14':
         pipe = StableDiffusionPipeline.from_pretrained(
             "CompVis/stable-diffusion-v1-4",
@@ -78,7 +78,7 @@ def get_num_denoising_steps(model: str) -> int:
         raise ValueError('Unknown model type')
 
 
-def run_model(model_type: str, pipe, prompt: str, seed: int, device: torch.device, num_images: int = 1):
+def run_image_model(model_type: str, pipe, prompt: str, seed: int, device: torch.device, num_images: int = 1):
     if model_type in ['sd14', 'sd21', 'sdxl']:
         images = pipe(prompt=prompt,
                      num_inference_steps=get_num_denoising_steps(model_type),
@@ -106,52 +106,27 @@ def run_model(model_type: str, pipe, prompt: str, seed: int, device: torch.devic
     return images
 
 
-def fractional_matrix_power_cov_torch(mat: torch.Tensor, alpha: float, eps=1e-10) -> torch.Tensor:
-    device = mat.device
-    if mat.device.type == 'mps':  # Workaround because MPS does not yet support torch.linalg.eig
-        mat = mat.cpu()
-
-    evals, evecs = torch.linalg.eigh(mat)
-    evals = torch.clip(evals, min=0, max=None)
-    evals = torch.where(evals >= eps, evals ** alpha, 0.)
-    return (evecs @ torch.diag_embed(evals) @ evecs.mT).to(device)
-
-
-def convert_to_widest_dtype(vector: torch.Tensor, device: tp.Any, force_double: bool = False):
-    # float64 is needed for numerical stability
-    if device.type == 'mps':
-        if force_double:
-            return vector.to('cpu').to(dtype=torch.float64)
-        else:
-            return vector.to(device, dtype=torch.float32)
+def init_llm_model_and_tokenizer(model_name: str, cache_dir: str | None = './cache') -> tuple[AutoModelForCausalLM, AutoTokenizer]:
+    if '3.1' in model_name:
+        torch_dtype = torch.bfloat16
     else:
-        return vector.to(device, dtype=torch.float64)
+        torch_dtype = torch.float16
+    # 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
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        cache_dir=cache_dir,
+        torch_dtype=torch_dtype,
+        device_map='balanced',
+        token='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'
+    )
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_name,
+        cache_dir=cache_dir,
+        torch_dtype=torch_dtype,
+        device_map='balanced',
+        token='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'
+    )
+    return model, tokenizer
 
 
-class CPU_Unpickler(pickle.Unpickler):
-    def find_class(self, module, name):
-        if module == 'torch.storage' and name == '_load_from_bytes':
-            return lambda b: torch.load(io.BytesIO(b), map_location='cpu')
-        else: return super().find_class(module, name)
-
-
-def unpickle(path: str | None):
-    if path is None:
-        return None
-    try:
-        return torch.load(path, weights_only=False)
-    except:
-        try:
-            with open(path, 'rb') as fin:
-                return pickle.load(fin)
-        except:
-            with open(path, 'rb') as fin:
-                return CPU_Unpickler(fin).load()
-
-def unpickle_pack(path: str | None) -> list[dict]:
-    if path is None:
-        return None
-    result = []
-    for subpath in path.split(','):
-        result.append(unpickle(subpath))
-    return result

@@ -12,8 +12,8 @@ from pydantic import BaseModel
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from concept_flipping.dataset import ALPACA_DEFAULT_INSTRUCTION, tokenize_with_chat_template
-from llm_utils import init_model_and_tokenizer
+from dataset import ALPACA_DEFAULT_INSTRUCTION, tokenize_with_chat_template
+from utils import init_llm_model_and_tokenizer
 
 class Response(BaseModel):
     score: float
@@ -91,7 +91,7 @@ def main():
     parser.add_argument('--model_name', type=str, default="meta-llama/Llama-3.1-8B-Instruct")
     
     args = parser.parse_args()
-    model, tokenizer = init_model_and_tokenizer(model_name=args.model_name)
+    model, tokenizer = init_llm_model_and_tokenizer(model_name=args.model_name)
 
     files = glob.glob(f'**/*.json', recursive=True, root_dir=args.dir)
 

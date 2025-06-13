@@ -6,10 +6,10 @@ from typing import Any
 import PIL
 import torch
 
-from utils import unpickle
+from core.pickle import unpickle
 from construct_prompts import read_prompt_file
-from controller import VectorControl, register_vector_controls
-from utils import get_device, init_pipeline_for_model, run_model
+from core.controller import VectorControl, register_vector_controls
+from utils import get_device, init_pipeline_for_image_model, run_image_model
 
 
 class Wobbler(VectorControl):
@@ -73,7 +73,7 @@ def run(
         wobble_strength: float,
         output_dir: str,
 ):
-    pipe = init_pipeline_for_model(model)
+    pipe = init_pipeline_for_image_model(model)
     device = get_device()
 
 
@@ -95,7 +95,7 @@ def run(
 
             if not os.path.exists(path):
                 print(f'Generating original for prompt={prompt}, seed={seed}')
-                image = run_model(model, pipe, prompt, seed, device=device)[0]
+                image = run_image_model(model, pipe, prompt, seed, device=device)[0]
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 image.save(path)
             else:
@@ -110,7 +110,7 @@ def run(
                     continue
                 
                 print(f'Generating {i}-th wobble for prompt={prompt}, seed={seed}')
-                image = run_model(model, pipe, prompt, seed, device=device)[0]
+                image = run_image_model(model, pipe, prompt, seed, device=device)[0]
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 image.save(path)
 

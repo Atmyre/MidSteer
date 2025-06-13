@@ -13,8 +13,8 @@ from CAA.utils.tokenize import (
 from typing import Optional
 import typing as tp
 
-from controller import VectorControl
-from llm_steering import llm_register_vector_control
+from core.controller import VectorControl
+from core.llm_steering import llm_register_vector_control
 from utils import get_device
 
 
