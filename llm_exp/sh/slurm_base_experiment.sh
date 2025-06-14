@@ -30,15 +30,17 @@ fi
 
 
 
+base_dir=./llm_exp/results/llama-2-7b-chat-hf/$SLURM_JOB_NAME
+
 export PYTHONPATH=.
 
 python=../miniconda3/bin/python
 
 model_name=meta-llama/Llama-2-7b-chat-hf
-covariances_dir=./llm_exp/cov/llama-2-7b-chat-hf/$layer_type/$token_aggregation_mode/$num_covariances
+covariances_dir=$base_dir/covariances
 
 topics="horses motorcycles cats dogs"
-steering_vectors_dir=./llm_exp/steering_vectors/llama-2-7b-chat-hf/$layer_type
+steering_vectors_dir=$base_dir/steering_vectors
 
 if [ $num_covariances -eq 0 ]; then
     srun $python concept_flipping/estimate_covariances.py \
@@ -82,7 +84,7 @@ eval_max_new_tokens=100
 eval_samples_per_question=10
 
 
-results_dir=./llm_exp/results/llama-2-7b-chat-hf/$SLURM_JOB_NAME
+results_dir=$base_dir/evaluation/
 
 # Iterate over concept pairs
 declare -A concept_pairs=(
