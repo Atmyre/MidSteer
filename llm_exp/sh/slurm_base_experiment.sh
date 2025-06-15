@@ -28,6 +28,13 @@ if [ $# -eq 5 ] && [ "$5" = "--use_alpaca_system_prompt" ]; then
     use_alpaca_system_prompt="--use_alpaca_system_prompt"
 fi
 
+# Define run_cmd based on NO_SLURM environment variable
+if [ -n "${NO_SLURM:-}" ]; then
+    run_cmd=""
+    export CUDA_VISIBLE_DEVICES=0
+else
+    run_cmd="srun"
+fi
 
 
 base_dir=./llm_exp/results/llama-2-7b-chat-hf/$SLURM_JOB_NAME
@@ -43,7 +50,7 @@ topics="horses motorcycles cats dogs"
 steering_vectors_dir=$base_dir/steering_vectors
 
 if [ $num_covariances -eq 0 ]; then
-    srun $python concept_flipping/estimate_covariances.py \
+    $run_cmd $python concept_flipping/estimate_covariances.py \
         --model_name $model_name \
         --layer_type $layer_type \
         --token_aggregation_mode $token_aggregation_mode \
@@ -53,7 +60,7 @@ if [ $num_covariances -eq 0 ]; then
 
     additional_params="--identity_cov --zero_mu_neutral"
 else
-    srun $python concept_flipping/estimate_covariances.py \
+    $run_cmd $python concept_flipping/estimate_covariances.py \
         --model_name $model_name \
         --layer_type $layer_type \
         --token_aggregation_mode $token_aggregation_mode \
@@ -65,7 +72,7 @@ else
 fi
 
 
-srun $python concept_flipping/generate_steering_vectors.py \
+$run_cmd $python concept_flipping/generate_steering_vectors.py \
     --model_name $model_name \
     --layer_type $layer_type \
     --topics $topics \
@@ -106,7 +113,7 @@ for source_concept in "${!concept_pairs[@]}"; do
     )
 
     for params in "${eval_params[@]}"; do
-        srun $python concept_flipping/run_with_steering.py \
+        $run_cmd $python concept_flipping/run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept $source_concept \
@@ -115,7 +122,7 @@ for source_concept in "${!concept_pairs[@]}"; do
             $use_alpaca_system_prompt \
             $params
 
-        srun $python concept_flipping/run_with_steering.py \
+        $run_cmd $python concept_flipping/run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept $source_concept \
@@ -129,7 +136,7 @@ for source_concept in "${!concept_pairs[@]}"; do
             $use_alpaca_system_prompt \
             $params
 
-        srun $python concept_flipping/run_with_steering.py \
+        $run_cmd $python concept_flipping/run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept $source_concept \
@@ -147,7 +154,7 @@ for source_concept in "${!concept_pairs[@]}"; do
         i=0
         for strength in 1.0 1.5 2.0 2.5; do
             gpu_id=$((3 + i))
-            srun $python concept_flipping/run_with_steering.py \
+            $run_cmd $python concept_flipping/run_with_steering.py \
                 --model_name $model_name \
                 --layer_type $layer_type \
                 --source_concept $source_concept \
@@ -166,11 +173,11 @@ for source_concept in "${!concept_pairs[@]}"; do
     done
 
 
-    srun $python concept_flipping/llama_scoring.py \
+    $run_cmd $python concept_flipping/llama_scoring.py \
         --concept $source_concept $target_concept \
         --dir $results_subdir/eval
 
-    srun $python concept_flipping/alpaca_scoring.py \
+    $run_cmd $python concept_flipping/alpaca_scoring.py \
         --dir $results_subdir/alpaca
 
 done
@@ -191,7 +198,7 @@ for source_concept in "${!concept_pairs[@]}"; do
 
     params="--samples_per_question $eval_samples_per_question --max_new_tokens $eval_max_new_tokens --output_dir $results_subdir/eval"
 
-    srun $python concept_flipping/run_with_steering.py \
+    $run_cmd $python concept_flipping/run_with_steering.py \
         --model_name $model_name \
         --layer_type $layer_type \
         --source_concept $concept_to_steer \
@@ -200,7 +207,7 @@ for source_concept in "${!concept_pairs[@]}"; do
         $use_alpaca_system_prompt \
         $params
 
-    srun $python concept_flipping/run_with_steering.py \
+    $run_cmd $python concept_flipping/run_with_steering.py \
         --model_name $model_name \
         --layer_type $layer_type \
         --source_concept $concept_to_steer \
@@ -214,7 +221,7 @@ for source_concept in "${!concept_pairs[@]}"; do
         $use_alpaca_system_prompt \
         $params
 
-    srun $python concept_flipping/run_with_steering.py \
+    $run_cmd $python concept_flipping/run_with_steering.py \
         --model_name $model_name \
         --layer_type $layer_type \
         --source_concept $concept_to_steer \
@@ -232,7 +239,7 @@ for source_concept in "${!concept_pairs[@]}"; do
     i=0
     for strength in 1.0 1.5 2.0 2.5; do
         gpu_id=$((3 + i))
-        srun $python concept_flipping/run_with_steering.py \
+        $run_cmd $python concept_flipping/run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept $concept_to_steer \
@@ -249,7 +256,7 @@ for source_concept in "${!concept_pairs[@]}"; do
     done
 
 
-    srun $python concept_flipping/llama_scoring.py \
+    $run_cmd $python concept_flipping/llama_scoring.py \
         --concept $source_concept $target_concept $concept_to_steer \
         --dir $results_subdir/eval
 
