@@ -53,6 +53,7 @@ def main(
         identity_cov: bool,
         use_alpaca_system_prompt: bool,
         zero_mu_neutral: bool,
+        mm_normalize_centers: bool,
 ):
     output_path = os.path.join(output_dir, f'{steer_type}_{strength:.1f}.json')
     if os.path.exists(output_path):
@@ -99,6 +100,7 @@ def main(
             strength=strength,
             identity_cov=identity_cov,
             zero_mu_neutral=zero_mu_neutral,
+            mm_normalize_centers=mm_normalize_centers,
         )
     else:
         control = None
@@ -159,6 +161,7 @@ if __name__ == "__main__":
     parser.add_argument('--cov_neutral', type=str, default=None, help='path to cov file (for leace and mean_matching)')
     parser.add_argument('--identity_cov', action='store_true', help='Use identity covariance matrix for leace and mean_matching')
     parser.add_argument('--zero_mu_neutral', action='store_true', help='Use zero mu_neutral for leace and mean_matching')
+    parser.add_argument('--mm_normalize_centers', action='store_true', help='Normalize mean_matching centers')
     parser.add_argument('--output_dir', type=str, required=True)
     parser.add_argument('--use_alpaca_system_prompt', action='store_true', help='Use alpaca instruction for eval set')
 
@@ -197,4 +200,5 @@ if __name__ == "__main__":
         generation_temperature=args.generation_temperature,
         use_alpaca_system_prompt=args.use_alpaca_system_prompt,
         zero_mu_neutral=args.zero_mu_neutral,
+        mm_normalize_centers=args.mm_normalize_centers,
     )

@@ -92,6 +92,7 @@ class CrossAttentionOutputSteering(VectorControl):
         strength: float = None,
         identity_cov: bool = False, 
         zero_mu_neutral: bool = False,
+        mm_normalize_centers: bool = False,
     ):
         super().__init__(mode=mode, num_layers=num_layers)
         self.device = device
@@ -174,6 +175,9 @@ class CrossAttentionOutputSteering(VectorControl):
                                 steering_vector = (sigma_minus_half @ steering_vector.unsqueeze(-1))
                                 res = - sigma_plus_half @ (self.strength * (steering_vector @ torch.linalg.pinv(steering_vector))) @ sigma_minus_half
                             elif steer_type == 'mean_matching':
+                                if mm_normalize_centers:
+                                    m_pos /= (torch.norm(m_pos, dim=-1, keepdim=True) + EPS)
+                                    m_neg /= (torch.norm(m_neg, dim=-1, keepdim=True) + EPS)
                                 # pinv(x) = x.T / |x|^2
                                 m_pos = (sigma_minus_half @ m_pos.unsqueeze(-1))
                                 m_neg = (sigma_minus_half @ m_neg.unsqueeze(-1))

@@ -10,9 +10,9 @@ set -eoux pipefail
 
 # Check if required arguments are provided
 if [ $# -lt 4 ]; then
-    echo "Usage: $0 <layer_type> <num_covariances> <token_aggregation_mode> <max_new_tokens> [--use_alpaca_system_prompt]"
+    echo "Usage: $0 <layer_type> <num_covariances> <token_aggregation_mode> <max_new_tokens> [--use_alpaca_system_prompt] [--mm_normalize_centers]"
     echo "Example: $0 self_attn 20000 all 100" 
-    echo "Example with optional flag: $0 self_attn 20000 all 100 --use_alpaca_system_prompt"
+    echo "Example with optional flags: $0 self_attn 20000 all 100 --use_alpaca_system_prompt --mm_normalize_centers"
     exit 1
 fi
 
@@ -22,11 +22,19 @@ num_covariances=$2
 token_aggregation_mode=$3
 max_new_tokens=$4
 use_alpaca_system_prompt=""
+mm_normalize_centers=""
 
-# Check for optional argument
-if [ $# -eq 5 ] && [ "$5" = "--use_alpaca_system_prompt" ]; then
-    use_alpaca_system_prompt="--use_alpaca_system_prompt"
-fi
+# Check for optional arguments
+for arg in "${@:5}"; do
+    case $arg in
+        "--use_alpaca_system_prompt")
+            use_alpaca_system_prompt="--use_alpaca_system_prompt"
+            ;;
+        "--mm_normalize_centers")
+            mm_normalize_centers="--mm_normalize_centers"
+            ;;
+    esac
+done
 
 # Define run_cmd based on NO_SLURM environment variable
 if [ -n "${NO_SLURM:-}" ]; then
@@ -50,7 +58,7 @@ topics="horses motorcycles cats dogs"
 steering_vectors_dir=$base_dir/steering_vectors
 
 if [ $num_covariances -eq 0 ]; then
-    $run_cmd $python concept_flipping/estimate_covariances.py \
+    $run_cmd $python ./llm_estimate_covariances.py \
         --model_name $model_name \
         --layer_type $layer_type \
         --token_aggregation_mode $token_aggregation_mode \
@@ -60,7 +68,7 @@ if [ $num_covariances -eq 0 ]; then
 
     additional_params="--identity_cov --zero_mu_neutral"
 else
-    $run_cmd $python concept_flipping/estimate_covariances.py \
+    $run_cmd $python ./llm_estimate_covariances.py \
         --model_name $model_name \
         --layer_type $layer_type \
         --token_aggregation_mode $token_aggregation_mode \
@@ -72,7 +80,7 @@ else
 fi
 
 
-$run_cmd $python concept_flipping/generate_steering_vectors.py \
+$run_cmd $python ./llm_generate_steering_vectors.py \
     --model_name $model_name \
     --layer_type $layer_type \
     --topics $topics \
@@ -113,16 +121,17 @@ for source_concept in "${!concept_pairs[@]}"; do
     )
 
     for params in "${eval_params[@]}"; do
-        $run_cmd $python concept_flipping/run_with_steering.py \
+        $run_cmd $python ./llm_run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept $source_concept \
             --strength 0.0 \
             $additional_params \
             $use_alpaca_system_prompt \
+            $mm_normalize_centers \
             $params
 
-        $run_cmd $python concept_flipping/run_with_steering.py \
+        $run_cmd $python ./llm_run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept $source_concept \
@@ -134,9 +143,10 @@ for source_concept in "${!concept_pairs[@]}"; do
             --cov_neutral $covariances_dir/covariances.pt \
             $additional_params \
             $use_alpaca_system_prompt \
+            $mm_normalize_centers \
             $params
 
-        $run_cmd $python concept_flipping/run_with_steering.py \
+        $run_cmd $python ./llm_run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept $source_concept \
@@ -148,13 +158,14 @@ for source_concept in "${!concept_pairs[@]}"; do
             --cov_neutral $covariances_dir/covariances.pt \
             $additional_params \
             $use_alpaca_system_prompt \
+            $mm_normalize_centers \
             $params
 
 
         i=0
-        for strength in 1.0 1.5 2.0 2.5; do
+        for strength in 1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0; do
             gpu_id=$((3 + i))
-            $run_cmd $python concept_flipping/run_with_steering.py \
+            $run_cmd $python ./llm_run_with_steering.py \
                 --model_name $model_name \
                 --layer_type $layer_type \
                 --source_concept $source_concept \
@@ -166,6 +177,7 @@ for source_concept in "${!concept_pairs[@]}"; do
                 --cov_neutral $covariances_dir/covariances.pt \
                 $additional_params \
                 $use_alpaca_system_prompt \
+                $mm_normalize_centers \
                 $params
             i=$((i + 1))
         done
@@ -173,11 +185,11 @@ for source_concept in "${!concept_pairs[@]}"; do
     done
 
 
-    $run_cmd $python concept_flipping/llama_scoring.py \
+    $run_cmd $python ./llm_concept_scoring.py \
         --concept $source_concept $target_concept \
         --dir $results_subdir/eval
 
-    $run_cmd $python concept_flipping/alpaca_scoring.py \
+    $run_cmd $python ./llm_alpaca_scoring.py \
         --dir $results_subdir/alpaca
 
 done
@@ -198,16 +210,17 @@ for source_concept in "${!concept_pairs[@]}"; do
 
     params="--samples_per_question $eval_samples_per_question --max_new_tokens $eval_max_new_tokens --output_dir $results_subdir/eval"
 
-    $run_cmd $python concept_flipping/run_with_steering.py \
+    $run_cmd $python ./llm_run_with_steering.py \
         --model_name $model_name \
         --layer_type $layer_type \
         --source_concept $concept_to_steer \
         --strength 0.0 \
         $additional_params \
         $use_alpaca_system_prompt \
+        $mm_normalize_centers \
         $params
 
-    $run_cmd $python concept_flipping/run_with_steering.py \
+    $run_cmd $python ./llm_run_with_steering.py \
         --model_name $model_name \
         --layer_type $layer_type \
         --source_concept $concept_to_steer \
@@ -219,9 +232,10 @@ for source_concept in "${!concept_pairs[@]}"; do
         --cov_neutral $covariances_dir/covariances.pt \
         $additional_params \
         $use_alpaca_system_prompt \
+        $mm_normalize_centers \
         $params
 
-    $run_cmd $python concept_flipping/run_with_steering.py \
+    $run_cmd $python ./llm_run_with_steering.py \
         --model_name $model_name \
         --layer_type $layer_type \
         --source_concept $concept_to_steer \
@@ -233,13 +247,14 @@ for source_concept in "${!concept_pairs[@]}"; do
         --cov_neutral $covariances_dir/covariances.pt \
         $additional_params \
         $use_alpaca_system_prompt \
+        $mm_normalize_centers \
         $params
 
 
     i=0
     for strength in 1.0 1.5 2.0 2.5; do
         gpu_id=$((3 + i))
-        $run_cmd $python concept_flipping/run_with_steering.py \
+        $run_cmd $python ./llm_run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept $concept_to_steer \
@@ -251,12 +266,13 @@ for source_concept in "${!concept_pairs[@]}"; do
             --cov_neutral $covariances_dir/covariances.pt \
             $additional_params \
             $use_alpaca_system_prompt \
+            $mm_normalize_centers \
             $params
         i=$((i + 1))
     done
 
 
-    $run_cmd $python concept_flipping/llama_scoring.py \
+    $run_cmd $python ./llm_concept_scoring.py \
         --concept $source_concept $target_concept $concept_to_steer \
         --dir $results_subdir/eval
 
