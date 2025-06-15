@@ -72,7 +72,8 @@ srun $python concept_flipping/generate_steering_vectors.py \
     --token_aggregation_mode last \
     --max_new_tokens 1 \
     --num_samples 1000 \
-    --output_dir $steering_vectors_dir
+    --output_dir $steering_vectors_dir \
+    $use_alpaca_system_prompt
 
 
 

@@ -2,7 +2,7 @@ import argparse
 import os
 import torch
 
-from concept_flipping.dataset import QuestionsDataset
+from concept_flipping.dataset import ALPACA_DEFAULT_INSTRUCTION, QuestionsDataset
 from controller import VectorControlMode
 from llm_steering import llm_register_vector_control
 from llm_utils import init_model_and_tokenizer
@@ -28,6 +28,7 @@ def compute_vectors(
         max_new_tokens: int,
         num_samples: int,
         output_dir: str,
+        use_alpaca_system_prompt: bool,
 ):
     output_path = os.path.join(output_dir, f"{topic}.pt")
     if os.path.exists(output_path):
@@ -41,6 +42,7 @@ def compute_vectors(
         use_chat=use_chat,
         device=device,
         dataset_slice=slice(0, num_samples),
+        instruction=ALPACA_DEFAULT_INSTRUCTION if use_alpaca_system_prompt else None,
     )
 
     vector_control = CrossAttentionOutputStatsCollector(
@@ -79,6 +81,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_new_tokens', type=int, default=150)
     parser.add_argument('--num_samples', type=int, default=1000)
     parser.add_argument('--output_dir', type=str, required=True)
+    parser.add_argument('--use_alpaca_system_prompt', action='store_true', help='Use alpaca instruction for eval set')
     args = parser.parse_args()
 
 
@@ -100,4 +103,5 @@ if __name__ == '__main__':
             output_dir=args.output_dir,
             max_new_tokens=args.max_new_tokens,
             num_samples=args.num_samples,
+            use_alpaca_system_prompt=args.use_alpaca_system_prompt,
         )
