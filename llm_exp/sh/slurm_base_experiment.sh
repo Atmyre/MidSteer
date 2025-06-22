@@ -76,7 +76,7 @@ else
         --max_new_tokens $max_new_tokens \
         --output_dir $covariances_dir
 
-    additional_params=""
+    additional_params="--zero_mu_neutral"  # TODO: just a check reconsider after
 fi
 
 
