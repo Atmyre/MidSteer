@@ -26,8 +26,9 @@ class CrossAttentionOutputStatsCollector(VectorControl):
         super().__init__(mode=mode)
 
         self._cnt = defaultdict(lambda: defaultdict(list))
-        self._m = defaultdict(lambda: defaultdict(list))
-        self._mm = defaultdict(lambda: defaultdict(list))
+        self._m = defaultdict(lambda: defaultdict(list))  # running sum
+        self._mm = defaultdict(lambda: defaultdict(list))  # running sum of squares
+        self._s = defaultdict(lambda: defaultdict(list))  # running sum of squared differences (for Welford's algorithm)
 
         self._token_aggregation_mode = token_aggregation_mode
         self._last_token_offset = last_token_offset
@@ -50,6 +51,43 @@ class CrossAttentionOutputStatsCollector(VectorControl):
             self._m[diffusion_step][place_in_unet][block_index] += stat_m
             if self._compute_covariances:
                 self._mm[diffusion_step][place_in_unet][block_index] += stat_mm
+    
+    def _update_statistics_welford(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index):
+        # vector shape: [num_heads, num_samples, hidden_size]
+        stat_count = vector.shape[1]
+        stat_m = torch.sum(vector, dim=1)
+
+        if len(self._cnt[diffusion_step][place_in_unet]) <= block_index:
+            # Initialize new block
+            self._cnt[diffusion_step][place_in_unet].append(stat_count)
+            self._m[diffusion_step][place_in_unet].append(stat_m)
+            if self._compute_covariances:
+                # Initialize running sum of squared differences using matrix product
+                current_mean = torch.mean(vector, dim=1)  # [num_heads, hidden_size]
+                diff = vector - current_mean.unsqueeze(1)  # [num_heads, num_samples, hidden_size]
+                # Use bmm for efficient matrix multiplication: diff @ diff^T
+                stat_s = diff.mH @ diff  # [num_heads, hidden_size, hidden_size]
+                self._s[diffusion_step][place_in_unet].append(stat_s)
+        else:
+            # Update existing block using Welford's algorithm
+            old_count = self._cnt[diffusion_step][place_in_unet][block_index]
+            old_mean = self._m[diffusion_step][place_in_unet][block_index] / old_count
+            
+            # Update count
+            new_count = old_count + stat_count
+            self._cnt[diffusion_step][place_in_unet][block_index] = new_count
+            
+            # Update mean using Welford's formula
+            new_sum = self._m[diffusion_step][place_in_unet][block_index] + stat_m
+            self._m[diffusion_step][place_in_unet][block_index] = new_sum
+            new_mean = new_sum / new_count
+            
+            if self._compute_covariances:
+                delta_old = vector - old_mean.unsqueeze(1)  # [num_heads, num_samples, hidden_size]
+                delta_new = vector - new_mean.unsqueeze(1)  # [num_heads, num_samples, hidden_size]
+
+                # For each head, compute: S_n = S_{n-1} + sum((x_i - μ_old) * (x_i - μ_new)^T)
+                self._s[diffusion_step][place_in_unet][block_index] += delta_old.mH @ delta_new
 
     # [batch_size, sequence_length, num_heads, head_dim]
     def forward(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index, min_token_index: int = None):
@@ -80,7 +118,7 @@ class CrossAttentionOutputStatsCollector(VectorControl):
         if self._normalize:
             vec /= torch.linalg.norm(vec, dim=2, keepdim=True) + EPS
 
-        self._update_statistics(vec, diffusion_step, place_in_unet, block_index)
+        self._update_statistics_welford(vec, diffusion_step, place_in_unet, block_index)
         
         return vector
     
@@ -97,22 +135,44 @@ class CrossAttentionOutputStatsCollector(VectorControl):
                     result[diffusion_step][place_in_unet].append(m)
         return result
 
+    # @property
+    # def covariances(self):
+    #     if not self._compute_covariances:
+    #         raise ValueError('Covariances requested not computed (self._compute_covariances = False)')
+    #     result = {}
+    #     for diffusion_step in self._mm:
+    #         result[diffusion_step] = {}
+    #         for place_in_unet in self._mm[diffusion_step]:
+    #             result[diffusion_step][place_in_unet] = []
+    #             for block_idx in range(len(self._mm[diffusion_step][place_in_unet])):
+    #                 count = self._cnt[diffusion_step][place_in_unet][block_idx]
+    #                 m = self._m[diffusion_step][place_in_unet][block_idx] / count
+    #                 mm = self._mm[diffusion_step][place_in_unet][block_idx] / (count - 1)
+    #                 result[diffusion_step][place_in_unet].append(
+    #                     mm - m[:, :, None] @ m[:, None, :]  # compute outer product
+    #                 )
+    #     return result
+
     @property
     def covariances(self):
         if not self._compute_covariances:
             raise ValueError('Covariances requested not computed (self._compute_covariances = False)')
         result = {}
-        for diffusion_step in self._mm:
+        for diffusion_step in self._s:
             result[diffusion_step] = {}
-            for place_in_unet in self._mm[diffusion_step]:
+            for place_in_unet in self._s[diffusion_step]:
                 result[diffusion_step][place_in_unet] = []
-                for block_idx in range(len(self._mm[diffusion_step][place_in_unet])):
+                for block_idx in range(len(self._s[diffusion_step][place_in_unet])):
                     count = self._cnt[diffusion_step][place_in_unet][block_idx]
-                    m = self._m[diffusion_step][place_in_unet][block_idx] / count
-                    mm = self._mm[diffusion_step][place_in_unet][block_idx] / (count - 1)
-                    result[diffusion_step][place_in_unet].append(
-                        mm - m[:, :, None] @ m[:, None, :]  # compute outer product
-                    )
+                    # Welford's algorithm: covariance = S / (n-1)
+                    if count > 1:
+                        sigma_xx = self._s[diffusion_step][place_in_unet][block_idx]
+                        S_hat = (sigma_xx + sigma_xx.mH) / 2
+                        cov = S_hat / (count - 1)
+                    else:
+                        # Handle case with only one sample
+                        cov = torch.zeros_like(self._s[diffusion_step][place_in_unet][block_idx])
+                    result[diffusion_step][place_in_unet].append(cov)
         return result
 
     def save_stats(self, *, means_path: str = None, covariances_path: str = None, use_torch_save: bool = False):
