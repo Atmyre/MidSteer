@@ -168,12 +168,12 @@ class CrossAttentionOutputSteering(VectorControl):
                                 device=self.device, force_double=False) - m_neutral
                             steering_vector = m_pos - m_neg
 
-                            sigma_minus_half = fractional_matrix_power_cov_torch(sigma, -0.5, eps=1e-10)
-                            sigma_plus_half = fractional_matrix_power_cov_torch(sigma, 0.5, eps=1e-10)
+                            sigma_minus_half = fractional_matrix_power_cov_torch(sigma, -0.5)
+                            sigma_plus_half = fractional_matrix_power_cov_torch(sigma, 0.5)
 
                             if steer_type == 'leace':
                                 steering_vector = (sigma_minus_half @ steering_vector.unsqueeze(-1))
-                                res = - sigma_plus_half @ (self.strength * (steering_vector @ torch.linalg.pinv(steering_vector))) @ sigma_minus_half
+                                res = - self.strength * (sigma_plus_half @ steering_vector) @ (torch.linalg.pinv(steering_vector) @ sigma_minus_half)
                             elif steer_type == 'mean_matching':
                                 if mm_normalize_centers:
                                     m_pos /= (torch.norm(m_pos, dim=-1, keepdim=True) + EPS)
@@ -181,7 +181,7 @@ class CrossAttentionOutputSteering(VectorControl):
                                 # pinv(x) = x.T / |x|^2
                                 m_pos = (sigma_minus_half @ m_pos.unsqueeze(-1))
                                 m_neg = (sigma_minus_half @ m_neg.unsqueeze(-1))
-                                res = sigma_plus_half @ ((self.strength * m_pos - m_neg) @ torch.linalg.pinv(m_neg)) @ sigma_minus_half
+                                res = (sigma_plus_half @ (self.strength * m_pos - m_neg)) @ (torch.linalg.pinv(m_neg) @ sigma_minus_half)
 
                             P = torch.eye(res.shape[1], dtype=res.dtype, device=res.device).unsqueeze(0) + res
                             b = m_neutral - (P @ m_neutral.unsqueeze(-1)).squeeze(-1)
