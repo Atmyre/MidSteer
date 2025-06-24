@@ -181,7 +181,7 @@ class CrossAttentionOutputSteering(VectorControl):
                                 # pinv(x) = x.T / |x|^2
                                 m_pos = (sigma_minus_half @ m_pos.unsqueeze(-1))
                                 m_neg = (sigma_minus_half @ m_neg.unsqueeze(-1))
-                                res = (sigma_plus_half @ (self.strength * m_pos - m_neg)) @ (torch.linalg.pinv(m_neg) @ sigma_minus_half)
+                                res = self.strength * (sigma_plus_half @ (m_pos - m_neg)) @ (torch.linalg.pinv(m_neg) @ sigma_minus_half)
 
                             P = torch.eye(res.shape[1], dtype=res.dtype, device=res.device).unsqueeze(0) + res
                             b = m_neutral - (P @ m_neutral.unsqueeze(-1)).squeeze(-1)
