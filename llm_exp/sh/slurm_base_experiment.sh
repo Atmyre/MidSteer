@@ -22,6 +22,7 @@ num_covariances=$2
 token_aggregation_mode=$3
 max_new_tokens=$4
 use_alpaca_system_prompt=""
+do_not_use_alpaca_system_prompt="--do_not_use_alpaca_system_prompt"
 mm_normalize_centers=""
 
 # Check for optional arguments
@@ -29,6 +30,7 @@ for arg in "${@:5}"; do
     case $arg in
         "--use_alpaca_system_prompt")
             use_alpaca_system_prompt="--use_alpaca_system_prompt"
+            do_not_use_alpaca_system_prompt=""
             ;;
         "--mm_normalize_centers")
             mm_normalize_centers="--mm_normalize_centers"
@@ -64,7 +66,8 @@ if [ $num_covariances -eq 0 ]; then
         --token_aggregation_mode $token_aggregation_mode \
         --num_samples 10 \
         --max_new_tokens $max_new_tokens \
-        --output_dir $covariances_dir
+        --output_dir $covariances_dir \
+        $do_not_use_alpaca_system_prompt
 
     additional_params="--identity_cov --zero_mu_neutral"
 else
@@ -74,7 +77,8 @@ else
         --token_aggregation_mode $token_aggregation_mode \
         --num_samples $num_covariances \
         --max_new_tokens $max_new_tokens \
-        --output_dir $covariances_dir
+        --output_dir $covariances_dir \
+        $do_not_use_alpaca_system_prompt
 
     additional_params="--zero_mu_neutral"  # TODO: just a check reconsider after
 fi

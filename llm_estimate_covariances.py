@@ -8,7 +8,7 @@ from core.llm_steering import llm_register_vector_control
 from utils import init_llm_model_and_tokenizer
 from utils import get_device
 from core.vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
-from dataset import AlpacaDataset
+from dataset import ALPACA_DEFAULT_INSTRUCTION, AlpacaDataset
 from transformers import GenerationConfig
 import tqdm
 
@@ -23,6 +23,7 @@ def main(
         num_samples: int | None = None,
         use_chat: bool = False,
         max_new_tokens: int = 1,
+        do_not_use_alpaca_system_prompt: bool = False,
 ):
     if os.path.exists(os.path.join(output_dir, "means.pt")) and os.path.exists(os.path.join(output_dir, "covariances.pt")):
         print(f"File {output_dir}/means.pt and {output_dir}/covariances.pt already exist. Skipping estimation.")
@@ -37,6 +38,7 @@ def main(
         device=device,
         dataset_slice=slice(-num_samples, None),  # Estimate covariance on last num_samples examples to avoid bias
         include_model_output=True,
+        instruction=None if do_not_use_alpaca_system_prompt else ALPACA_DEFAULT_INSTRUCTION,
     )
 
     vector_control = CrossAttentionOutputStatsCollector(
@@ -76,6 +78,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_samples', type=int, default=None)
     parser.add_argument('--max_new_tokens', type=int, default=1)
     parser.add_argument('--output_dir', type=str, required=True)
+    parser.add_argument('--do_not_use_alpaca_system_prompt', action='store_true', help='Use alpaca instruction for eval set')
 
     args = parser.parse_args()
 
@@ -91,4 +94,5 @@ if __name__ == '__main__':
         use_chat=use_chat,
         max_new_tokens=args.max_new_tokens,
         output_dir=args.output_dir,
+        do_not_use_alpaca_system_prompt=args.do_not_use_alpaca_system_prompt,
     )
