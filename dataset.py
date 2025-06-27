@@ -126,3 +126,21 @@ class TemplateDataset(QuestionsDataset):
 
     def __getitem__(self, idx):
         return self.prompt_to_tokens(system_prompt=self.instruction, user_input=self.data[idx].format(self.concept))
+
+
+MMLU_SYSTEM_PROMPT = "Elaborate on the following user question."
+
+class MMLUDataset(QuestionsDataset):
+    def __init__(self,
+                 data_path: str,
+                 tokenizer: AutoTokenizer,
+                 use_chat: bool,
+                 device: tp.Any,
+                 instruction: str=None,
+                 dataset_slice: slice | None = None,
+                 seed: int | None = None):
+        super().__init__(data_path, tokenizer, use_chat, device, instruction, dataset_slice, seed)
+
+    def __getitem__(self, idx):
+        full_prompt = self.data[idx]['prompt']
+        return self.prompt_to_tokens(system_prompt=self.instruction, user_input=full_prompt)

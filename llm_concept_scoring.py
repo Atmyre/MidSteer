@@ -114,7 +114,7 @@ def main():
             data['concept'].append(concept)
 
     df = pd.DataFrame(data)
-    df.to_csv(f'{args.dir}/eval_scores.tsv', index=False, sep='\t', encoding='utf-8')
+    df.to_csv(f'{args.dir}/scores.tsv', index=False, sep='\t', encoding='utf-8')
 
 
 if __name__ == "__main__":

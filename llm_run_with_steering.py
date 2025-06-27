@@ -7,7 +7,7 @@ from contextlib import contextmanager
 import torch
 import tqdm
 
-from dataset import ALPACA_DEFAULT_INSTRUCTION, QuestionsDataset, AlpacaDataset, TemplateDataset
+from dataset import ALPACA_DEFAULT_INSTRUCTION, MMLU_SYSTEM_PROMPT, QuestionsDataset, AlpacaDataset, TemplateDataset, MMLUDataset
 from core.pickle import unpickle
 from core.pickle import unpickle_pack
 from transformers import GenerationConfig
@@ -46,12 +46,12 @@ def main(
         mu_neutral: list[dict],
         cov_neutral: list[dict],
         steer_type: str | None,
-        alpaca_eval: bool,
-        alpaca_num_samples: int | None,
+        dataset_type: str,
+        num_samples: int | None,
         samples_per_question: int,
         generation_temperature: float,
         identity_cov: bool,
-        use_alpaca_system_prompt: bool,
+        system_prompt: str | None,
         zero_mu_neutral: bool,
         mm_normalize_centers: bool,
 ):
@@ -61,23 +61,57 @@ def main(
         return
     os.makedirs(output_dir, exist_ok=True)
 
-    if alpaca_eval:
+    # Create dataset_slice based on num_samples
+    dataset_slice = slice(0, num_samples) if num_samples is not None else None
+
+    # Set default system prompt based on dataset type if not specified
+    if system_prompt is None:
+        if dataset_type == 'alpaca':
+            system_prompt = 'alpaca'
+        elif dataset_type == 'mmlu':
+            system_prompt = 'mmlu'
+        elif dataset_type == 'template':
+            system_prompt = None  # No system prompt for template dataset
+
+    # Convert system_prompt string to actual prompt text
+    instruction = None
+    if system_prompt == 'alpaca':
+        instruction = ALPACA_DEFAULT_INSTRUCTION
+    elif system_prompt == 'mmlu':
+        instruction = MMLU_SYSTEM_PROMPT
+    elif system_prompt is not None:
+        instruction = system_prompt  # Use custom prompt if provided
+
+    if dataset_type == 'alpaca':
         dataset = AlpacaDataset(
             data_path=f'llm_exp/datasets/eval/alpaca_instruct/alpaca_data.json',
             tokenizer=tokenizer,
             use_chat=use_chat,
             device=device,
-            dataset_slice=slice(0, alpaca_num_samples),
+            instruction=instruction,
+            dataset_slice=dataset_slice,
         )
-    else:
+    elif dataset_type == 'template':
         dataset = TemplateDataset(
             template_path=f'llm_exp/datasets/eval/concepts/template.json',
             concept=source_concept,
             tokenizer=tokenizer,
             use_chat=use_chat,
             device=device,
-            instruction=ALPACA_DEFAULT_INSTRUCTION if use_alpaca_system_prompt else None,
+            instruction=instruction,
+            dataset_slice=dataset_slice,
         )
+    elif dataset_type == 'mmlu':
+        dataset = MMLUDataset(
+            data_path=f'llm_exp/datasets/eval/mmlu/mmlu_full.json',
+            tokenizer=tokenizer,
+            use_chat=use_chat,
+            device=device,
+            instruction=instruction,
+            dataset_slice=dataset_slice,
+        )
+    else:
+        raise ValueError(f"Unknown dataset type: {dataset_type}")
 
     if steer_type is not None:
         # TODO: proper
@@ -150,8 +184,8 @@ if __name__ == "__main__":
     parser.add_argument('--source_concept_path', type=str, required=False, help='Path to the source concept pt file')
     parser.add_argument('--layer_type', choices=['decoder_block', 'self_attn', 'mlp', 'input_layernorm', 'post_attention_layernorm', 'q_proj', 'k_proj', 'v_proj', 'o_proj'], nargs='+', required=True)
     parser.add_argument('--layers_to_steer', type=str, help='Comma separated list of layer indices to steer', default=None)
-    parser.add_argument('--alpaca_eval', action='store_true', help='Use alpaca eval dataset')
-    parser.add_argument('--alpaca_num_samples', type=int, default=None, help='Number of samples to use for alpaca eval')
+    parser.add_argument('--dataset_type', type=str, choices=['alpaca', 'template', 'mmlu'], required=True)
+    parser.add_argument('--num_samples', type=int, default=None, help='Number of samples to use from the dataset (default: use all samples)')
     parser.add_argument('--samples_per_question', type=int, default=1, help='Number of output samples to generate for each question')
     parser.add_argument('--generation_temperature', type=float, default=1.0, help='Temperature for generation')
     parser.add_argument('--strength', type=float, default=2.0)
@@ -163,7 +197,7 @@ if __name__ == "__main__":
     parser.add_argument('--zero_mu_neutral', action='store_true', help='Use zero mu_neutral for leace and mean_matching')
     parser.add_argument('--mm_normalize_centers', action='store_true', help='Normalize mean_matching centers')
     parser.add_argument('--output_dir', type=str, required=True)
-    parser.add_argument('--use_alpaca_system_prompt', action='store_true', help='Use alpaca instruction for eval set')
+    parser.add_argument('--system_prompt', type=str, choices=['alpaca', 'mmlu'], default=None, help='System prompt type (default: auto-detect based on dataset type)')
 
     args = parser.parse_args()
 
@@ -194,11 +228,11 @@ if __name__ == "__main__":
         cov_neutral=unpickle_pack(args.cov_neutral),
         identity_cov=args.identity_cov,
         steer_type=args.steer_type,
-        alpaca_eval=args.alpaca_eval,
-        alpaca_num_samples=args.alpaca_num_samples,
+        dataset_type=args.dataset_type,
+        num_samples=args.num_samples,
         samples_per_question=args.samples_per_question,
         generation_temperature=args.generation_temperature,
-        use_alpaca_system_prompt=args.use_alpaca_system_prompt,
+        system_prompt=args.system_prompt,
         zero_mu_neutral=args.zero_mu_neutral,
         mm_normalize_centers=args.mm_normalize_centers,
     )

@@ -10,9 +10,9 @@ set -eoux pipefail
 
 # Check if required arguments are provided
 if [ $# -lt 4 ]; then
-    echo "Usage: $0 <layer_type> <num_covariances> <token_aggregation_mode> <max_new_tokens> [--use_alpaca_system_prompt] [--mm_normalize_centers]"
+    echo "Usage: $0 <layer_type> <num_covariances> <token_aggregation_mode> <max_new_tokens> [--mm_normalize_centers]"
     echo "Example: $0 self_attn 20000 all 100" 
-    echo "Example with optional flags: $0 self_attn 20000 all 100 --use_alpaca_system_prompt --mm_normalize_centers"
+    echo "Example with optional flags: $0 self_attn 20000 all 100 --mm_normalize_centers"
     exit 1
 fi
 
@@ -21,17 +21,11 @@ layer_type=$1
 num_covariances=$2
 token_aggregation_mode=$3
 max_new_tokens=$4
-use_alpaca_system_prompt=""
-do_not_use_alpaca_system_prompt="--do_not_use_alpaca_system_prompt"
 mm_normalize_centers=""
 
 # Check for optional arguments
 for arg in "${@:5}"; do
     case $arg in
-        "--use_alpaca_system_prompt")
-            use_alpaca_system_prompt="--use_alpaca_system_prompt"
-            do_not_use_alpaca_system_prompt=""
-            ;;
         "--mm_normalize_centers")
             mm_normalize_centers="--mm_normalize_centers"
             ;;
@@ -66,8 +60,7 @@ if [ $num_covariances -eq 0 ]; then
         --token_aggregation_mode $token_aggregation_mode \
         --num_samples 10 \
         --max_new_tokens $max_new_tokens \
-        --output_dir $covariances_dir \
-        $do_not_use_alpaca_system_prompt
+        --output_dir $covariances_dir
 
     additional_params="--identity_cov --zero_mu_neutral"
 else
@@ -77,10 +70,9 @@ else
         --token_aggregation_mode $token_aggregation_mode \
         --num_samples $num_covariances \
         --max_new_tokens $max_new_tokens \
-        --output_dir $covariances_dir \
-        $do_not_use_alpaca_system_prompt
+        --output_dir $covariances_dir
 
-    additional_params="--zero_mu_neutral"  # TODO: just a check reconsider after
+    additional_params=""
 fi
 
 
@@ -91,17 +83,16 @@ $run_cmd $python ./llm_generate_steering_vectors.py \
     --token_aggregation_mode last \
     --max_new_tokens 1 \
     --num_samples 1000 \
-    --output_dir $steering_vectors_dir \
-    $use_alpaca_system_prompt
+    --output_dir $steering_vectors_dir
 
 
 
-alpaca_num_samples=1000
-alpaca_max_new_tokens=100
-alpaca_samples_per_question=1
+consistency_num_samples=1000
+consistency_max_new_tokens=100
+consistency_samples_per_question=1
 
-eval_max_new_tokens=100
-eval_samples_per_question=10
+concept_max_new_tokens=100
+concept_samples_per_question=10
 
 
 results_dir=$base_dir/evaluation/
@@ -120,8 +111,9 @@ for source_concept in "${!concept_pairs[@]}"; do
 
     # Define evaluation parameters as arrays
     declare -a eval_params=(
-        "--samples_per_question $eval_samples_per_question --max_new_tokens $eval_max_new_tokens --output_dir $results_subdir/eval"
-        "--alpaca_eval --alpaca_num_samples $alpaca_num_samples --samples_per_question $alpaca_samples_per_question --max_new_tokens $alpaca_max_new_tokens --output_dir $results_subdir/alpaca"
+        "--dataset_type template --samples_per_question $concept_samples_per_question --max_new_tokens $concept_max_new_tokens --output_dir $results_subdir/eval"
+        "--dataset_type alpaca --num_samples $consistency_num_samples --samples_per_question $consistency_samples_per_question --max_new_tokens $consistency_max_new_tokens --output_dir $results_subdir/alpaca"
+        "--dataset_type mmlu --num_samples $consistency_num_samples --samples_per_question $consistency_samples_per_question --max_new_tokens $consistency_max_new_tokens --output_dir $results_subdir/mmlu"
     )
 
     for params in "${eval_params[@]}"; do
@@ -131,7 +123,6 @@ for source_concept in "${!concept_pairs[@]}"; do
             --source_concept $source_concept \
             --strength 0.0 \
             $additional_params \
-            $use_alpaca_system_prompt \
             $mm_normalize_centers \
             $params
 
@@ -146,7 +137,6 @@ for source_concept in "${!concept_pairs[@]}"; do
             --mu_neutral $covariances_dir/means.pt \
             --cov_neutral $covariances_dir/covariances.pt \
             $additional_params \
-            $use_alpaca_system_prompt \
             $mm_normalize_centers \
             $params
 
@@ -161,7 +151,6 @@ for source_concept in "${!concept_pairs[@]}"; do
             --mu_neutral $covariances_dir/means.pt \
             --cov_neutral $covariances_dir/covariances.pt \
             $additional_params \
-            $use_alpaca_system_prompt \
             $mm_normalize_centers \
             $params
 
@@ -180,7 +169,6 @@ for source_concept in "${!concept_pairs[@]}"; do
                 --mu_neutral $covariances_dir/means.pt \
                 --cov_neutral $covariances_dir/covariances.pt \
                 $additional_params \
-                $use_alpaca_system_prompt \
                 $mm_normalize_centers \
                 $params
             i=$((i + 1))
@@ -193,26 +181,31 @@ for source_concept in "${!concept_pairs[@]}"; do
         --concept $source_concept $target_concept \
         --dir $results_subdir/eval
 
-    $run_cmd $python ./llm_alpaca_scoring.py \
+    $run_cmd $python ./llm_consistency_scoring.py \
         --dir $results_subdir/alpaca
+
+    $run_cmd $python ./llm_consistency_scoring.py \
+        --dir $results_subdir/mmlu
 
 done
 
 
 
-declare -A concepts_to_steer=(
-    ["horses"]="cows"
-    ["dogs"]="wolves"
+declare -a concepts_to_steer_pairs=(
+    "horses:cows"
+    "horses:motorcycles"
+    "dogs:wolves"
+    "dogs:cats"
 )
 
-for source_concept in "${!concept_pairs[@]}"; do
+for pair in "${concepts_to_steer_pairs[@]}"; do
+    IFS=':' read -r source_concept concept_to_steer <<< "$pair"
     target_concept="${concept_pairs[$source_concept]}"
-    concept_to_steer="${concepts_to_steer[$source_concept]}"
     
     results_subdir="$results_dir/${source_concept}_to_${target_concept}__${concept_to_steer}"
     mkdir -p "$results_subdir"
 
-    params="--samples_per_question $eval_samples_per_question --max_new_tokens $eval_max_new_tokens --output_dir $results_subdir/eval"
+    params="--dataset_type template --samples_per_question $concept_samples_per_question --max_new_tokens $concept_max_new_tokens --output_dir $results_subdir/eval"
 
     $run_cmd $python ./llm_run_with_steering.py \
         --model_name $model_name \
@@ -220,7 +213,6 @@ for source_concept in "${!concept_pairs[@]}"; do
         --source_concept $concept_to_steer \
         --strength 0.0 \
         $additional_params \
-        $use_alpaca_system_prompt \
         $mm_normalize_centers \
         $params
 
@@ -235,7 +227,6 @@ for source_concept in "${!concept_pairs[@]}"; do
         --mu_neutral $covariances_dir/means.pt \
         --cov_neutral $covariances_dir/covariances.pt \
         $additional_params \
-        $use_alpaca_system_prompt \
         $mm_normalize_centers \
         $params
 
@@ -250,7 +241,6 @@ for source_concept in "${!concept_pairs[@]}"; do
         --mu_neutral $covariances_dir/means.pt \
         --cov_neutral $covariances_dir/covariances.pt \
         $additional_params \
-        $use_alpaca_system_prompt \
         $mm_normalize_centers \
         $params
 
@@ -269,7 +259,6 @@ for source_concept in "${!concept_pairs[@]}"; do
             --mu_neutral $covariances_dir/means.pt \
             --cov_neutral $covariances_dir/covariances.pt \
             $additional_params \
-            $use_alpaca_system_prompt \
             $mm_normalize_centers \
             $params
         i=$((i + 1))
