@@ -1,6 +1,6 @@
 #! /usr/bin/env bash
 #SBATCH --partition=h100-camera-train
-#SBATCH --gres=gpu:1
+#SBATCH --gpus=4
 #SBATCH --time=48:00:00
 #SBATCH --output=./llm_exp/logs/slurm-%x-%j.out
 #SBATCH --error=./llm_exp/logs/slurm-%x-%j.err
@@ -37,7 +37,7 @@ if [ -n "${NO_SLURM:-}" ]; then
     run_cmd=""
     export CUDA_VISIBLE_DEVICES=0
 else
-    run_cmd="srun"
+    run_cmd="srun --gpus=1 -N1 --exclusive"
 fi
 
 
@@ -60,7 +60,7 @@ if [ $num_covariances -eq 0 ]; then
         --token_aggregation_mode $token_aggregation_mode \
         --num_samples 10 \
         --max_new_tokens $max_new_tokens \
-        --output_dir $covariances_dir
+        --output_dir $covariances_dir &
 
     additional_params="--identity_cov --zero_mu_neutral"
 else
@@ -70,7 +70,7 @@ else
         --token_aggregation_mode $token_aggregation_mode \
         --num_samples $num_covariances \
         --max_new_tokens $max_new_tokens \
-        --output_dir $covariances_dir
+        --output_dir $covariances_dir &
 
     additional_params=""
 fi
@@ -83,7 +83,9 @@ $run_cmd $python ./llm_generate_steering_vectors.py \
     --token_aggregation_mode last \
     --max_new_tokens 1 \
     --num_samples 1000 \
-    --output_dir $steering_vectors_dir
+    --output_dir $steering_vectors_dir &
+
+wait
 
 
 
@@ -124,7 +126,7 @@ for source_concept in "${!concept_pairs[@]}"; do
             --strength 0.0 \
             $additional_params \
             $mm_normalize_centers \
-            $params
+            $params &
 
         $run_cmd $python ./llm_run_with_steering.py \
             --model_name $model_name \
@@ -138,7 +140,7 @@ for source_concept in "${!concept_pairs[@]}"; do
             --cov_neutral $covariances_dir/covariances.pt \
             $additional_params \
             $mm_normalize_centers \
-            $params
+            $params &
 
         $run_cmd $python ./llm_run_with_steering.py \
             --model_name $model_name \
@@ -152,12 +154,11 @@ for source_concept in "${!concept_pairs[@]}"; do
             --cov_neutral $covariances_dir/covariances.pt \
             $additional_params \
             $mm_normalize_centers \
-            $params
+            $params &
 
 
         i=0
         for strength in 1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0; do
-            gpu_id=$((3 + i))
             $run_cmd $python ./llm_run_with_steering.py \
                 --model_name $model_name \
                 --layer_type $layer_type \
@@ -170,10 +171,10 @@ for source_concept in "${!concept_pairs[@]}"; do
                 --cov_neutral $covariances_dir/covariances.pt \
                 $additional_params \
                 $mm_normalize_centers \
-                $params
-            i=$((i + 1))
+                $params &
         done
 
+        wait
     done
 
 
@@ -214,7 +215,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
         --strength 0.0 \
         $additional_params \
         $mm_normalize_centers \
-        $params
+        $params &
 
     $run_cmd $python ./llm_run_with_steering.py \
         --model_name $model_name \
@@ -228,7 +229,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
         --cov_neutral $covariances_dir/covariances.pt \
         $additional_params \
         $mm_normalize_centers \
-        $params
+        $params &
 
     $run_cmd $python ./llm_run_with_steering.py \
         --model_name $model_name \
@@ -242,12 +243,10 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
         --cov_neutral $covariances_dir/covariances.pt \
         $additional_params \
         $mm_normalize_centers \
-        $params
+        $params &
 
 
-    i=0
     for strength in 1.0 1.5 2.0 2.5; do
-        gpu_id=$((3 + i))
         $run_cmd $python ./llm_run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
@@ -260,10 +259,10 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
             --cov_neutral $covariances_dir/covariances.pt \
             $additional_params \
             $mm_normalize_centers \
-            $params
-        i=$((i + 1))
+            $params &
     done
 
+    wait
 
     $run_cmd $python ./llm_concept_scoring.py \
         --concept $source_concept $target_concept $concept_to_steer \
