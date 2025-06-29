@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 #SBATCH --partition=h100-camera-train
 #SBATCH --gres=gpu:1
-#SBATCH --time=24:00:00
+#SBATCH --time=48:00:00
 #SBATCH --output=./llm_exp/logs/slurm-%x-%j.out
 #SBATCH --error=./llm_exp/logs/slurm-%x-%j.err
 
