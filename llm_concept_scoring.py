@@ -102,7 +102,7 @@ def main():
         'concept': [],
     }
 
-    for concept in args.concept:
+    for concept in set(args.concept):
         for file in files:
             file_path = os.path.join(args.dir, file)
             results = process_file(model, tokenizer, concept, file_path)
