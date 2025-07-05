@@ -54,6 +54,8 @@ def main(
         system_prompt: str | None,
         zero_mu_neutral: bool,
         mm_normalize_centers: bool,
+        intermediate_clipping: bool,
+        renormalize_after_steering: bool,
 ):
     output_path = os.path.join(output_dir, f'{steer_type}_{strength:.1f}.json')
     if os.path.exists(output_path):
@@ -135,6 +137,8 @@ def main(
             identity_cov=identity_cov,
             zero_mu_neutral=zero_mu_neutral,
             mm_normalize_centers=mm_normalize_centers,
+            intermediate_clipping=intermediate_clipping,
+            renormalize_after_steering=renormalize_after_steering,
         )
     else:
         control = None
@@ -196,6 +200,8 @@ if __name__ == "__main__":
     parser.add_argument('--identity_cov', action='store_true', help='Use identity covariance matrix for leace and mean_matching')
     parser.add_argument('--zero_mu_neutral', action='store_true', help='Use zero mu_neutral for leace and mean_matching')
     parser.add_argument('--mm_normalize_centers', action='store_true', help='Normalize mean_matching centers')
+    parser.add_argument('--intermediate_clipping', action='store_true', help='Apply intermediate clipping like CASteer for leace and mean_matching')
+    parser.add_argument('--renormalize_after_steering', action='store_true', help='Renormalize vectors after steering for leace and mean_matching')
     parser.add_argument('--output_dir', type=str, required=True)
     parser.add_argument('--system_prompt', type=str, choices=['alpaca', 'mmlu'], default=None, help='System prompt type (default: auto-detect based on dataset type)')
 
@@ -235,4 +241,6 @@ if __name__ == "__main__":
         system_prompt=args.system_prompt,
         zero_mu_neutral=args.zero_mu_neutral,
         mm_normalize_centers=args.mm_normalize_centers,
+        intermediate_clipping=args.intermediate_clipping,
+        renormalize_after_steering=args.renormalize_after_steering,
     )

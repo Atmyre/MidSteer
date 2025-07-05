@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 #SBATCH --partition=h100-camera-train
 #SBATCH --gpus=4
-#SBATCH --time=48:00:00
+#SBATCH --time=72:00:00
 #SBATCH --output=./llm_exp/logs/slurm-%x-%j.out
 #SBATCH --error=./llm_exp/logs/slurm-%x-%j.err
 
@@ -10,9 +10,9 @@ set -eoux pipefail
 
 # Check if required arguments are provided
 if [ $# -lt 4 ]; then
-    echo "Usage: $0 <layer_type> <num_covariances> <token_aggregation_mode> <max_new_tokens> [--mm_normalize_centers]"
+    echo "Usage: $0 <layer_type> <num_covariances> <token_aggregation_mode> <max_new_tokens> [--mm_normalize_centers] [--intermediate_clipping] [--renormalize_after_steering]"
     echo "Example: $0 self_attn 20000 all 100" 
-    echo "Example with optional flags: $0 self_attn 20000 all 100 --mm_normalize_centers"
+    echo "Example with optional flags: $0 self_attn 20000 all 100 --mm_normalize_centers --intermediate_clipping"
     exit 1
 fi
 
@@ -22,12 +22,20 @@ num_covariances=$2
 token_aggregation_mode=$3
 max_new_tokens=$4
 mm_normalize_centers=""
+intermediate_clipping=""
+renormalize_after_steering=""
 
 # Check for optional arguments
 for arg in "${@:5}"; do
     case $arg in
         "--mm_normalize_centers")
             mm_normalize_centers="--mm_normalize_centers"
+            ;;
+        "--intermediate_clipping")
+            intermediate_clipping="--intermediate_clipping"
+            ;;
+        "--renormalize_after_steering")
+            renormalize_after_steering="--renormalize_after_steering"
             ;;
     esac
 done
@@ -41,6 +49,7 @@ else
 fi
 
 
+additional_steering_params="$mm_normalize_centers $intermediate_clipping $renormalize_after_steering"
 base_dir=./llm_exp/results/llama-2-7b-chat-hf/$SLURM_JOB_NAME
 
 export PYTHONPATH=.
@@ -62,7 +71,7 @@ if [ $num_covariances -eq 0 ]; then
         --max_new_tokens $max_new_tokens \
         --output_dir $covariances_dir &
 
-    additional_params="--identity_cov --zero_mu_neutral"
+    additional_steering_params="$additional_steering_params --identity_cov --zero_mu_neutral"
 else
     $run_cmd $python ./llm_estimate_covariances.py \
         --model_name $model_name \
@@ -72,7 +81,6 @@ else
         --max_new_tokens $max_new_tokens \
         --output_dir $covariances_dir &
 
-    additional_params=""
 fi
 
 
@@ -124,8 +132,7 @@ for source_concept in "${!concept_pairs[@]}"; do
             --layer_type $layer_type \
             --source_concept $source_concept \
             --strength 0.0 \
-            $additional_params \
-            $mm_normalize_centers \
+            $additional_steering_params \
             $params &
 
         $run_cmd $python ./llm_run_with_steering.py \
@@ -138,8 +145,7 @@ for source_concept in "${!concept_pairs[@]}"; do
             --strength 2.0 \
             --mu_neutral $covariances_dir/means.pt \
             --cov_neutral $covariances_dir/covariances.pt \
-            $additional_params \
-            $mm_normalize_centers \
+            $additional_steering_params \
             $params &
 
         $run_cmd $python ./llm_run_with_steering.py \
@@ -152,8 +158,7 @@ for source_concept in "${!concept_pairs[@]}"; do
             --strength 2.0 \
             --mu_neutral $covariances_dir/means.pt \
             --cov_neutral $covariances_dir/covariances.pt \
-            $additional_params \
-            $mm_normalize_centers \
+            $additional_steering_params \
             $params &
 
 
@@ -169,8 +174,7 @@ for source_concept in "${!concept_pairs[@]}"; do
                 --strength $strength \
                 --mu_neutral $covariances_dir/means.pt \
                 --cov_neutral $covariances_dir/covariances.pt \
-                $additional_params \
-                $mm_normalize_centers \
+                $additional_steering_params \
                 $params &
         done
 
@@ -195,8 +199,12 @@ done
 declare -a concepts_to_steer_pairs=(
     "horses:cows"
     "horses:motorcycles"
+    "horses:knight's riding mammal"
+    "horses:large equine"
     "dogs:wolves"
     "dogs:cats"
+    "dogs:man's best friend"
+    "dogs:domesticated canine"
 )
 
 for pair in "${concepts_to_steer_pairs[@]}"; do
@@ -211,38 +219,35 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
     $run_cmd $python ./llm_run_with_steering.py \
         --model_name $model_name \
         --layer_type $layer_type \
-        --source_concept $concept_to_steer \
+        --source_concept "$concept_to_steer" \
         --strength 0.0 \
-        $additional_params \
-        $mm_normalize_centers \
+        $additional_steering_params \
         $params &
 
     $run_cmd $python ./llm_run_with_steering.py \
         --model_name $model_name \
         --layer_type $layer_type \
-        --source_concept $concept_to_steer \
+        --source_concept "$concept_to_steer" \
         --source_concept_path $steering_vectors_dir/$source_concept.pt \
         --target_concept_path $steering_vectors_dir/$target_concept.pt \
         --steer_type casteer \
         --strength 2.0 \
         --mu_neutral $covariances_dir/means.pt \
         --cov_neutral $covariances_dir/covariances.pt \
-        $additional_params \
-        $mm_normalize_centers \
+        $additional_steering_params \
         $params &
 
     $run_cmd $python ./llm_run_with_steering.py \
         --model_name $model_name \
         --layer_type $layer_type \
-        --source_concept $concept_to_steer \
+        --source_concept "$concept_to_steer" \
         --source_concept_path $steering_vectors_dir/$source_concept.pt \
         --target_concept_path $steering_vectors_dir/$target_concept.pt \
         --steer_type leace \
         --strength 2.0 \
         --mu_neutral $covariances_dir/means.pt \
         --cov_neutral $covariances_dir/covariances.pt \
-        $additional_params \
-        $mm_normalize_centers \
+        $additional_steering_params \
         $params &
 
 
@@ -250,22 +255,21 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
         $run_cmd $python ./llm_run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
-            --source_concept $concept_to_steer \
+            --source_concept "$concept_to_steer" \
             --source_concept_path $steering_vectors_dir/$source_concept.pt \
             --target_concept_path $steering_vectors_dir/$target_concept.pt \
             --steer_type mean_matching \
             --strength $strength \
             --mu_neutral $covariances_dir/means.pt \
             --cov_neutral $covariances_dir/covariances.pt \
-            $additional_params \
-            $mm_normalize_centers \
+            $additional_steering_params \
             $params &
     done
 
     wait
 
     $run_cmd $python ./llm_concept_scoring.py \
-        --concept $source_concept $target_concept $concept_to_steer \
+        --concept $source_concept $target_concept "$concept_to_steer" \
         --dir $results_subdir/eval
 
 done
