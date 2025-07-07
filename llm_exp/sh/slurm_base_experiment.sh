@@ -97,21 +97,21 @@ steering_vectors_dir=$base_dir/steering_vectors
 
 
 
-# consistency_num_samples=1000
-# consistency_max_new_tokens=100
-# consistency_samples_per_question=1
+consistency_num_samples=1000
+consistency_max_new_tokens=100
+consistency_samples_per_question=1
 
-# concept_max_new_tokens=100
-# concept_samples_per_question=10
+concept_max_new_tokens=100
+concept_samples_per_question=10
 
 
-# results_dir=$base_dir/evaluation/
+results_dir=$base_dir/evaluation/
 
-# # Iterate over concept pairs
-# declare -A concept_pairs=(
-#     ["horses"]="motorcycles"
-#     ["dogs"]="cats"
-# )
+# Iterate over concept pairs
+declare -A concept_pairs=(
+    ["horses"]="motorcycles"
+    ["dogs"]="cats"
+)
 
 # for source_concept in "${!concept_pairs[@]}"; do
 #     target_concept="${concept_pairs[$source_concept]}"
