@@ -62,137 +62,137 @@ covariances_dir=$base_dir/covariances
 topics="horses motorcycles cats dogs"
 steering_vectors_dir=$base_dir/steering_vectors
 
-if [ $num_covariances -eq 0 ]; then
-    $run_cmd $python ./llm_estimate_covariances.py \
-        --model_name $model_name \
-        --layer_type $layer_type \
-        --token_aggregation_mode $token_aggregation_mode \
-        --num_samples 10 \
-        --max_new_tokens $max_new_tokens \
-        --output_dir $covariances_dir &
+# if [ $num_covariances -eq 0 ]; then
+#     $run_cmd $python ./llm_estimate_covariances.py \
+#         --model_name $model_name \
+#         --layer_type $layer_type \
+#         --token_aggregation_mode $token_aggregation_mode \
+#         --num_samples 10 \
+#         --max_new_tokens $max_new_tokens \
+#         --output_dir $covariances_dir &
 
-    additional_steering_params="$additional_steering_params --identity_cov --zero_mu_neutral"
-else
-    $run_cmd $python ./llm_estimate_covariances.py \
-        --model_name $model_name \
-        --layer_type $layer_type \
-        --token_aggregation_mode $token_aggregation_mode \
-        --num_samples $num_covariances \
-        --max_new_tokens $max_new_tokens \
-        --output_dir $covariances_dir &
+#     additional_steering_params="$additional_steering_params --identity_cov --zero_mu_neutral"
+# else
+#     $run_cmd $python ./llm_estimate_covariances.py \
+#         --model_name $model_name \
+#         --layer_type $layer_type \
+#         --token_aggregation_mode $token_aggregation_mode \
+#         --num_samples $num_covariances \
+#         --max_new_tokens $max_new_tokens \
+#         --output_dir $covariances_dir &
 
-fi
-
-
-$run_cmd $python ./llm_generate_steering_vectors.py \
-    --model_name $model_name \
-    --layer_type $layer_type \
-    --topics $topics \
-    --token_aggregation_mode last \
-    --max_new_tokens 1 \
-    --num_samples 1000 \
-    --output_dir $steering_vectors_dir &
-
-wait
+# fi
 
 
+# $run_cmd $python ./llm_generate_steering_vectors.py \
+#     --model_name $model_name \
+#     --layer_type $layer_type \
+#     --topics $topics \
+#     --token_aggregation_mode last \
+#     --max_new_tokens 1 \
+#     --num_samples 1000 \
+#     --output_dir $steering_vectors_dir &
 
-consistency_num_samples=1000
-consistency_max_new_tokens=100
-consistency_samples_per_question=1
-
-concept_max_new_tokens=100
-concept_samples_per_question=10
+# wait
 
 
-results_dir=$base_dir/evaluation/
 
-# Iterate over concept pairs
-declare -A concept_pairs=(
-    ["horses"]="motorcycles"
-    ["dogs"]="cats"
-)
+# consistency_num_samples=1000
+# consistency_max_new_tokens=100
+# consistency_samples_per_question=1
 
-for source_concept in "${!concept_pairs[@]}"; do
-    target_concept="${concept_pairs[$source_concept]}"
+# concept_max_new_tokens=100
+# concept_samples_per_question=10
+
+
+# results_dir=$base_dir/evaluation/
+
+# # Iterate over concept pairs
+# declare -A concept_pairs=(
+#     ["horses"]="motorcycles"
+#     ["dogs"]="cats"
+# )
+
+# for source_concept in "${!concept_pairs[@]}"; do
+#     target_concept="${concept_pairs[$source_concept]}"
     
-    results_subdir="$results_dir/${source_concept}_to_${target_concept}"
-    mkdir -p "$results_subdir"
+#     results_subdir="$results_dir/${source_concept}_to_${target_concept}"
+#     mkdir -p "$results_subdir"
 
-    # Define evaluation parameters as arrays
-    declare -a eval_params=(
-        "--dataset_type template --samples_per_question $concept_samples_per_question --max_new_tokens $concept_max_new_tokens --output_dir \"$results_subdir/eval\""
-        "--dataset_type alpaca --num_samples $consistency_num_samples --samples_per_question $consistency_samples_per_question --max_new_tokens $consistency_max_new_tokens --output_dir \"$results_subdir/alpaca\""
-        "--dataset_type mmlu --num_samples $consistency_num_samples --samples_per_question $consistency_samples_per_question --max_new_tokens $consistency_max_new_tokens --output_dir \"$results_subdir/mmlu\""
-    )
+#     # Define evaluation parameters as arrays
+#     declare -a eval_params=(
+#         "--dataset_type template --samples_per_question $concept_samples_per_question --max_new_tokens $concept_max_new_tokens --output_dir \"$results_subdir/eval\""
+#         "--dataset_type alpaca --num_samples $consistency_num_samples --samples_per_question $consistency_samples_per_question --max_new_tokens $consistency_max_new_tokens --output_dir \"$results_subdir/alpaca\""
+#         "--dataset_type mmlu --num_samples $consistency_num_samples --samples_per_question $consistency_samples_per_question --max_new_tokens $consistency_max_new_tokens --output_dir \"$results_subdir/mmlu\""
+#     )
 
-    for params in "${eval_params[@]}"; do
-        $run_cmd $python ./llm_run_with_steering.py \
-            --model_name $model_name \
-            --layer_type $layer_type \
-            --source_concept $source_concept \
-            --strength 0.0 \
-            $additional_steering_params \
-            $params &
+#     for params in "${eval_params[@]}"; do
+#         $run_cmd $python ./llm_run_with_steering.py \
+#             --model_name $model_name \
+#             --layer_type $layer_type \
+#             --source_concept $source_concept \
+#             --strength 0.0 \
+#             $additional_steering_params \
+#             $params &
 
-        $run_cmd $python ./llm_run_with_steering.py \
-            --model_name $model_name \
-            --layer_type $layer_type \
-            --source_concept $source_concept \
-            --source_concept_path $steering_vectors_dir/$source_concept.pt \
-            --target_concept_path $steering_vectors_dir/$target_concept.pt \
-            --steer_type casteer \
-            --strength 2.0 \
-            --mu_neutral $covariances_dir/means.pt \
-            --cov_neutral $covariances_dir/covariances.pt \
-            $additional_steering_params \
-            $params &
+#         $run_cmd $python ./llm_run_with_steering.py \
+#             --model_name $model_name \
+#             --layer_type $layer_type \
+#             --source_concept $source_concept \
+#             --source_concept_path $steering_vectors_dir/$source_concept.pt \
+#             --target_concept_path $steering_vectors_dir/$target_concept.pt \
+#             --steer_type casteer \
+#             --strength 2.0 \
+#             --mu_neutral $covariances_dir/means.pt \
+#             --cov_neutral $covariances_dir/covariances.pt \
+#             $additional_steering_params \
+#             $params &
 
-        $run_cmd $python ./llm_run_with_steering.py \
-            --model_name $model_name \
-            --layer_type $layer_type \
-            --source_concept $source_concept \
-            --source_concept_path $steering_vectors_dir/$source_concept.pt \
-            --target_concept_path $steering_vectors_dir/$target_concept.pt \
-            --steer_type leace \
-            --strength 2.0 \
-            --mu_neutral $covariances_dir/means.pt \
-            --cov_neutral $covariances_dir/covariances.pt \
-            $additional_steering_params \
-            $params &
-
-
-        i=0
-        for strength in 1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0; do
-            $run_cmd $python ./llm_run_with_steering.py \
-                --model_name $model_name \
-                --layer_type $layer_type \
-                --source_concept $source_concept \
-                --source_concept_path $steering_vectors_dir/$source_concept.pt \
-                --target_concept_path $steering_vectors_dir/$target_concept.pt \
-                --steer_type mean_matching \
-                --strength $strength \
-                --mu_neutral $covariances_dir/means.pt \
-                --cov_neutral $covariances_dir/covariances.pt \
-                $additional_steering_params \
-                $params &
-        done
-
-        wait
-    done
+#         $run_cmd $python ./llm_run_with_steering.py \
+#             --model_name $model_name \
+#             --layer_type $layer_type \
+#             --source_concept $source_concept \
+#             --source_concept_path $steering_vectors_dir/$source_concept.pt \
+#             --target_concept_path $steering_vectors_dir/$target_concept.pt \
+#             --steer_type leace \
+#             --strength 2.0 \
+#             --mu_neutral $covariances_dir/means.pt \
+#             --cov_neutral $covariances_dir/covariances.pt \
+#             $additional_steering_params \
+#             $params &
 
 
-    $run_cmd $python ./llm_concept_scoring.py \
-        --concept $source_concept $target_concept \
-        --dir "$results_subdir/eval"
+#         i=0
+#         for strength in 1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0; do
+#             $run_cmd $python ./llm_run_with_steering.py \
+#                 --model_name $model_name \
+#                 --layer_type $layer_type \
+#                 --source_concept $source_concept \
+#                 --source_concept_path $steering_vectors_dir/$source_concept.pt \
+#                 --target_concept_path $steering_vectors_dir/$target_concept.pt \
+#                 --steer_type mean_matching \
+#                 --strength $strength \
+#                 --mu_neutral $covariances_dir/means.pt \
+#                 --cov_neutral $covariances_dir/covariances.pt \
+#                 $additional_steering_params \
+#                 $params &
+#         done
 
-    $run_cmd $python ./llm_consistency_scoring.py \
-        --dir "$results_subdir/alpaca"
+#         wait
+#     done
 
-    $run_cmd $python ./llm_consistency_scoring.py \
-        --dir "$results_subdir/mmlu"
 
-done
+#     $run_cmd $python ./llm_concept_scoring.py \
+#         --concept $source_concept $target_concept \
+#         --dir "$results_subdir/eval"
+
+#     $run_cmd $python ./llm_consistency_scoring.py \
+#         --dir "$results_subdir/alpaca"
+
+#     $run_cmd $python ./llm_consistency_scoring.py \
+#         --dir "$results_subdir/mmlu"
+
+# done
 
 
 
