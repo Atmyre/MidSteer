@@ -214,7 +214,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
     results_subdir="$results_dir/${source_concept}_to_${target_concept}__${concept_to_steer}"
     mkdir -p "$results_subdir"
 
-    params="--dataset_type template --samples_per_question $concept_samples_per_question --max_new_tokens $concept_max_new_tokens --output_dir \"$results_subdir/eval\""
+    declare -a concept_params=(--dataset_type template --samples_per_question $concept_samples_per_question --max_new_tokens $concept_max_new_tokens --output_dir "$results_subdir/eval")
 
     $run_cmd $python ./llm_run_with_steering.py \
         --model_name $model_name \
@@ -222,7 +222,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
         --source_concept "$concept_to_steer" \
         --strength 0.0 \
         $additional_steering_params \
-        $params &
+        "${concept_params[@]}" &
 
     $run_cmd $python ./llm_run_with_steering.py \
         --model_name $model_name \
@@ -235,7 +235,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
         --mu_neutral $covariances_dir/means.pt \
         --cov_neutral $covariances_dir/covariances.pt \
         $additional_steering_params \
-        $params &
+        "${concept_params[@]}" &
 
     $run_cmd $python ./llm_run_with_steering.py \
         --model_name $model_name \
@@ -248,7 +248,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
         --mu_neutral $covariances_dir/means.pt \
         --cov_neutral $covariances_dir/covariances.pt \
         $additional_steering_params \
-        $params &
+        "${concept_params[@]}" &
 
 
     for strength in 1.0 1.5 2.0 2.5; do
@@ -263,7 +263,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
             --mu_neutral $covariances_dir/means.pt \
             --cov_neutral $covariances_dir/covariances.pt \
             $additional_steering_params \
-            $params &
+            "${concept_params[@]}" &
     done
 
     wait
