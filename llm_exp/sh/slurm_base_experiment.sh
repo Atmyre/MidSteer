@@ -211,7 +211,9 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
     IFS=':' read -r source_concept concept_to_steer <<< "$pair"
     target_concept="${concept_pairs[$source_concept]}"
     
-    results_subdir="$results_dir/${source_concept}_to_${target_concept}__${concept_to_steer}"
+    # Sanitize concept_to_steer for directory name (replace spaces and apostrophes with underscores)
+    sanitized_concept=$(echo "$concept_to_steer" | sed 's/[[:space:]'\''"]/_/g')
+    results_subdir="$results_dir/${source_concept}_to_${target_concept}__${sanitized_concept}"
     mkdir -p "$results_subdir"
 
     declare -a concept_params=(--dataset_type template --samples_per_question $concept_samples_per_question --max_new_tokens $concept_max_new_tokens --output_dir "$results_subdir/eval")
@@ -269,7 +271,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
     wait
 
     $run_cmd $python ./llm_concept_scoring.py \
-        --concept $source_concept $target_concept "$concept_to_steer" \
+        --concept "$source_concept" "$target_concept" "$concept_to_steer" \
         --dir "$results_subdir/eval"
 
 done
