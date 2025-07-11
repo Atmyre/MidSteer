@@ -1,0 +1,49 @@
+\begin{table}[htbp]
+\centering
+\caption{Comprehensive Results: midsteer\_sa\_50k\_last\_no\_renorm\_no\_clip - Dogs\rightarrowCats}
+\label{tab:midsteersa50klastnorenormnoclip_dogstocats}
+\begin{tabular}{l|l|cccccc|}
+\hline
+Method & $\beta$ & \multicolumn{6}{c|}{Dogs\rightarrowCats} \\
+ &  & SCS & TCS & A-BLEU & A-BertF1 & M-BLEU & M-BertF1 \\
+\hline
+Baseline & — & \textbf{8.65} & 0.96 & — & — & — & — \\
+CASteer & 2.0 & 6.11 & 3.98 & 0.667 & 0.964 & 0.558 & 0.942 \\
+LEACE & 2.0 & 4.01 & 5.45 & 0.814 & 0.980 & 0.712 & 0.962 \\
+Mean Matching & 1.0 & \underline{8.41} & 1.41 & \textbf{0.920} & \textbf{0.992} & \textbf{0.900} & \textbf{0.987} \\
+Mean Matching & 1.5 & 5.44 & 4.76 & \underline{0.890} & \underline{0.989} & \underline{0.852} & \underline{0.981} \\
+Mean Matching & 2.0 & 3.08 & 7.05 & 0.865 & 0.986 & 0.815 & 0.976 \\
+Mean Matching & 2.5 & 2.49 & 7.87 & 0.836 & 0.983 & 0.786 & 0.972 \\
+Mean Matching & 3.0 & 2.15 & 8.22 & 0.820 & 0.981 & 0.758 & 0.969 \\
+Mean Matching & 3.5 & 2.05 & 8.39 & 0.801 & 0.979 & 0.734 & 0.965 \\
+Mean Matching & 4.0 & 1.92 & 8.48 & 0.787 & 0.978 & 0.708 & 0.962 \\
+Mean Matching & 4.5 & 1.74 & \underline{8.50} & 0.764 & 0.975 & 0.683 & 0.959 \\
+Mean Matching & 5.0 & 1.71 & \textbf{8.52} & 0.749 & 0.974 & 0.662 & 0.956 \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Comprehensive Results: midsteer\_sa\_50k\_last\_no\_renorm\_no\_clip - Horses\rightarrowMotorcycles}
+\label{tab:midsteersa50klastnorenormnoclip_horsestomotorcycles}
+\begin{tabular}{l|l|cccccc|}
+\hline
+Method & $\beta$ & \multicolumn{6}{c|}{Horses\rightarrowMotorcycles} \\
+ &  & SCS & TCS & A-BLEU & A-BertF1 & M-BLEU & M-BertF1 \\
+\hline
+Baseline & — & \textbf{8.64} & 0.59 & — & — & — & — \\
+CASteer & 2.0 & 2.67 & 6.93 & 0.667 & 0.964 & 0.555 & 0.942 \\
+LEACE & 2.0 & 5.66 & 3.33 & 0.802 & 0.979 & 0.705 & 0.961 \\
+Mean Matching & 1.0 & \underline{8.60} & 0.66 & \textbf{0.918} & \textbf{0.992} & \textbf{0.855} & \textbf{0.981} \\
+Mean Matching & 1.5 & 7.01 & 2.42 & \underline{0.882} & \underline{0.988} & \underline{0.802} & \underline{0.974} \\
+Mean Matching & 2.0 & 3.04 & 6.57 & 0.855 & 0.985 & 0.746 & 0.967 \\
+Mean Matching & 2.5 & 1.95 & 7.99 & 0.830 & 0.982 & 0.697 & 0.960 \\
+Mean Matching & 3.0 & 1.72 & 8.35 & 0.806 & 0.980 & 0.661 & 0.956 \\
+Mean Matching & 3.5 & 1.66 & 8.41 & 0.784 & 0.978 & 0.631 & 0.952 \\
+Mean Matching & 4.0 & 1.62 & \underline{8.41} & 0.760 & 0.975 & 0.598 & 0.948 \\
+Mean Matching & 4.5 & 1.57 & 8.41 & 0.741 & 0.973 & 0.580 & 0.945 \\
+Mean Matching & 5.0 & 1.55 & \textbf{8.43} & 0.719 & 0.971 & 0.558 & 0.943 \\
+\hline
+\end{tabular}
+\end{table}

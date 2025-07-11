@@ -1,0 +1,16 @@
+\begin{table}[htbp]
+\centering
+\caption{Best Results: midsteer\_sa\_10k\_last\_renorm\_clip}
+\label{tab:best_midsteersa10klastrenormclip}
+\begin{tabular}{l|l|cccccc|cccccc|}
+\hline
+Method & $\beta$ & \multicolumn{6}{c|}{Dogs→Cats} & \multicolumn{6}{c|}{Horses→Motorcycles} \\
+ &  & SCS & TCS & A-BLEU & A-BertF1 & M-BLEU & M-BertF1 & SCS & TCS & A-BLEU & A-BertF1 & M-BLEU & M-BertF1 \\
+\hline
+Baseline & — & 8.63 & 0.94 & — & — & — & — & 8.68 & 0.61 & — & — & — & — \\
+Mean Matching & 5.0 & 1.87 & 8.49 & 0.850 & 0.985 & 0.681 & 0.958 & 1.65 & 8.40 & 0.799 & 0.979 & 0.556 & 0.943 \\
+CASTeer & 2.0 & 4.61 & 5.81 & 0.776 & 0.976 & 0.753 & 0.968 & 2.04 & 7.70 & 0.752 & 0.974 & 0.648 & 0.955 \\
+LEACE & 2.0 & 4.45 & 5.41 & 0.858 & 0.985 & 0.831 & 0.978 & 4.60 & 4.85 & 0.848 & 0.984 & 0.771 & 0.971 \\
+\hline
+\end{tabular}
+\end{table}
