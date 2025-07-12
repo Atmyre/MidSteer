@@ -14,8 +14,10 @@ class SteeringSettings:
     model_size: str = "7b"
     override_model_weights_path: Optional[str] = None
     control_type: Literal['CAA', 'external'] = 'CAA'
-    external_steer_type: Literal['casteer', 'leace', 'mean_matching'] | None = None
+    external_steer_type: Literal['casteer', 'leace'] | None = None
     external_layer_type: Literal['decoder_block', 'self_attn', 'mlp', 'input_layernorm', 'post_attention_layernorm'] | None = None
+    external_layers_to_steer: list[int] | None = None
+    renormalize_after_steering: bool = False
 
     def __post_init__(self):
         assert self.behavior in ALL_BEHAVIORS, f"Invalid behavior {self.behavior}"
@@ -29,6 +31,7 @@ class SteeringSettings:
             'control_type': self.control_type,
             'external_steer_type': self.external_steer_type,
             'external_layer_type': self.external_layer_type,
+            'renormalize_after_steering': self.renormalize_after_steering if self.control_type == 'external' and self.renormalize_after_steering else None,
             "layer": layer,
             "multiplier": multiplier,
             "behavior": self.behavior,
@@ -52,6 +55,7 @@ class SteeringSettings:
             'control_type': self.control_type,
             'external_steer_type': self.external_steer_type,
             'external_layer_type': self.external_layer_type,
+            'renormalize_after_steering': self.renormalize_after_steering if self.control_type == 'external' and self.renormalize_after_steering else None,
             "layer": str(layer)+"_",
             "multiplier": str(float(multiplier))+"_",
             "behavior": self.behavior,

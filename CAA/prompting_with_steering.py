@@ -118,8 +118,9 @@ def get_CAA_steering_vector(model: LlamaWrapper, settings: SteeringSettings, lay
 
 def test_steering(
     model: LlamaWrapper, layers: List[int], multipliers: List[int], settings: SteeringSettings, device: tp.Any,
-    all_means: dict,
-    all_covs: dict,
+    mu_neutral: dict,
+    cov_neutral: dict,
+    renormalize_after_steering: bool,
     overwrite=False,
 ):
     """
@@ -143,7 +144,7 @@ def test_steering(
         "mmlu": get_mmlu_data(),
     }
     model.set_external_layer_type(settings.external_layer_type)
-    model.set_external_layers_to_steer(None)  # Steer all layers
+    model.set_external_layers_to_steer(settings.external_layers_to_steer)
     a_token_id = model.tokenizer.convert_tokens_to_ids("A")
     b_token_id = model.tokenizer.convert_tokens_to_ids("B")
     model.set_save_internal_decodings(False)
@@ -176,8 +177,9 @@ def test_steering(
                         device=device,
                         mu_pos=[load_external_vectors(behavior, settings.external_layer_type, model.model_name_path, 'pos')],
                         mu_neg=[load_external_vectors(behavior, settings.external_layer_type, model.model_name_path, 'neg')],
-                        mu_neutral=[all_means],
-                        cov=[all_covs],
+                        mu_neutral=[mu_neutral],
+                        cov=[cov_neutral],
+                        renormalize_after_steering=renormalize_after_steering,
                     )]
                     model.set_external_controllers(external_controllers)
                 result = process_methods[settings.type](
@@ -219,17 +221,19 @@ if __name__ == "__main__":
     parser.add_argument("--override_model_weights_path", type=str, default=None)
     parser.add_argument("--overwrite", action="store_true", default=False)
     parser.add_argument('--control_type', choices=['CAA', 'external'], default='CAA')
-    parser.add_argument('--external_steer_type', choices=['casteer', 'leace', 'mean_matching'], default=None)
+    parser.add_argument('--external_steer_type', choices=['casteer', 'leace'], default=None)
     parser.add_argument('--external_layer_type', choices=['decoder_block', 'self_attn', 'mlp', 'input_layernorm', 'post_attention_layernorm'], type=str, default=None)
-    parser.add_argument('--all_means', type=str, default=None)
-    parser.add_argument('--all_covs', type=str, default=None)
+    parser.add_argument('--external_layers_to_steer', type=str, help='Comma separated list of layer indices to steer for external steering (default: steer all layers)', default=None)
+    parser.add_argument('--mu_neutral', type=str, default=None)
+    parser.add_argument('--cov_neutral', type=str, default=None)
+    parser.add_argument('--renormalize_after_steering', action='store_true', help='Renormalize vectors after steering')
 
 
     
     args = parser.parse_args()
 
-    all_means = unpickle(args.all_means)
-    all_covs = unpickle(args.all_covs)
+    mu_neutral = unpickle(args.mu_neutral)
+    cov_neutral = unpickle(args.cov_neutral)
 
     steering_settings = SteeringSettings()
     steering_settings.type = args.type
@@ -242,6 +246,11 @@ if __name__ == "__main__":
     steering_settings.control_type = args.control_type
     steering_settings.external_steer_type = args.external_steer_type
     steering_settings.external_layer_type = args.external_layer_type
+    steering_settings.renormalize_after_steering = args.renormalize_after_steering
+    if args.external_layers_to_steer is not None:
+        steering_settings.external_layers_to_steer = list(map(int, args.external_layers_to_steer.split(',')))
+    else:
+        steering_settings.external_layers_to_steer = None
 
     device = get_device()
     model = LlamaWrapper(
@@ -262,6 +271,7 @@ if __name__ == "__main__":
             settings=steering_settings,
             device=device,
             overwrite=args.overwrite,
-            all_means=all_means,
-            all_covs=all_covs,
+            mu_neutral=mu_neutral,
+            cov_neutral=cov_neutral,
+            renormalize_after_steering=steering_settings.renormalize_after_steering,
         )
