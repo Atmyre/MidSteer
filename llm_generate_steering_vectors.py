@@ -3,7 +3,7 @@ import os
 import torch
 
 from dataset import ALPACA_DEFAULT_INSTRUCTION, QuestionsDataset
-from core.controller import VectorControlMode
+
 from core.llm_steering import llm_register_vector_control
 from utils import init_llm_model_and_tokenizer
 from utils import get_device
@@ -46,7 +46,6 @@ def compute_vectors(
     )
 
     vector_control = CrossAttentionOutputStatsCollector(
-        mode=VectorControlMode.ATTN_OUTPUT,
         token_aggregation_mode=token_aggregation_mode,
         normalize=normalize_vectors,
         last_token_offset=last_token_offset,

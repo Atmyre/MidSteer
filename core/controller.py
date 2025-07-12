@@ -16,7 +16,7 @@ logger = logging.getLogger()
 
 EPS = 1e-6
 
-class VectorControlMode(enum.StrEnum):
+class DiffusionVectorControlMode(enum.StrEnum):
     ATTN_OUTPUT = 'attn_output'
     ATTN_HEADS = 'attn_head'
     ATTN_KEY = 'attn_key'
@@ -31,7 +31,7 @@ class ModelToSteer(enum.StrEnum):
 
 # Define Controller for BasicTransformerBlock
 class VectorControl(abc.ABC):
-    def __init__(self, mode: VectorControlMode, num_layers: int = None):
+    def __init__(self, mode: DiffusionVectorControlMode = None, num_layers: int = None):
         self._mode = mode
         self._active = True
         self._diffusion_step = 0
@@ -72,9 +72,9 @@ class VectorControl(abc.ABC):
 class CrossAttentionOutputSteering(VectorControl):
     def __init__(
         self,
-        mode: VectorControlMode,
         model_to_steer: ModelToSteer,
         *,
+        mode: DiffusionVectorControlMode = None,
         mmsteer_vectors=None,
         mu_pos=None,
         mu_neg=None,
@@ -453,16 +453,16 @@ class CustomAttnProcessor:
         value = value.view(batch_size, -1, attn.heads, head_dim)
 
         for control in self._controls:
-            if control._mode == VectorControlMode.ATTN_KEY and control.active:
+            if control._mode == DiffusionVectorControlMode.ATTN_KEY and control.active:
                 key = control(key, self._place_in_unet)
 
         for control in self._controls:
-            if control._mode == VectorControlMode.ATTN_VALUE and control.active:
+            if control._mode == DiffusionVectorControlMode.ATTN_VALUE and control.active:
                 value = control(value, self._place_in_unet)
 
         key_value = torch.cat([key, value], dim=2)
         for control in self._controls:
-            if control._mode == VectorControlMode.ATTN_KEY_VALUE and control.active:
+            if control._mode == DiffusionVectorControlMode.ATTN_KEY_VALUE and control.active:
                 key_value = control(key_value, self._place_in_unet)
         key, value = torch.chunk(key_value, chunks=2, dim=2)  
 
@@ -484,7 +484,7 @@ class CustomAttnProcessor:
         hidden_states = hidden_states.transpose(1, 2)  # (batch_size, sequence_length, num_heads, head_dim)
 
         for control in self._controls:
-            if control._mode == VectorControlMode.ATTN_HEADS and control.active:
+            if control._mode == DiffusionVectorControlMode.ATTN_HEADS and control.active:
                 hidden_states = control(hidden_states, self._place_in_unet)
 
 
@@ -602,7 +602,7 @@ def register_vector_controls(model, *controls: VectorControl):
                 # adding controller
                 attn_output = attn_output[..., None, :]
                 for control in controls:
-                    if control._mode == VectorControlMode.ATTN_OUTPUT and control.active:
+                    if control._mode == DiffusionVectorControlMode.ATTN_OUTPUT and control.active:
                         attn_output = control(attn_output, place_in_unet)
                 attn_output = attn_output[..., 0, :]
                 # -------------------------------

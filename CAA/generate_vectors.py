@@ -13,7 +13,7 @@ from transformers import AutoTokenizer
 from tqdm import tqdm
 import os
 from dotenv import load_dotenv
-from core.controller import VectorControlMode
+
 from CAA.llama_wrapper import LlamaWrapper
 import argparse
 from typing import List
@@ -104,7 +104,6 @@ def generate_save_vectors_for_behavior(
     )
 
     pos_vector_control = CrossAttentionOutputStatsCollector(
-        mode=VectorControlMode.ATTN_OUTPUT,
         token_aggregation_mode=TokenAggregationMode.LAST,
         normalize=False,
         last_token_offset=-2,
@@ -112,7 +111,6 @@ def generate_save_vectors_for_behavior(
     )
 
     neg_vector_control = CrossAttentionOutputStatsCollector(
-        mode=VectorControlMode.ATTN_OUTPUT,
         token_aggregation_mode=TokenAggregationMode.LAST,
         normalize=False,
         last_token_offset=-2,

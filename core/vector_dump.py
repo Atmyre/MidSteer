@@ -1,5 +1,5 @@
 from construct_prompts import pickle_stats
-from core.controller import EPS, VectorControl, VectorControlMode
+from core.controller import EPS, VectorControl, DiffusionVectorControlMode
 from collections import defaultdict
 import torch
 import numpy as np
@@ -17,7 +17,7 @@ i = 0
 
 class CrossAttentionOutputStatsCollector(VectorControl):
     def __init__(self,
-                 mode: VectorControlMode,
+                 mode: DiffusionVectorControlMode=None,
                  *,
                  token_aggregation_mode: TokenAggregationMode,
                  normalize: bool = False,

@@ -12,7 +12,7 @@ from core.pickle import unpickle
 from core.pickle import unpickle_pack
 from transformers import GenerationConfig
 
-from core.controller import CrossAttentionOutputSteering, ModelToSteer, VectorControlMode
+from core.controller import CrossAttentionOutputSteering, ModelToSteer
 from core.llm_steering import llm_register_vector_control
 from utils import init_llm_model_and_tokenizer
 from CAA.utils.tokenize import tokenize_llama_base, tokenize_llama_chat
@@ -124,7 +124,6 @@ def main(
             mu_pos, mu_neg = mu_neg, mu_pos
 
         control = CrossAttentionOutputSteering(
-            mode=VectorControlMode.ATTN_OUTPUT,
             model_to_steer=ModelToSteer.LLAMA,
             steer_type=steer_type,
             steer_back=True,

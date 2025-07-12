@@ -28,7 +28,7 @@ from CAA.behaviors import (
     load_external_vectors,
     load_mu_neutral,
 )
-from core.controller import CrossAttentionOutputSteering, ModelToSteer, VectorControlMode
+from core.controller import CrossAttentionOutputSteering, ModelToSteer
 from core.pickle import unpickle
 from utils import get_device
 import typing as tp
@@ -169,8 +169,7 @@ def test_steering(
                     )
                 elif settings.control_type == 'external':
                     external_controllers = [CrossAttentionOutputSteering(
-                        mode=VectorControlMode.ATTN_OUTPUT,
-                        model_to_steer=ModelToSteer.UNET,
+                        model_to_steer=ModelToSteer.LLAMA,
                         steer_type=settings.external_steer_type,
                         strength=multiplier,
                         steer_back=True,

@@ -11,7 +11,7 @@ from core.pickle import unpickle_pack
 from utils import get_device, init_pipeline_for_image_model, run_image_model
 
 # local imports
-from core.controller import CrossAttentionOutputSteering, ModelToSteer, VectorControlMode, register_vector_controls
+from core.controller import CrossAttentionOutputSteering, ModelToSteer, DiffusionVectorControlMode, register_vector_controls
 
 # parsing arguments
 import argparse
@@ -19,7 +19,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux-schnell'], default="sd14")
-parser.add_argument('--control_mode', type=VectorControlMode, choices=[str(x) for x in VectorControlMode], default='attn_output', help='Vector control mode')
+parser.add_argument('--control_mode', type=DiffusionVectorControlMode, choices=[str(x) for x in DiffusionVectorControlMode], default='attn_output', help='Vector control mode')
 parser.add_argument('--prompt', type=str, default=None)
 parser.add_argument('--prompt_file', type=str, default=None, help="Path to text file with prompts, one per line.")
 parser.add_argument('--seed', type=str, default="0", help="Comma-separated list of seeds to use for generation.")
@@ -61,8 +61,8 @@ pipe = init_pipeline_for_image_model(args.model)
 
 if not args.not_steer:
     controller = CrossAttentionOutputSteering(
-        mode=args.control_mode,
         model_to_steer=ModelToSteer.UNET,
+        mode=args.control_mode,
         mmsteer_vectors=unpickle(args.mmsteer_vectors),
         mu_pos=unpickle_pack(args.mu_pos),
         mu_neg=unpickle_pack(args.mu_neg),
