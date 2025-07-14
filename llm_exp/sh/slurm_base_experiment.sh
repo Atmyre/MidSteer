@@ -135,9 +135,9 @@ for source_concept in "${!concept_pairs[@]}"; do
 
     # Define evaluation parameters as arrays
     declare -a eval_params=(
-        "--dataset_type template --samples_per_question $concept_samples_per_question --max_new_tokens $concept_max_new_tokens --output_dir \"$results_subdir/eval\""
-        "--dataset_type alpaca --num_samples $consistency_num_samples --samples_per_question $consistency_samples_per_question --max_new_tokens $consistency_max_new_tokens --output_dir \"$results_subdir/alpaca\""
-        "--dataset_type mmlu --num_samples $consistency_num_samples --samples_per_question $consistency_samples_per_question --max_new_tokens $consistency_max_new_tokens --output_dir \"$results_subdir/mmlu\""
+        "--dataset_type template --samples_per_question $concept_samples_per_question --max_new_tokens $concept_max_new_tokens --output_dir $results_subdir/eval"
+        "--dataset_type alpaca --num_samples $consistency_num_samples --samples_per_question $consistency_samples_per_question --max_new_tokens $consistency_max_new_tokens --output_dir $results_subdir/alpaca"
+        "--dataset_type mmlu --num_samples $consistency_num_samples --samples_per_question $consistency_samples_per_question --max_new_tokens $consistency_max_new_tokens --output_dir $results_subdir/mmlu"
     )
 
     for params in "${eval_params[@]}"; do
@@ -232,7 +232,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
     results_subdir="$results_dir/${source_concept}_to_${target_concept}__${sanitized_concept}"
     mkdir -p "$results_subdir"
 
-    declare -a concept_params=(--dataset_type template --samples_per_question $concept_samples_per_question --max_new_tokens $concept_max_new_tokens --output_dir "$results_subdir/eval")
+    declare -a concept_params=(--dataset_type template --samples_per_question $concept_samples_per_question --max_new_tokens $concept_max_new_tokens --output_dir $results_subdir/eval)
 
     $run_cmd $python ./llm_run_with_steering.py \
         --model_name $model_name \
