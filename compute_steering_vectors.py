@@ -12,7 +12,8 @@ import torch
 
 # local imports
 from construct_prompts import get_prompts_concrete, get_prompts_style, get_prompts_human_related, pickle_stats, read_prompt_file
-from core.controller import DiffusionVectorControlMode, register_vector_controls
+# from core.controller import DiffusionVectorControlMode, register_vector_controls
+from core.controller_hooks import register_vector_controls_with_hooks, DiffusionVectorControlMode
 from core.math import fractional_matrix_power_cov_torch
 from utils import get_device, init_pipeline_for_image_model, run_image_model
 
@@ -39,7 +40,7 @@ def gather_stats_for_prompts(
         normalize=normalize_vectors,
         compute_covariances=True,
     )
-    register_vector_controls(pipe.unet, stats_handler)
+    register_vector_controls_with_hooks(pipe.unet, stats_handler)
 
     print("Gathering statistics for concept prompts...")
     for idx, prompt in tqdm.tqdm(enumerate(prompts), total=len(prompts)):
@@ -84,7 +85,7 @@ def gather_stats_for_prompt_pairs(
         compute_covariances=False,
     )
     
-    register_vector_controls(pipe.unet, pos_stats_handler, neg_stats_handler)
+    register_vector_controls_with_hooks(pipe.unet, pos_stats_handler, neg_stats_handler)
 
     print("Gathering statistics for concept prompts...")
     for idx, (pos_prompt, neg_prompt) in tqdm.tqdm(
@@ -278,7 +279,7 @@ def run(args: argparse.Namespace):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo'], default="sd14")
+    parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux', 'flux-schnell'], default="sd14")
     parser.add_argument('--mode', type=str, choices=['concrete', 'human-related', 'style', 'file'], default="style")
     parser.add_argument('--control_mode', type=DiffusionVectorControlMode, choices=[str(x) for x in DiffusionVectorControlMode], default='attn_output', help='Vector control mode')
     parser.add_argument('--prompts_pos_file', type=str, default=None,

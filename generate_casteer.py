@@ -11,14 +11,14 @@ from core.pickle import unpickle_pack
 from utils import get_device, init_pipeline_for_image_model, run_image_model
 
 # local imports
-from core.controller import CrossAttentionOutputSteering, ModelToSteer, DiffusionVectorControlMode, register_vector_controls
+from core.controller_hooks import CrossAttentionOutputSteeringHook, ModelToSteer, DiffusionVectorControlMode, register_vector_controls_with_hooks
 
 # parsing arguments
 import argparse
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux-schnell'], default="sd14")
+parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux', 'flux-schnell'], default="sd14")
 parser.add_argument('--control_mode', type=DiffusionVectorControlMode, choices=[str(x) for x in DiffusionVectorControlMode], default='attn_output', help='Vector control mode')
 parser.add_argument('--prompt', type=str, default=None)
 parser.add_argument('--prompt_file', type=str, default=None, help="Path to text file with prompts, one per line.")
@@ -60,7 +60,7 @@ device = get_device()
 pipe = init_pipeline_for_image_model(args.model)
 
 if not args.not_steer:
-    controller = CrossAttentionOutputSteering(
+    controller = CrossAttentionOutputSteeringHook(
         model_to_steer=ModelToSteer.UNET,
         mode=args.control_mode,
         mmsteer_vectors=unpickle(args.mmsteer_vectors),
@@ -77,9 +77,10 @@ if not args.not_steer:
         device=device
     )
     
-    register_vector_controls(pipe.unet, controller)
+    hook_manager = register_vector_controls_with_hooks(pipe.unet, controller)
 else:
     controller = None
+    hook_manager = None
 
 if args.num_images_per_prompt == 1:
     for prompt in prompts:
@@ -130,3 +131,7 @@ else:
                 if os.path.dirname(path.format(seed=i)):
                     os.makedirs(os.path.dirname(path.format(seed=i)), exist_ok=True)
                 image.save(path.format(seed=seed*args.num_images_per_prompt+i))
+
+# Clean up hooks when done
+if hook_manager is not None:
+    hook_manager.remove_hooks()

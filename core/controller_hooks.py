@@ -372,17 +372,76 @@ class HookManager:
         return self.hooks
     
     def _register_hooks_recursive(self, model) -> int:
-        """Recursively find BasicTransformerBlocks and register hooks"""
+        """Recursively find transformer blocks and register hooks"""
         block_count = 0
         
-        for name, module in model.named_children():
-            if "down" in name:
-                block_count += self._register_hooks_in_submodule(module, "down")
-            elif "up" in name:
-                block_count += self._register_hooks_in_submodule(module, "up")
-            elif "mid" in name:
-                block_count += self._register_hooks_in_submodule(module, "mid")
+        # Check if this is a FLUX model
+        if self._is_flux_model(model):
+            block_count += self._register_flux_model_hooks(model)
+        else:
+            # Traditional SD UNet structure
+            for name, module in model.named_children():
+                if "down" in name:
+                    block_count += self._register_hooks_in_submodule(module, "down")
+                elif "up" in name:
+                    block_count += self._register_hooks_in_submodule(module, "up")
+                elif "mid" in name:
+                    block_count += self._register_hooks_in_submodule(module, "mid")
+                    
+        return block_count
+    
+    def _is_flux_model(self, model) -> bool:
+        """Check if the model is a FLUX-based diffusion model"""
+        # Look for characteristic FLUX model attributes
+        flux_indicators = [
+            hasattr(model, 'transformer'),          # FLUX uses transformer architecture
+            hasattr(model, 'joint_blocks'),         # FLUX has joint blocks
+            hasattr(model, 'single_blocks'),        # FLUX has single blocks
+            hasattr(model, 'pos_embed'),            # FLUX uses positional embeddings
+            any('flux' in str(type(module)).lower() for _, module in model.named_modules()),
+            any('dit' in str(type(module)).lower() for _, module in model.named_modules()),
+        ]
+        
+        return sum(flux_indicators) >= 2
+    
+    def _register_flux_model_hooks(self, model) -> int:
+        """Register hooks for FLUX model architecture"""
+        block_count = 0
+        
+        # FLUX models have a flat transformer structure
+        # Look for joint_blocks and single_blocks
+        if hasattr(model, 'joint_blocks'):
+            for block in model.joint_blocks:
+                self._register_hooks_for_flux_block(block, "joint")
+                block_count += 1
                 
+        if hasattr(model, 'single_blocks'):
+            for block in model.single_blocks:
+                self._register_hooks_for_flux_block(block, "single")
+                block_count += 1
+        
+        # Also check transformer submodule
+        if hasattr(model, 'transformer'):
+            transformer = model.transformer
+            if hasattr(transformer, 'joint_blocks'):
+                for block in transformer.joint_blocks:
+                    self._register_hooks_for_flux_block(block, "joint")
+                    block_count += 1
+            if hasattr(transformer, 'single_blocks'):
+                for block in transformer.single_blocks:
+                    self._register_hooks_for_flux_block(block, "single")
+                    block_count += 1
+        
+        # Fallback: search recursively for any FLUX blocks
+        if block_count == 0:
+            for name, module in model.named_modules():
+                class_name = module.__class__.__name__
+                if class_name in ['JointTransformerBlock', 'SingleTransformerBlock', 'MMDiTBlock', 'FluxTransformerBlock']:
+                    # Determine place based on block type or name
+                    place = "joint" if "joint" in class_name.lower() or "joint" in name.lower() else "single"
+                    self._register_hooks_for_flux_block(module, place)
+                    block_count += 1
+        
         return block_count
     
     def _register_hooks_in_submodule(self, module, place_in_unet: str) -> int:
@@ -390,14 +449,27 @@ class HookManager:
         block_count = 0
         
         for name, submodule in module.named_modules():
-            if submodule.__class__.__name__ == 'BasicTransformerBlock':
-                self._register_hooks_for_block(submodule, place_in_unet)
+            class_name = submodule.__class__.__name__
+            
+            # Support both SD and FLUX architectures
+            if class_name == 'BasicTransformerBlock':
+                # Standard Stable Diffusion blocks
+                self._register_hooks_for_sd_block(submodule, place_in_unet)
                 block_count += 1
+            elif class_name in ['JointTransformerBlock', 'SingleTransformerBlock', 'MMDiTBlock', 'FluxTransformerBlock']:
+                # FLUX DiT blocks (various naming conventions)
+                self._register_hooks_for_flux_block(submodule, place_in_unet)
+                block_count += 1
+            elif hasattr(submodule, 'attn') and hasattr(submodule.attn, 'to_q'):
+                # Generic transformer block detection for FLUX variants
+                if self._is_flux_attention_block(submodule):
+                    self._register_hooks_for_flux_block(submodule, place_in_unet)
+                    block_count += 1
                 
         return block_count
     
-    def _register_hooks_for_block(self, block, place_in_unet: str):
-        """Register hooks for a specific BasicTransformerBlock"""
+    def _register_hooks_for_sd_block(self, block, place_in_unet: str):
+        """Register hooks for a specific BasicTransformerBlock (Stable Diffusion)"""
         # Store module info for the hook callbacks
         self.module_info[id(block)] = place_in_unet
         
@@ -433,6 +505,82 @@ class HookManager:
                             self._create_value_hook(control, place_in_unet)
                         )
                         self.hooks.append(hook)
+    
+    def _register_hooks_for_flux_block(self, block, place_in_unet: str):
+        """Register hooks for FLUX DiT blocks (JointTransformerBlock, SingleTransformerBlock, etc.)"""
+        # Store module info for the hook callbacks
+        self.module_info[id(block)] = place_in_unet
+        
+        # Register hooks based on control modes for FLUX architecture
+        for control in self.controls:
+            if control._mode == DiffusionVectorControlMode.ATTN_OUTPUT:
+                # FLUX blocks may have different attention module names
+                attn_module = self._get_flux_attention_module(block)
+                if attn_module is not None:
+                    hook = attn_module.register_forward_hook(
+                        self._create_flux_attn_output_hook(control, place_in_unet)
+                    )
+                    self.hooks.append(hook)
+            elif control._mode == DiffusionVectorControlMode.ATTN_HEADS:
+                attn_module = self._get_flux_attention_module(block)
+                if attn_module is not None:
+                    hook = attn_module.register_forward_hook(
+                        self._create_flux_attn_heads_hook(control, place_in_unet)
+                    )
+                    self.hooks.append(hook)
+            elif control._mode in [DiffusionVectorControlMode.ATTN_KEY, 
+                                 DiffusionVectorControlMode.ATTN_VALUE,
+                                 DiffusionVectorControlMode.ATTN_KEY_VALUE]:
+                # Hook into FLUX key/value computation
+                self._register_flux_key_value_hooks(block, control, place_in_unet)
+    
+    def _is_flux_attention_block(self, module) -> bool:
+        """Check if a module is a FLUX-style attention block"""
+        # Check for FLUX-specific attributes
+        flux_indicators = [
+            hasattr(module, 'norm1') and hasattr(module, 'norm2'),  # Common in DiT
+            hasattr(module, 'attn') and hasattr(module, 'mlp'),     # DiT structure
+            hasattr(module, 'adaLN_modulation'),                    # Adaptive layer norm
+            hasattr(module, 'txt_attn'),                            # Text attention in double stream
+            hasattr(module, 'img_attn'),                            # Image attention in double stream
+        ]
+        
+        # Return True if it has multiple FLUX indicators
+        return sum(flux_indicators) >= 2
+    
+    def _get_flux_attention_module(self, block):
+        """Get the appropriate attention module from a FLUX block"""
+        # Try different possible attention module names in FLUX
+        possible_names = ['txt_attn']
+        
+        for name in possible_names:
+            if hasattr(block, name):
+                attn_module = getattr(block, name)
+                if attn_module is not None and hasattr(attn_module, 'to_q'):
+                    return attn_module
+        
+        return None
+    
+    def _register_flux_key_value_hooks(self, block, control, place_in_unet: str):
+        """Register key/value hooks for FLUX blocks"""
+        attn_module = self._get_flux_attention_module(block)
+        if attn_module is None:
+            return
+            
+        # Hook into FLUX key/value projections
+        if control._mode in [DiffusionVectorControlMode.ATTN_KEY, DiffusionVectorControlMode.ATTN_KEY_VALUE]:
+            if hasattr(attn_module, 'to_k'):
+                hook = attn_module.to_k.register_forward_hook(
+                    self._create_flux_key_hook(control, place_in_unet)
+                )
+                self.hooks.append(hook)
+        
+        if control._mode in [DiffusionVectorControlMode.ATTN_VALUE, DiffusionVectorControlMode.ATTN_KEY_VALUE]:
+            if hasattr(attn_module, 'to_v'):
+                hook = attn_module.to_v.register_forward_hook(
+                    self._create_flux_value_hook(control, place_in_unet)
+                )
+                self.hooks.append(hook)
     
     def _create_attn_output_hook(self, control: VectorControlHook, place_in_unet: str):
         """Create a forward hook for attention output"""
@@ -503,6 +651,111 @@ class HookManager:
                 return controlled_output.view(batch_size, seq_len, hidden_dim)
             else:
                 return control(output, place_in_unet)
+        
+        return hook_fn
+    
+    def _create_flux_attn_output_hook(self, control: VectorControlHook, place_in_unet: str):
+        """Create a forward hook for FLUX attention output"""
+        def hook_fn(module, input, output):
+            if not control.active:
+                return output
+            
+            # FLUX attention outputs may have different tensor structure
+            # Handle both single tensor and tuple outputs
+            if isinstance(output, tuple):
+                attn_output = output[0]
+                rest = output[1:]
+            else:
+                attn_output = output
+                rest = None
+            
+            # Apply control to the attention output
+            # Add extra dimension for compatibility with original code
+            output_expanded = attn_output[..., None, :]
+            controlled_output = control(output_expanded, place_in_unet)
+            controlled_output = controlled_output[..., 0, :]
+            
+            # Return in the same format as input
+            if rest is not None:
+                return (controlled_output,) + rest
+            else:
+                return controlled_output
+        
+        return hook_fn
+    
+    def _create_flux_attn_heads_hook(self, control: VectorControlHook, place_in_unet: str):
+        """Create a forward hook for FLUX attention heads"""
+        def hook_fn(module, input, output):
+            if not control.active:
+                return output
+            
+            # Handle tuple outputs from FLUX attention
+            if isinstance(output, tuple):
+                attn_output = output[0]
+                rest = output[1:]
+            else:
+                attn_output = output
+                rest = None
+            
+            # Apply control with proper tensor reshaping for FLUX
+            if len(attn_output.shape) == 4:  # [batch, heads, seq_len, head_dim]
+                output_transposed = attn_output.transpose(1, 2)
+                controlled_output = control(output_transposed, place_in_unet)
+                controlled_output = controlled_output.transpose(1, 2)
+            else:
+                controlled_output = control(attn_output, place_in_unet)
+            
+            if rest is not None:
+                return (controlled_output,) + rest
+            else:
+                return controlled_output
+        
+        return hook_fn
+    
+    def _create_flux_key_hook(self, control: VectorControlHook, place_in_unet: str):
+        """Create a forward hook for FLUX attention keys"""
+        def hook_fn(module, input, output):
+            if not control.active:
+                return output
+                
+            # FLUX keys may have different dimensionality than SD
+            batch_size, seq_len = output.shape[:2]
+            
+            if len(output.shape) == 3:  # [batch, seq_len, hidden_dim]
+                hidden_dim = output.shape[2]
+                # Infer head structure from module attributes if available
+                num_heads = getattr(module, 'num_heads', 8)  # Default fallback
+                head_dim = hidden_dim // num_heads if num_heads > 0 else hidden_dim
+                
+                if hidden_dim % head_dim == 0:
+                    output_reshaped = output.view(batch_size, seq_len, num_heads, head_dim)
+                    controlled_output = control(output_reshaped, place_in_unet)
+                    return controlled_output.view(batch_size, seq_len, hidden_dim)
+                    
+            return control(output, place_in_unet)
+        
+        return hook_fn
+    
+    def _create_flux_value_hook(self, control: VectorControlHook, place_in_unet: str):
+        """Create a forward hook for FLUX attention values"""
+        def hook_fn(module, input, output):
+            if not control.active:
+                return output
+                
+            # Similar to FLUX key hook but for values
+            batch_size, seq_len = output.shape[:2]
+            
+            if len(output.shape) == 3:  # [batch, seq_len, hidden_dim]
+                hidden_dim = output.shape[2]
+                num_heads = getattr(module, 'num_heads', 8)  # Default fallback
+                head_dim = hidden_dim // num_heads if num_heads > 0 else hidden_dim
+                
+                if hidden_dim % head_dim == 0:
+                    output_reshaped = output.view(batch_size, seq_len, num_heads, head_dim)
+                    controlled_output = control(output_reshaped, place_in_unet)
+                    return controlled_output.view(batch_size, seq_len, hidden_dim)
+                    
+            return control(output, place_in_unet)
         
         return hook_fn
     

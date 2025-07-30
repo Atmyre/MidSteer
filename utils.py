@@ -56,6 +56,14 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             device_map='balanced',
             safety_checker=None,
         )
+    elif model == 'flux':
+        pipe = FluxPipeline.from_pretrained(
+            "black-forest-labs/FLUX.1-dev", 
+            torch_dtype=torch.bfloat16,
+            token='***REMOVED***',
+#             device_map='balanced'
+        )
+        pipe.enable_model_cpu_offload()
     elif model == 'flux-schnell':
         pipe = FluxPipeline.from_pretrained(
             "black-forest-labs/FLUX.1-schnell", 
@@ -74,6 +82,10 @@ def get_num_denoising_steps(model: str) -> int:
         return 1
     elif model in ('sdxl',):
         return 30
+    elif model in ('flux',):
+        return 28  # FLUX.1-dev typically uses 28 steps
+    elif model in ('flux-schnell',):
+        return 4   # FLUX.1-schnell is optimized for 4 steps
     else:
         raise ValueError('Unknown model type')
 
@@ -93,11 +105,20 @@ def run_image_model(model_type: str, pipe, prompt: str, seed: int, device: torch
                      generator=torch.Generator(device=device).manual_seed(seed),
                      num_images_per_prompt=num_images,
                     ).images
+    elif model_type in ['flux']:
+        images = pipe(
+            prompt,
+            guidance_scale=3.5,
+            num_inference_steps=get_num_denoising_steps(model_type),
+            max_sequence_length=512,
+            generator=torch.Generator('cpu').manual_seed(seed),
+            num_images_per_prompt=num_images,
+        ).images
     elif model_type in ['flux-schnell']:
         images = pipe(
             prompt,
             guidance_scale=0.0,
-            num_inference_steps=1,
+            num_inference_steps=get_num_denoising_steps(model_type),
             max_sequence_length=256,
             generator=torch.Generator('cpu').manual_seed(seed),
             num_images_per_prompt=num_images,
