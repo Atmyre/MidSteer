@@ -39,7 +39,7 @@ class VectorControlHook(abc.ABC):
         self._diffusion_step = 0
         self._current_attn_layer = 0
         self._current_position = defaultdict(int)
-        self.num_attn_layers = num_layers
+        self.num_attn_layers = num_layers * 2  # TODO: roll back for non-flux models
 
     @property
     def active(self) -> bool:
@@ -666,9 +666,11 @@ class HookManager:
             # Handle both single tensor and tuple outputs
             if isinstance(output, tuple):
                 attn_output = output[0]
-                rest = output[1:]
+                encoder_attn_output = output[1]
+                rest = output[2:]
             else:
                 attn_output = output
+                encoder_attn_output = None
                 rest = None
             
             # Apply control to the attention output
@@ -676,10 +678,17 @@ class HookManager:
             output_expanded = attn_output[..., None, :]
             controlled_output = control(output_expanded, place_in_unet)
             controlled_output = controlled_output[..., 0, :].to(torch.bfloat16)
+
+            if encoder_attn_output is not None:
+                encoder_attn_output_expanded = encoder_attn_output[..., None, :]
+                controlled_encoder_output = control(encoder_attn_output_expanded, place_in_unet)
+                controlled_encoder_output = controlled_encoder_output[..., 0, :].to(torch.bfloat16)
+            else:
+                controlled_encoder_output = None
             
             # Return in the same format as input
             if rest is not None:
-                return (controlled_output,) + rest
+                return (controlled_output, controlled_encoder_output) + rest
             else:
                 return controlled_output
         
