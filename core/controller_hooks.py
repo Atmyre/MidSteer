@@ -39,7 +39,7 @@ class VectorControlHook(abc.ABC):
         self._diffusion_step = 0
         self._current_attn_layer = 0
         self._current_position = defaultdict(int)
-        self.num_attn_layers = num_layers * 2  # TODO: roll back for non-flux models
+        self.num_attn_layers = num_layers
 
     @property
     def active(self) -> bool:
@@ -414,12 +414,12 @@ class HookManager:
         if hasattr(model, 'joint_blocks'):
             for block in model.joint_blocks:
                 self._register_hooks_for_flux_block(block, "joint")
-                block_count += 1
+                block_count += 2
                 
         if hasattr(model, 'single_blocks'):
             for block in model.single_blocks:
                 self._register_hooks_for_flux_block(block, "single")
-                block_count += 1
+                block_count += 2
         
         # Also check transformer submodule
         # if hasattr(model, 'transformer'):
@@ -441,7 +441,7 @@ class HookManager:
                     # Determine place based on block type or name
                     place = "joint" #if "joint" in class_name.lower() or "joint" in name.lower() else "single"
                     self._register_hooks_for_flux_block(module, place)
-                    block_count += 1
+                    block_count += 2
         
         return block_count
     
