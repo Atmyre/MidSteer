@@ -155,7 +155,7 @@ def generate_comparison_table(experiment_data, task, output_file, beta_selection
     col_spec = "l|c|c|c|cccccc|"
     
     task_name_formatted = format_task_name(task)
-    task_name_escaped = task_name_formatted.replace("→", "\\rightarrow ") if task_name_formatted else task
+    task_name_escaped = task_name_formatted.replace("→", "$\\rightarrow$") if task_name_formatted else task
     
     table = LaTeXTableBuilder(
         caption=f"Renorm/Clip Comparison - {task_name_escaped}",
@@ -331,12 +331,16 @@ def main():
     
     # Generate tables for each task
     output_dir = Path(args.output_dir)
-    output_dir.mkdir(exist_ok=True)
+    # Create structured output directory for renorm/clip comparisons
+    comparison_output_dir = output_dir / "renorm_clip_comparison"
+    comparison_output_dir.mkdir(parents=True, exist_ok=True)
     
     enable_highlighting = not args.no_highlighting
     
+    print(f"Output will be saved to: {comparison_output_dir}")
+    
     for task in all_tasks:
-        output_file = output_dir / f"{args.experiment_name}_{task}_renorm_clip_comparison.tex"
+        output_file = comparison_output_dir / f"{args.experiment_name}_{task}_renorm_clip_comparison.tex"
         
         print(f"\nGenerating comparison table for task: {task}")
         print(f"Output file: {output_file}")
@@ -360,7 +364,7 @@ def main():
             import traceback
             traceback.print_exc()
     
-    print("\nAll tables generated successfully!")
+    print(f"\nAll tables generated successfully in: {comparison_output_dir}")
 
 
 if __name__ == "__main__":

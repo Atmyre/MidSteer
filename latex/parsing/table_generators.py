@@ -242,7 +242,7 @@ def generate_single_experiment_table(experiment_path, output_file, enable_highli
         
         # Escape task name for LaTeX
         task_name_formatted = format_task_name(task)
-        task_name_escaped = task_name_formatted.replace("→", "\\rightarrow ") if task_name_formatted else task
+        task_name_escaped = task_name_formatted.replace("→", "$\\rightarrow$") if task_name_formatted else task
         
         table = LaTeXTableBuilder(
             caption=f"Comprehensive Results: {exp_name_escaped} - {task_name_escaped}",
@@ -307,24 +307,52 @@ def generate_single_experiment_table(experiment_path, output_file, enable_highli
             task_data['mb_formatted'] = [orig_str for _, orig_str in task_data['mb_values']]
             task_data['mf1_formatted'] = [orig_str for _, orig_str in task_data['mf1_values']]
         
-        # Data rows
+        # Data rows - Group by method first for better visual organization
         row_index = 0
-        for (method, beta), group in task_df.groupby(['Method', 'Beta']):
+        
+        # Get unique methods in desired order
+        methods = sorted([m for m in task_df['Method'].unique() if m != 'None'])
+        if 'None' in task_df['Method'].unique():
+            methods = ['None'] + methods
+        
+        for method_idx, method in enumerate(methods):
+            method_df = task_df[task_df['Method'] == method]
             method_name = format_method_name(method)
-            beta_str = f"{beta:.1f}" if method != 'None' else "—"
             
-            # Get the formatted values for this row (SCS first, then TCS)
-            scs_str = task_data['scs_formatted'][row_index]
-            tcs_str = task_data['tcs_formatted'][row_index]
-            ab_str = task_data['ab_formatted'][row_index]
-            af1_str = task_data['af1_formatted'][row_index]
-            mb_str = task_data['mb_formatted'][row_index]
-            mf1_str = task_data['mf1_formatted'][row_index]
+            # Get all beta values for this method
+            betas = sorted(method_df['Beta'].unique())
             
-            row_cells = [method_name, beta_str, scs_str, tcs_str, ab_str, af1_str, mb_str, mf1_str]
+            # Generate rows for each beta value of this method
+            for beta_idx, beta in enumerate(betas):
+                beta_group = method_df[method_df['Beta'] == beta]
+                
+                if not beta_group.empty:
+                    beta_str = f"{beta:.1f}" if method != 'None' else "—"
+                    
+                    # Method name only on first row for each method
+                    if beta_idx == 0:
+                        method_cell = method_name
+                    else:
+                        method_cell = ""
+                    
+                    # Get the formatted values for this row
+                    scs_str = task_data['scs_formatted'][row_index]
+                    tcs_str = task_data['tcs_formatted'][row_index]
+                    ab_str = task_data['ab_formatted'][row_index]
+                    af1_str = task_data['af1_formatted'][row_index]
+                    mb_str = task_data['mb_formatted'][row_index]
+                    mf1_str = task_data['mf1_formatted'][row_index]
+                    
+                    row_cells = [method_cell, beta_str, scs_str, tcs_str, ab_str, af1_str, mb_str, mf1_str]
+                    
+                    # Custom row addition to avoid escaping LaTeX commands (like in compare_renorm_clip.py)
+                    row = " & ".join(row_cells) + " \\\\"
+                    table.lines.append(row)
+                    row_index += 1
             
-            table.add_data_row(row_cells)
-            row_index += 1
+            # Add line between methods (except after last method)
+            if method_idx < len(methods) - 1:
+                table.add_hline()
         
         # Get table content by using a temporary approach
         temp_filename = f"temp_table_{task_idx}.tex"
