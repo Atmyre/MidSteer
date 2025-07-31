@@ -76,8 +76,10 @@ if not args.not_steer:
         beta=args.beta,
         device=device
     )
-    
-    hook_manager = register_vector_controls_with_hooks(pipe.unet, controller)
+    try:
+        hook_manager = register_vector_controls_with_hooks(pipe.unet, controller)
+    except:
+        hook_manager = register_vector_controls_with_hooks(pipe.transformer, controller)
 else:
     controller = None
     hook_manager = None
@@ -91,7 +93,7 @@ if args.num_images_per_prompt == 1:
                 if args.not_steer:
                     file = 'orig.png'
                 elif args.steer_back and args.steer_type == 'casteer':
-                    file = f'casteer_{args.beta:g}.png'
+                    file = f'casteer_{args.beta:g}_1.png'
                 else:
                     file = f'{args.steer_type}_{args.alpha:g}.png'
                 path = f'{args.output}/{prompt}/{seed}/{file}'

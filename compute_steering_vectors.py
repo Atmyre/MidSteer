@@ -85,7 +85,11 @@ def gather_stats_for_prompt_pairs(
         compute_covariances=False,
     )
     
-    register_vector_controls_with_hooks(pipe.unet, pos_stats_handler, neg_stats_handler)
+    # print(pipe.transformer)
+    try:
+        register_vector_controls_with_hooks(pipe.unet, pos_stats_handler, neg_stats_handler)
+    except:
+        register_vector_controls_with_hooks(pipe.transformer, pos_stats_handler, neg_stats_handler)
 
     print("Gathering statistics for concept prompts...")
     for idx, (pos_prompt, neg_prompt) in tqdm.tqdm(

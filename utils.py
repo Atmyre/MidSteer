@@ -85,7 +85,7 @@ def get_num_denoising_steps(model: str) -> int:
     elif model in ('flux',):
         return 28  # FLUX.1-dev typically uses 28 steps
     elif model in ('flux-schnell',):
-        return 4   # FLUX.1-schnell is optimized for 4 steps
+        return 1   # FLUX.1-schnell is optimized for 4 steps
     else:
         raise ValueError('Unknown model type')
 

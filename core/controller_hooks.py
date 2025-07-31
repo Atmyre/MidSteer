@@ -102,7 +102,7 @@ class CrossAttentionOutputSteeringHook(VectorControlHook):
         identity_cov: bool = False, 
         zero_mu_neutral: bool = False,
         mm_normalize_centers: bool = False,
-        renormalize_after_steering: bool = False,
+        renormalize_after_steering: bool = True,
         intermediate_clipping: bool = True,
     ):
         super().__init__(mode=mode, num_layers=num_layers)
@@ -293,7 +293,7 @@ class CrossAttentionOutputSteeringHook(VectorControlHook):
 
         vector = vector.detach().clone()
 
-        if self.model_to_steer == ModelToSteer.LLAMA or (place_in_unet in ['up', 'mid'] or (place_in_unet == 'down' and not self.steer_only_up)): 
+        if self.model_to_steer == ModelToSteer.LLAMA or (place_in_unet in ['up', 'mid', 'joint'] or (place_in_unet == 'down' and not self.steer_only_up)): 
             num_steer = diffusion_step
 
             norm = torch.norm(vector, dim=-1, keepdim=True)
@@ -364,6 +364,7 @@ class HookManager:
         
         # Find all attention modules and register hooks
         block_count = self._register_hooks_recursive(model)
+        print("BLOCK COUNT", block_count)
         
         # Set the number of attention layers for all controls
         for control in self.controls:
@@ -421,24 +422,24 @@ class HookManager:
                 block_count += 1
         
         # Also check transformer submodule
-        if hasattr(model, 'transformer'):
-            transformer = model.transformer
-            if hasattr(transformer, 'joint_blocks'):
-                for block in transformer.joint_blocks:
-                    self._register_hooks_for_flux_block(block, "joint")
-                    block_count += 1
-            if hasattr(transformer, 'single_blocks'):
-                for block in transformer.single_blocks:
-                    self._register_hooks_for_flux_block(block, "single")
-                    block_count += 1
+        # if hasattr(model, 'transformer'):
+        #     transformer = model.transformer
+        #     if hasattr(transformer, 'joint_blocks'):
+        #         for block in transformer.joint_blocks:
+        #             self._register_hooks_for_flux_block(block, "joint")
+        #             block_count += 1
+        #     if hasattr(transformer, 'single_blocks'):
+        #         for block in transformer.single_blocks:
+        #             self._register_hooks_for_flux_block(block, "single")
+        #             block_count += 1
         
         # Fallback: search recursively for any FLUX blocks
         if block_count == 0:
             for name, module in model.named_modules():
                 class_name = module.__class__.__name__
-                if class_name in ['JointTransformerBlock', 'SingleTransformerBlock', 'MMDiTBlock', 'FluxTransformerBlock']:
+                if class_name in ['FluxTransformerBlock']:
                     # Determine place based on block type or name
-                    place = "joint" if "joint" in class_name.lower() or "joint" in name.lower() else "single"
+                    place = "joint" #if "joint" in class_name.lower() or "joint" in name.lower() else "single"
                     self._register_hooks_for_flux_block(module, place)
                     block_count += 1
         
@@ -551,7 +552,8 @@ class HookManager:
     def _get_flux_attention_module(self, block):
         """Get the appropriate attention module from a FLUX block"""
         # Try different possible attention module names in FLUX
-        possible_names = ['txt_attn']
+        # print(block)
+        possible_names = ['txt_attn', 'attn']
         
         for name in possible_names:
             if hasattr(block, name):
@@ -673,7 +675,7 @@ class HookManager:
             # Add extra dimension for compatibility with original code
             output_expanded = attn_output[..., None, :]
             controlled_output = control(output_expanded, place_in_unet)
-            controlled_output = controlled_output[..., 0, :]
+            controlled_output = controlled_output[..., 0, :].to(torch.bfloat16)
             
             # Return in the same format as input
             if rest is not None:
