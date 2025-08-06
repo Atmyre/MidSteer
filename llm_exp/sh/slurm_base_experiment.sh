@@ -1,16 +1,17 @@
 #! /usr/bin/env bash
-#SBATCH --partition=h100-camera-train
+#SBATCH --partition=camera-xlong
 #SBATCH --gpus=4
-#SBATCH --time=36:00:00
+#SBATCH --time=48:00:00
 #SBATCH --output=./llm_exp/logs/slurm-%x-%j.out
 #SBATCH --error=./llm_exp/logs/slurm-%x-%j.err
 
 
 set -eoux pipefail
 
+
 # Check if required arguments are provided
 if [ $# -lt 4 ]; then
-    echo "Usage: $0 <layer_type> <num_covariances> <token_aggregation_mode> <max_new_tokens> [strengths] [--mm_normalize_centers] [--intermediate_clipping] [--renormalize_after_steering]"
+    echo "Usage: $0 <layer_type> <num_covariances> <token_aggregation_mode> <max_new_tokens> [strengths] [--mm_normalize_centers] [--intermediate_clipping] [--renormalize_after_steering] [--zero_mu_neutral]"
     echo "Example: $0 self_attn 20000 all 100" 
     echo "Example with strengths: $0 self_attn 20000 all 100 '1.0 2.0 3.0'"
     echo "Example with optional flags: $0 self_attn 20000 all 100 '1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0' --mm_normalize_centers --intermediate_clipping"
@@ -38,6 +39,7 @@ fi
 mm_normalize_centers=""
 intermediate_clipping=""
 renormalize_after_steering=""
+zero_mu_neutral=""
 
 # Check for optional arguments
 for arg in "${@:$start_idx}"; do
@@ -51,6 +53,9 @@ for arg in "${@:$start_idx}"; do
         "--renormalize_after_steering")
             renormalize_after_steering="--renormalize_after_steering"
             ;;
+        "--zero_mu_neutral")
+            zero_mu_neutral="--zero_mu_neutral"
+            ;;
     esac
 done
 
@@ -63,7 +68,7 @@ else
 fi
 
 
-additional_steering_params="$mm_normalize_centers $intermediate_clipping $renormalize_after_steering"
+additional_steering_params="$mm_normalize_centers $intermediate_clipping $renormalize_after_steering $zero_mu_neutral"
 base_dir=./llm_exp/results/llama-2-7b-chat-hf/$SLURM_JOB_NAME
 
 export PYTHONPATH=.
@@ -85,7 +90,10 @@ if [ $num_covariances -eq 0 ]; then
         --max_new_tokens $max_new_tokens \
         --output_dir $covariances_dir &
 
-    additional_steering_params="$additional_steering_params --identity_cov --zero_mu_neutral"
+    additional_steering_params="$additional_steering_params --identity_cov"
+    if [ -z "$zero_mu_neutral" ]; then
+        additional_steering_params="$additional_steering_params --zero_mu_neutral"
+    fi
 else
     $run_cmd $python ./llm_estimate_covariances.py \
         --model_name $model_name \

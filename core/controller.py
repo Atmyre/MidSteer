@@ -148,7 +148,7 @@ class CrossAttentionOutputSteering(VectorControl):
                         b = torch.tensor(b).half().to(self.device)
                         self.mmsteer_vectors[num_steer][place_in_unet].append((W, b))
         elif steer_type in ('leace', 'mean_matching'):
-            self.leace_transforms = []
+            self.proj_transforms = []
             for mu_pos_concept, mu_neg_concept, mu_neutral_concept, cov_concept in zip(mu_pos, mu_neg, mu_neutral, cov):
                 concept_transforms = defaultdict(lambda: defaultdict(list))
                 for num_steer in mu_pos_concept:
@@ -176,27 +176,27 @@ class CrossAttentionOutputSteering(VectorControl):
                             sigma_plus_half = fractional_matrix_power_cov_torch(sigma, 0.5)
 
                             if steer_type == 'leace':
-                                steering_vector = (sigma_minus_half @ steering_vector.unsqueeze(-1))
+                                steering_vector = (sigma_minus_half @ steering_vector.unsqueeze(-1))  # [#heads, dim, 1]
                                 # Store projection components instead of full matrix
                                 # P = I - strength * proj_left @ proj_right
-                                proj_left = sigma_plus_half @ steering_vector  # [batch, dim, 1]
-                                proj_right = torch.linalg.pinv(steering_vector) @ sigma_minus_half  # [batch, 1, dim]
+                                proj_left = sigma_plus_half @ steering_vector  # [#heads, dim, 1]
+                                proj_right = torch.linalg.pinv(steering_vector) @ sigma_minus_half  # [#heads, 1, dim]
                             elif steer_type == 'mean_matching':
                                 if mm_normalize_centers:
                                     m_pos /= (torch.norm(m_pos, dim=-1, keepdim=True) + EPS)
                                     m_neg /= (torch.norm(m_neg, dim=-1, keepdim=True) + EPS)
                                 # pinv(x) = x.T / |x|^2
-                                m_pos = (sigma_minus_half @ m_pos.unsqueeze(-1))
-                                m_neg = (sigma_minus_half @ m_neg.unsqueeze(-1))
+                                m_pos = (sigma_minus_half @ m_pos.unsqueeze(-1))  # [#heads, dim, 1]
+                                m_neg = (sigma_minus_half @ m_neg.unsqueeze(-1))  # [#heads, dim, 1]
                                 # Store projection components instead of full matrix
                                 # P = I - strength * proj_left @ proj_right (same sign as LEACE)
                                 # Swap m_pos and m_neg to achieve the positive effect of mean_matching
-                                proj_left = sigma_plus_half @ (m_neg - m_pos)  # [batch, dim, 1] - swapped!
-                                proj_right = torch.linalg.pinv(m_neg) @ sigma_minus_half  # [batch, 1, dim]
+                                proj_left = sigma_plus_half @ (m_neg - m_pos)  # [#heads, dim, 1]
+                                proj_right = torch.linalg.pinv(m_neg) @ sigma_minus_half  # [#heads, 1, dim]
 
                             # Store projection components and metadata (always use -1 sign)
-                            concept_transforms[num_steer][place_in_unet].append((proj_left, proj_right, m_neutral))
-                self.leace_transforms.append(concept_transforms)
+                            concept_transforms[num_steer][place_in_unet].append((proj_left.mT, proj_right.mT, m_neutral))
+                self.proj_transforms.append(concept_transforms)
 
         else:
             raise ValueError(f'Unknown steer_type = {steer_type}')
@@ -206,12 +206,20 @@ class CrossAttentionOutputSteering(VectorControl):
 
 
     def steer_transform(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
+        assert len(vector.shape) == 4
         (proj_left, proj_right, m_neutral) = steering_tensors
 
         num_heads = proj_left.shape[0]
-        hidden_dim = proj_left.shape[1]
+        hidden_dim = proj_left.shape[2]
         batch_size = vector.shape[0]
         sequence_length = vector.shape[1]
+        assert vector.shape[2] == num_heads
+        assert vector.shape[3] == hidden_dim
+
+        # Assert proj_right dimensions for matrix multiplications
+        assert proj_right.shape[0] == num_heads
+        assert proj_right.shape[2] == proj_left.shape[1]
+        assert proj_right.shape[1] == hidden_dim
 
         # Center the vector around m_neutral
         vector_reshaped = convert_to_widest_dtype(vector, device=self.device).reshape(-1, num_heads, hidden_dim).transpose(0, 1)
@@ -219,14 +227,14 @@ class CrossAttentionOutputSteering(VectorControl):
         vector_centered = vector_reshaped - m_neutral_expanded
         
         # Compute projection and apply steering: vector @ (I - strength * proj_right.mT @ proj_left.mT)
-        projection_scores = vector_reshaped @ proj_right.mT.to(vector.device)
+        projection_scores = vector_centered @ proj_right.to(vector.device)  # output shape = [num_heads, *, k]
         
         if self.intermediate_clipping:
             projection_scores = torch.where(projection_scores > 0, projection_scores, 0.0)
         
-        steering_delta = -self.strength * (projection_scores @ proj_left.mT.to(vector.device))
+        steering_delta = -self.strength * (projection_scores @ proj_left.to(vector.device))  # output shape = [num_heads, *, hidden_dim]
         
-        vector_steered = (vector_centered + steering_delta + m_neutral_expanded).transpose(0, 1).reshape(batch_size, sequence_length, num_heads, hidden_dim)
+        vector_steered = (vector_reshaped + steering_delta).transpose(0, 1).reshape(batch_size, sequence_length, num_heads, hidden_dim)
         return vector_steered
     
     def steer_backward_CASteer_matrix_form(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
@@ -242,20 +250,22 @@ class CrossAttentionOutputSteering(VectorControl):
 
     # steering backward, i.e. removing notion from vector
     def steer_backward_CASteer(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
+        assert len(vector.shape) == 4
+
         batch_size = vector.shape[0]
         sequence_length = vector.shape[1]
         num_heads = vector.shape[2]
         hidden_dim = vector.shape[3]
         (b,_) = steering_tensors
-
         b_norm = b / torch.linalg.norm(b, dim=-1, keepdim=True)
 
+        vector_reshaped = convert_to_widest_dtype(vector, device=self.device).reshape(-1, num_heads, hidden_dim).transpose(0, 1)
+        b_norm_reshaped = b_norm.unsqueeze(-1)
+        
         # computing dot products between vector components and steering vector x
-        sim = (
+        projection_scores = (
             (
-                convert_to_widest_dtype(vector, device=self.device)
-                .reshape(-1, num_heads, hidden_dim)
-                .transpose(0, 1)
+                vector_reshaped
             ) @ b_norm.unsqueeze(-1)
         ).transpose(0, 1).reshape(batch_size, -1, num_heads, 1)
         
@@ -263,10 +273,12 @@ class CrossAttentionOutputSteering(VectorControl):
         # we will steer back only if dot product is positive, i.e.
         # if there's positive amount of information from steering vector in the vector
         if self.intermediate_clipping:
-            sim = torch.where(sim>0, sim, 0)
+            projection_scores = torch.where(projection_scores>0, projection_scores, 0)
+
+        steering_delta = - self.strength * projection_scores.to(vector.device) * b_norm.to(vector.device)
 
         # steer backward for beta*sim
-        return vector - self.strength * sim.to(vector.device) * b_norm.to(vector.device)
+        return vector + steering_delta
     
     def interpret(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
         batch_size = vector.shape[0]
@@ -335,8 +347,8 @@ class CrossAttentionOutputSteering(VectorControl):
                 vector[batch_slice, ...] = self.interpret(vector[batch_slice, ...], *self.casteer_vectors[0][num_steer][place_in_unet][block_index])
                 vector = self.renormalize(vector, norm)
             elif self.steer_type in ('leace', 'mean_matching'):
-                for leace_vectors in self.leace_transforms:
-                    vector[batch_slice, ...] = self.steer_transform(vector[batch_slice, ...], *leace_vectors[num_steer][place_in_unet][block_index])
+                for transforms in self.proj_transforms:
+                    vector[batch_slice, ...] = self.steer_transform(vector[batch_slice, ...], *transforms[num_steer][place_in_unet][block_index])
                     vector = self.renormalize(vector, norm)
             elif self.steer_type == 'mmsteer':
                 pos = (num_steer, place_in_unet, block_index)
