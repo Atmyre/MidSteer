@@ -352,10 +352,11 @@ class CrossAttentionOutputSteeringHook(VectorControlHook):
 class HookManager:
     """Manages registration and cleanup of hooks for vector controls"""
     
-    def __init__(self):
+    def __init__(self, flux_image_seq_len: int = None):
         self.hooks = []
         self.controls = []
         self.module_info = {}  # Maps modules to their place_in_unet info
+        self.flux_image_seq_len = flux_image_seq_len  # Optional: specify image sequence length for FLUX single blocks
         
     def register_vector_controls_with_hooks(self, model, *controls: VectorControlHook):
         """Register vector controls using PyTorch hooks instead of method overrides"""
@@ -414,12 +415,12 @@ class HookManager:
         if hasattr(model, 'joint_blocks'):
             for block in model.joint_blocks:
                 self._register_hooks_for_flux_block(block, "joint")
-                block_count += 2
+                block_count += 1
                 
         if hasattr(model, 'single_blocks'):
             for block in model.single_blocks:
                 self._register_hooks_for_flux_block(block, "single")
-                block_count += 2
+                block_count += 1
         
         # Also check transformer submodule
         # if hasattr(model, 'transformer'):
@@ -437,11 +438,15 @@ class HookManager:
         if block_count == 0:
             for name, module in model.named_modules():
                 class_name = module.__class__.__name__
-                if class_name in ['FluxTransformerBlock']:
+                # print(class_name)
+                if class_name in ['FluxTransformerBlock', 'FluxSingleTransformerBlock']:
                     # Determine place based on block type or name
-                    place = "joint" #if "joint" in class_name.lower() or "joint" in name.lower() else "single"
+                    if class_name == 'FluxSingleTransformerBlock':
+                        place = "single"
+                    else:
+                        place = "joint"
                     self._register_hooks_for_flux_block(module, place)
-                    block_count += 2
+                    block_count += 1
         
         return block_count
     
@@ -457,7 +462,7 @@ class HookManager:
                 # Standard Stable Diffusion blocks
                 self._register_hooks_for_sd_block(submodule, place_in_unet)
                 block_count += 1
-            elif class_name in ['JointTransformerBlock', 'SingleTransformerBlock', 'MMDiTBlock', 'FluxTransformerBlock']:
+            elif class_name in ['JointTransformerBlock', 'SingleTransformerBlock', 'MMDiTBlock', 'FluxTransformerBlock', 'FluxSingleTransformerBlock']:
                 # FLUX DiT blocks (various naming conventions)
                 self._register_hooks_for_flux_block(submodule, place_in_unet)
                 block_count += 1
@@ -563,6 +568,49 @@ class HookManager:
         
         return None
     
+    def _split_flux_single_tokens(self, tensor, image_seq_len=None):
+        """
+        Split FluxSingleTransformerBlock tokens into text and image parts.
+        
+        Args:
+            tensor: Input tensor with shape [batch, seq_len, ...]
+            image_seq_len: Length of image sequence. If None, try to infer from tensor shape.
+            
+        Returns:
+            tuple: (text_tokens, image_tokens) or (None, tensor) if no split needed
+        """
+        total_seq_len = tensor.shape[1]
+        
+        if image_seq_len is None:
+            # Try to infer image sequence length from common FLUX patterns
+            # Common FLUX image sequence lengths (based on image resolution and patch size)
+            # For example: 32x32 patches = 1024, 64x64 patches = 4096, etc.
+            common_image_lengths = [256, 1024, 4096, 16384]  # Common image token counts
+            
+            for img_len in common_image_lengths:
+                if total_seq_len > img_len and img_len > 0:
+                    # Use the largest image length that fits
+                    image_seq_len = img_len
+                    break
+            
+            if image_seq_len is None:
+                # If we can't infer, return the whole tensor as image tokens
+                return None, tensor
+        
+        if image_seq_len >= total_seq_len:
+            # If image length is greater than or equal to total sequence length,
+            # treat everything as image tokens
+            return None, tensor
+        
+        # Calculate text sequence length
+        text_seq_len = total_seq_len - image_seq_len
+        
+        # Split the tensor: text tokens first, then image tokens
+        text_tokens = tensor[:, :text_seq_len, ...]
+        image_tokens = tensor[:, text_seq_len:, ...]
+        
+        return text_tokens, image_tokens
+    
     def _register_flux_key_value_hooks(self, block, control, place_in_unet: str):
         """Register key/value hooks for FLUX blocks"""
         attn_module = self._get_flux_attention_module(block)
@@ -666,29 +714,45 @@ class HookManager:
             # Handle both single tensor and tuple outputs
             if isinstance(output, tuple):
                 attn_output = output[0]
-                encoder_attn_output = output[1]
-                rest = output[2:]
+                encoder_attn_output = output[1] if len(output) > 1 else None
+                rest = output[2:] if len(output) > 2 else ()
             else:
                 attn_output = output
                 encoder_attn_output = None
-                rest = None
+                rest = ()
             
-            # Apply control to the attention output
-            # Add extra dimension for compatibility with original code
-            output_expanded = attn_output[..., None, :]
-            controlled_output = control(output_expanded, place_in_unet)
-            controlled_output = controlled_output[..., 0, :].to(torch.bfloat16)
-
-            if encoder_attn_output is not None:
-                encoder_attn_output_expanded = encoder_attn_output[..., None, :]
-                controlled_encoder_output = control(encoder_attn_output_expanded, place_in_unet)
-                controlled_encoder_output = controlled_encoder_output[..., 0, :].to(torch.bfloat16)
+            # For FluxSingleTransformerBlock (place_in_unet == "single"), 
+            # we only work with the image part of the attention output
+            if place_in_unet == "single":
+                # Split the attention output into text and image parts
+                text_tokens, image_tokens = self._split_flux_single_tokens(attn_output, self.flux_image_seq_len)
+                
+                if image_tokens is not None:
+                    # Apply control only to the image part
+                    image_expanded = image_tokens[..., None, :]
+                    controlled_image = control(image_expanded, place_in_unet)
+                    controlled_image = controlled_image[..., 0, :].to(torch.bfloat16)
+                    
+                    # Reconstruct the full tensor with controlled image tokens
+                    if text_tokens is not None:
+                        controlled_output = torch.cat([text_tokens.to(torch.bfloat16), controlled_image], dim=1)
+                    else:
+                        controlled_output = controlled_image
+                else:
+                    # If we couldn't split, apply control to the whole output
+                    output_expanded = attn_output[..., None, :]
+                    controlled_output = control(output_expanded, place_in_unet)
+                    controlled_output = controlled_output[..., 0, :].to(torch.bfloat16)
             else:
-                controlled_encoder_output = None
-            
+                # For joint blocks or other block types, apply control to the full output
+                output_expanded = attn_output[..., None, :]
+                controlled_output = control(output_expanded, place_in_unet)
+                controlled_output = controlled_output[..., 0, :].to(torch.bfloat16)
+
             # Return in the same format as input
-            if rest is not None:
-                return (controlled_output, controlled_encoder_output) + rest
+            # print(f"SHAPE {place_in_unet}: {controlled_output.shape}")
+            if encoder_attn_output is not None or rest:
+                return (controlled_output, encoder_attn_output) + rest
             else:
                 return controlled_output
         
@@ -788,18 +852,19 @@ class HookManager:
 
 
 # Convenience functions for backward compatibility
-def register_vector_controls_with_hooks(model, *controls: VectorControlHook) -> HookManager:
+def register_vector_controls_with_hooks(model, *controls: VectorControlHook, flux_image_seq_len: int = None) -> HookManager:
     """
     Register vector controls using PyTorch hooks instead of method overrides.
     
     Args:
         model: The model to register controls on
         *controls: VectorControlHook instances to register
+        flux_image_seq_len: Optional image sequence length for FLUX single blocks (for text/image token splitting)
         
     Returns:
         HookManager: Manager object that can be used to remove hooks later
     """
-    manager = HookManager()
+    manager = HookManager(flux_image_seq_len=flux_image_seq_len)
     manager.register_vector_controls_with_hooks(model, *controls)
     return manager
 
