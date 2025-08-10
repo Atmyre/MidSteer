@@ -1,32 +1,32 @@
 #!/usr/bin/env bash
 
-# Script to zip scores.tsv files from llm_exp/results directory
-# while preserving directory structure
+# Script to archive scores.tsv files from llm_exp/results directory
+# while preserving directory structure using tar.gz
 #
 # Usage:
-#   ./zip_results.sh                           # zip all scores.tsv files
-#   ./zip_results.sh experiment1 experiment2   # zip specific experiments
-#   ./zip_results.sh "*midsteer*"              # zip experiments matching pattern
+#   ./zip_results.sh                           # archive all scores.tsv files
+#   ./zip_results.sh experiment1 experiment2   # archive specific experiments
+#   ./zip_results.sh "*midsteer*"              # archive experiments matching pattern
 
 # Function to show usage
 show_usage() {
     echo "Usage: $0 [experiment_name_or_pattern...]"
-    echo "  If no arguments provided, zips all scores.tsv files"
-    echo "  Otherwise, zips scores.tsv files from matching experiment directories"
+    echo "  If no arguments provided, archives all scores.tsv files"
+    echo "  Otherwise, archives scores.tsv files from matching experiment directories"
     echo ""
     echo "Examples:"
-    echo "  $0                           # zip all experiments"
-    echo "  $0 experiment1 experiment2   # zip specific experiments"
-    echo "  $0 '*midsteer*'              # zip experiments matching pattern"
+    echo "  $0                           # archive all experiments"
+    echo "  $0 experiment1 experiment2   # archive specific experiments"
+    echo "  $0 '*midsteer*'              # archive experiments matching pattern"
 }
 
-# Remove existing scores.zip if it exists
-[ -f "scores.zip" ] && rm scores.zip
+# Remove existing scores.tar.gz if it exists
+[ -f "scores.tar.gz" ] && rm scores.tar.gz
 
-# If no arguments provided, zip everything
+# If no arguments provided, archive everything
 if [ $# -eq 0 ]; then
-    echo "No arguments provided. Zipping all scores.tsv files..."
-    find llm_exp/results -name "scores.tsv" -type f -print0 | xargs -0 zip scores.zip
+    echo "No arguments provided. Archiving all scores.tsv files..."
+    find llm_exp/results -name "scores.tsv" -type f | tar -czf scores.tar.gz -T -
 else
     # Process each argument as experiment name or pattern
     temp_file_list=$(mktemp)
@@ -42,9 +42,9 @@ else
     
     # Check if any files were found
     if [ -s "$temp_file_list" ]; then
-        # Remove duplicates and create zip
-        sort -u "$temp_file_list" | tr '\n' '\0' | xargs -0 zip scores.zip
-        echo "Created scores.zip with $(wc -l < "$temp_file_list") files"
+        # Remove duplicates and create tar.gz archive
+        sort -u "$temp_file_list" | tar -czf scores.tar.gz -T -
+        echo "Created scores.tar.gz with $(wc -l < "$temp_file_list") files"
     else
         echo "No scores.tsv files found matching the specified patterns"
         echo "Available experiments:"
