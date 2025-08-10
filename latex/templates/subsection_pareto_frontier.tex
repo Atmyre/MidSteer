@@ -1,0 +1,22 @@
+\subsubsection{Pareto efficient frontier}
+
+In this set of experiments, we tried to find an optimal method by plotting the target concepts scores (TCS) and the Alpaca BLEU score for each method for each $\beta$. This allows us to compare different methods that can inherently have different optimal values of $\beta$. We construct a set of points which cannot be improved in both quantities by either switching to a different method or a different $\beta$, which we call efficiency frontier. If no points for the method lie below the efficiency frontier, than this method is optimal.
+
+All results are presnted in the following figures:
+
+\begin{itemize}
+    \item Dogs $\to$ Cats, with clipping: \ref{fig:midsteer_sa_50k_last_no_renorm_clip_all_strengths_dogs_to_cats_pareto_frontier}
+    \item Horses $\to$ Motorcycles, with clipping: \ref{fig:midsteer_sa_50k_last_no_renorm_clip_all_strengths_horses_to_motorcycles_pareto_frontier}
+    \item Dogs $\to$ Cats, without clipping: \ref{fig:midsteer_sa_50k_last_no_renorm_no_clip_all_strengths_dogs_to_cats_pareto_frontier}
+    \item Horses $\to$ Motorcycles, without clipping: \ref{fig:midsteer_sa_50k_last_no_renorm_no_clip_all_strengths_horses_to_motorcycles_pareto_frontier}
+\end{itemize}
+
+Mixed clipping results are presented in the following figures:
+
+\begin{itemize}
+    \item Horses $\to$ Motorcycles: \ref{fig:mixed_clip_comparison_horses_to_motorcycles_pareto_frontier}
+
+    \item Dogs $\to$ Cats:
+    \ref{fig:mixed_clip_comparison_dogs_to_cats_pareto_frontier}
+\end{itemize}
+

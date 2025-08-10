@@ -6,7 +6,6 @@ Each point represents a different beta value for each method.
 
 import os
 import sys
-import argparse
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,7 +16,7 @@ from matplotlib.patches import Polygon
 # Add the current directory to the path to import modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from table_generators import load_single_experiment_data
+from latex_utils import load_single_experiment_data
 
 def calculate_pareto_frontier(points):
     """
@@ -264,12 +263,7 @@ def plot_pareto_frontier(experiment_path, output_dir, enable_highlighting=True, 
             # Adjust layout and save
             plt.tight_layout()
             
-            # Save plot
-            output_file = output_dir / f"{exp_name}_{task}_pareto_frontier.png"
-            plt.savefig(output_file, dpi=300, bbox_inches='tight')
-            print(f"Saved plot: {output_file}")
-            
-            # Also save as PDF for publication quality
+            # Save as PDF only for publication quality
             output_file_pdf = output_dir / f"{exp_name}_{task}_pareto_frontier.pdf"
             plt.savefig(output_file_pdf, bbox_inches='tight')
             print(f"Saved plot: {output_file_pdf}")
@@ -284,105 +278,118 @@ def plot_pareto_frontier(experiment_path, output_dir, enable_highlighting=True, 
         traceback.print_exc()
 
 
-def main():
-    """Main function to parse command line arguments and generate Pareto frontier plots."""
-    parser = argparse.ArgumentParser(
-        description="Generate Pareto efficiency frontier plots from a single experiment directory or mixed experiments."
-    )
-    
-    parser.add_argument(
-        "experiment_path",
-        nargs='?',
-        help="Path to the experiment directory (e.g., /path/to/midsteer_sa_10k_last_renorm_clip)"
-    )
-    
-    parser.add_argument(
-        "--no-highlighting",
-        action="store_true",
-        help="Disable Pareto frontier highlighting (highlighting is enabled by default)"
-    )
-    
-    parser.add_argument(
-        "--output-dir",
-        default=".",
-        help="Output directory for generated plot files (default: current directory)"
-    )
-    
-    parser.add_argument(
-        "--mixed-experiments",
-        action="store_true",
-        help="Generate mixed experiment plots (mean_matching from no_clip, others from clip)"
-    )
-    
-    parser.add_argument(
-        "--clip-experiment",
-        help="Path to the clipping experiment directory (for mixed experiments)"
-    )
-    
-    parser.add_argument(
-        "--no-clip-experiment", 
-        help="Path to the no-clipping experiment directory (for mixed experiments)"
-    )
-    
-    args = parser.parse_args()
-    
-    # Create structured output directory for Pareto plots
-    output_dir = Path(args.output_dir)
-    pareto_output_dir = output_dir / "pareto_plots"
-    pareto_output_dir.mkdir(parents=True, exist_ok=True)
-    
-    print(f"Output will be saved to: {pareto_output_dir}")
-    
-    # Generate plots
-    enable_highlighting = not args.no_highlighting
-    
-    if args.mixed_experiments:
-        # Mixed experiments mode
-        if not args.clip_experiment or not args.no_clip_experiment:
-            print("Error: --mixed-experiments requires both --clip-experiment and --no-clip-experiment")
-            sys.exit(1)
-            
-        # Check if experiment paths exist
-        clip_path = Path(args.clip_experiment)
-        no_clip_path = Path(args.no_clip_experiment)
-        
-        if not clip_path.exists():
-            print(f"Error: Clip experiment path does not exist: {clip_path}")
-            sys.exit(1)
-        if not clip_path.is_dir():
-            print(f"Error: Clip experiment path is not a directory: {clip_path}")
-            sys.exit(1)
-            
-        if not no_clip_path.exists():
-            print(f"Error: No-clip experiment path does not exist: {no_clip_path}")
-            sys.exit(1)
-        if not no_clip_path.is_dir():
-            print(f"Error: No-clip experiment path is not a directory: {no_clip_path}")
-            sys.exit(1)
-        
-        mixed_experiment_paths = {
-            'clip': str(clip_path),
-            'no_clip': str(no_clip_path)
-        }
-        
-        plot_pareto_frontier(None, pareto_output_dir, enable_highlighting, mixed_experiment_paths)
-    else:
-        # Single experiment mode
-        if not args.experiment_path:
-            print("Error: experiment_path is required when not using --mixed-experiments")
-            sys.exit(1)
-            
-        experiment_path = Path(args.experiment_path)
-        if not experiment_path.exists():
-            print(f"Error: Experiment path does not exist: {experiment_path}")
-            sys.exit(1)
-        
-        if not experiment_path.is_dir():
-            print(f"Error: Experiment path is not a directory: {experiment_path}")
-            sys.exit(1)
-        
-        plot_pareto_frontier(str(experiment_path), pareto_output_dir, enable_highlighting)
+try:
+    from .artifacts import ChartGenerator
+except ImportError:
+    from artifacts import ChartGenerator
 
-
-if __name__ == "__main__":
-    main() 
+class ParetoFrontierChartGenerator(ChartGenerator):
+    """Generator for Pareto frontier charts."""
+    
+    def generate(self) -> str:
+        """Generate the Pareto frontier chart and LaTeX content."""
+        def _generate():
+            # Get the type-specific config
+            type_config = self.get_type_config('pareto_frontier_chart')
+            
+            # Create output directory for pareto plots
+            pareto_output_dir = self.output_dir / "pareto_plots"
+            pareto_output_dir.mkdir(parents=True, exist_ok=True)
+            
+            print(f"Generating Pareto frontier plots in: {pareto_output_dir}")
+            
+            # Call the plot_pareto_frontier function directly
+            if type_config.mixed_mode:
+                # Mixed experiment mode
+                mixed_experiment_paths = {
+                    'clip': type_config.clip_experiment,
+                    'no_clip': type_config.no_clip_experiment
+                }
+                plot_pareto_frontier(
+                    experiment_path=None, 
+                    output_dir=pareto_output_dir, 
+                    enable_highlighting=type_config.enable_highlighting, 
+                    mixed_experiment_paths=mixed_experiment_paths
+                )
+                exp_name = "mixed_clip_comparison"
+            else:
+                # Normal single experiment mode
+                plot_pareto_frontier(
+                    experiment_path=type_config.experiment_path, 
+                    output_dir=pareto_output_dir, 
+                    enable_highlighting=type_config.enable_highlighting
+                )
+                exp_name = Path(type_config.experiment_path).name
+            
+            # Find generated PDF files to include in LaTeX
+            if not pareto_output_dir.exists():
+                return "% Error: pareto_plots directory not created"
+            
+            # Look for PDF files that match this artifact's experiment configuration and task
+            if type_config.mixed_mode:
+                # Mixed mode: look for files starting with "mixed_clip_comparison"
+                # Filter by task based on artifact key
+                if "dogs_cats" in self.artifact_key:
+                    pdf_files = list(pareto_output_dir.glob("mixed_clip_comparison_dogs_to_cats_pareto_frontier.pdf"))
+                elif "horses_motorcycles" in self.artifact_key:
+                    pdf_files = list(pareto_output_dir.glob("mixed_clip_comparison_horses_to_motorcycles_pareto_frontier.pdf"))
+                else:
+                    pdf_files = list(pareto_output_dir.glob("mixed_clip_comparison_*_pareto_frontier.pdf"))
+            else:
+                # Normal mode: look for files that match the experiment name and task
+                experiment_name = Path(type_config.experiment_path).name
+                if "dogs_cats" in self.artifact_key:
+                    pdf_files = list(pareto_output_dir.glob(f"{experiment_name}_dogs_to_cats_pareto_frontier.pdf"))
+                elif "horses_motorcycles" in self.artifact_key:
+                    pdf_files = list(pareto_output_dir.glob(f"{experiment_name}_horses_to_motorcycles_pareto_frontier.pdf"))
+                else:
+                    pdf_files = list(pareto_output_dir.glob(f"{experiment_name}_*_pareto_frontier.pdf"))
+            
+            if not pdf_files:
+                return f"% Error: No PDF files found for artifact '{self.artifact_key}' (mixed_mode={type_config.mixed_mode})"
+            
+            # Generate LaTeX content for each PDF
+            latex_figures = []
+            for pdf_file in sorted(pdf_files):
+                # Extract task name from filename for caption
+                filename = pdf_file.stem
+                
+                # Create a readable caption from filename
+                if "dogs_to_cats" in filename:
+                    task_name = "Dogs → Cats"
+                elif "horses_to_motorcycles" in filename:
+                    task_name = "Horses → Motorcycles"
+                else:
+                    task_name = filename.replace("_", " ").title()
+                
+                # Use the provided caption (now required)
+                caption = self.config.caption
+                
+                # Generate unique label for each figure (include task to avoid conflicts)
+                # Extract task from filename: find "dogs_to_cats" or "horses_to_motorcycles" pattern
+                if "dogs_to_cats" in filename:
+                    task_suffix = "dogs_to_cats"
+                elif "horses_to_motorcycles" in filename:
+                    task_suffix = "horses_to_motorcycles"
+                else:
+                    # Fallback: use last meaningful parts of filename
+                    parts = filename.split('_')
+                    task_suffix = '_'.join(parts[-3:-1])  # Take last 2 meaningful parts before "pareto"
+                
+                unique_label = f"{self.label}_{task_suffix}"
+                
+                # Use relative path from output directory
+                relative_pdf_path = f"pareto_plots/{pdf_file.name}"
+                
+                figure_latex = f"""\\begin{{figure}}[htbp]
+    \\centering
+    \\includegraphics[width={type_config.width}\\linewidth,center]{{{relative_pdf_path}}}
+    \\caption{{{caption}}}
+    \\label{{{unique_label}}}
+\\end{{figure}}"""
+                
+                latex_figures.append(figure_latex)
+            
+            return '\\n\\n'.join(latex_figures)
+        
+        return self.safe_generate(_generate)

@@ -1,0 +1,31 @@
+\begin{table}[htbp]
+\centering
+\caption{Renorm/Clip Comparison - Horses$\rightarrow$Motorcycles}
+\label{tab:renorm_clip_horsestomotorcycles}
+\begin{tabular}{l|c|c|c|cccccc|}
+\hline
+Method & $\beta$ & Renorm & Clip & \multicolumn{6}{c|}{Metrics} \\
+ &  &  &  & SCS & TCS & A-BLEU & A-BertF1 & M-BLEU & M-BertF1 \\
+\hline
+Baseline & — & \checkmark & \checkmark & 8.64 & 0.60 & — & — & — & — \\
+ &  &  & \checkmark & \textbf{8.68} & 0.61 & — & — & — & — \\
+ &  & \checkmark &  & 8.63 & 0.55 & — & — & — & — \\
+ &  &  &  & \underline{8.64} & 0.59 & — & — & — & — \\
+\hline
+CASteer & 2.0 & \checkmark & \checkmark & 2.06 & \textbf{7.77} & 0.752 & 0.974 & 0.648 & 0.955 \\
+ &  &  & \checkmark & 2.10 & \underline{7.75} & 0.752 & 0.974 & 0.648 & 0.955 \\
+ &  & \checkmark &  & 2.61 & 7.01 & 0.666 & 0.964 & 0.555 & 0.942 \\
+ &  &  &  & 2.67 & 6.93 & 0.667 & 0.964 & 0.555 & 0.942 \\
+\hline
+LEACE & 2.0 & \checkmark & \checkmark & 4.53 & 4.86 & 0.867 & 0.986 & \underline{0.801} & \underline{0.974} \\
+ &  &  & \checkmark & 4.60 & 4.89 & 0.871 & 0.987 & \textbf{0.809} & \textbf{0.975} \\
+ &  & \checkmark &  & 5.31 & 3.63 & 0.797 & 0.979 & 0.707 & 0.962 \\
+ &  &  &  & 5.66 & 3.33 & 0.802 & 0.979 & 0.705 & 0.961 \\
+\hline
+Mean Matching & 2.0 & \checkmark & \checkmark & 2.84 & 6.81 & \textbf{0.903} & \textbf{0.990} & 0.751 & 0.968 \\
+ &  &  & \checkmark & 2.91 & 6.63 & \underline{0.901} & \underline{0.990} & 0.749 & 0.967 \\
+ &  & \checkmark &  & 3.08 & 6.58 & 0.856 & 0.985 & 0.742 & 0.966 \\
+ &  &  &  & 3.04 & 6.57 & 0.855 & 0.985 & 0.746 & 0.967 \\
+\hline
+\end{tabular}
+\end{table}

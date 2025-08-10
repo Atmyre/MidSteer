@@ -6,7 +6,6 @@ Analyzes experiments with pattern: midsteer_sa_{num_covariances}_last_no_renorm_
 
 import os
 import sys
-import argparse
 import re
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -17,36 +16,7 @@ import seaborn as sns
 # Add the current directory to the path to import modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from table_generators import load_single_experiment_data
-
-
-def parse_covariance_number(exp_name):
-    """
-    Parse the number of covariances from experiment name.
-    
-    Args:
-        exp_name: Experiment name like 'midsteer_sa_10k_last_no_renorm_clip' or 'midsteer_sa_10k_last_no_renorm_no_clip'
-        
-    Returns:
-        Integer number of covariances, or None if pattern doesn't match
-    """
-    # Pattern: midsteer_sa_{num}k?_last_no_renorm_(no_)?clip
-    pattern = r'midsteer_sa_(\d+(?:\.\d+)?)(k)?_last_no_renorm_(?:no_)?clip'
-    match = re.search(pattern, exp_name)
-    
-    if not match:
-        return None
-    
-    num_str = match.group(1)
-    multiplier = match.group(2)
-    
-    try:
-        num = float(num_str)
-        if multiplier == 'k':
-            num *= 1000
-        return int(num)
-    except ValueError:
-        return None
+from latex_utils import load_single_experiment_data
 
 
 def find_covariance_experiments(base_dir, pattern_template):
@@ -349,11 +319,7 @@ def plot_covariance_comparison(base_dir, output_dir, pattern_template, methods=[
         # Create a simple pattern identifier from the template
         pattern_id = pattern_template.replace('midsteer_sa_{num}_last_', '').replace('_', '-')
         
-        output_file = output_dir / f"covariance_comparison_{pattern_id}_combined-tasks_{safe_metric}{beta_suffix}.png"
-        plt.savefig(output_file, dpi=300, bbox_inches='tight')
-        print(f"Saved plot: {output_file}")
-        
-        # Also save as PDF
+        # Save as PDF only
         output_file_pdf = output_dir / f"covariance_comparison_{pattern_id}_combined-tasks_{safe_metric}{beta_suffix}.pdf"
         plt.savefig(output_file_pdf, bbox_inches='tight')
         print(f"Saved plot: {output_file_pdf}")
@@ -363,65 +329,65 @@ def plot_covariance_comparison(base_dir, output_dir, pattern_template, methods=[
     print(f"\nAll covariance comparison plots generated in: {output_dir}")
 
 
-def main():
-    """Main function to parse command line arguments and generate covariance comparison plots."""
-    parser = argparse.ArgumentParser(
-        description="Generate comparison plots for different numbers of covariances."
-    )
-    
-    parser.add_argument(
-        "base_dir",
-        help="Base directory containing experiment subdirectories (e.g., /path/to/llama-2-7b-chat-hf/)"
-    )
-    
-    parser.add_argument(
-        "--pattern",
-        default="midsteer_sa_{num}_last_no_renorm_no_clip",
-        help="Experiment name pattern with {num} placeholder (default: midsteer_sa_{num}_last_no_renorm_no_clip)"
-    )
-    
-    parser.add_argument(
-        "--output-dir",
-        default=".",
-        help="Output directory for generated plot files (default: current directory)"
-    )
-    
-    parser.add_argument(
-        "--methods",
-        nargs='+',
-        default=['leace', 'mean_matching'],
-        help="Methods to compare (default: leace mean_matching)"
-    )
-    
-    parser.add_argument(
-        "--beta",
-        type=float,
-        help="Filter by specific beta value (e.g., 2.0, 2.5). If not specified, uses all beta values."
-    )
-    
-    args = parser.parse_args()
-    
-    # Check if base directory exists
-    base_dir = Path(args.base_dir)
-    if not base_dir.exists():
-        print(f"Error: Base directory does not exist: {base_dir}")
-        sys.exit(1)
-    
-    if not base_dir.is_dir():
-        print(f"Error: Base directory is not a directory: {base_dir}")
-        sys.exit(1)
-    
-    # Create structured output directory
-    output_dir = Path(args.output_dir)
-    covariance_output_dir = output_dir / "covariance_plots"
-    covariance_output_dir.mkdir(parents=True, exist_ok=True)
-    
-    print(f"Output will be saved to: {covariance_output_dir}")
-    
-    # Generate plots
-    plot_covariance_comparison(str(base_dir), covariance_output_dir, args.pattern, 
-                             args.methods, args.beta)
+try:
+    from .artifacts import ChartGenerator
+except ImportError:
+    from artifacts import ChartGenerator
 
+class CovarianceComparisonChartGenerator(ChartGenerator):
+    """Generator for covariance comparison charts."""
+    
+    def generate(self) -> str:
+        """Generate covariance comparison chart and return LaTeX content."""
+        def _generate():
+            type_config = self.get_type_config('covariance_comparison_chart')
+            
+            # Create output directory for covariance plots
+            covariance_output_dir = self.output_dir / "covariance_plots"
+            covariance_output_dir.mkdir(parents=True, exist_ok=True)
+            
+            print(f"Generating covariance comparison plots in: {covariance_output_dir}")
+            
+            # Call the plotting function
+            plot_covariance_comparison(
+                base_dir=str(self.base_path),
+                output_dir=covariance_output_dir,  # Pass Path object directly
+                pattern_template=type_config.pattern,
+                methods=type_config.methods,
+                beta_filter=type_config.beta
+            )
+            
+            # Find generated PDF files
+            if not covariance_output_dir.exists():
+                return "% Error: covariance_plots directory not created"
+            
+            # Look for PDF files in the covariance_plots directory
+            pdf_files = list(covariance_output_dir.glob("*.pdf"))
+            if not pdf_files:
+                return "% Error: No PDF files generated in covariance_plots directory"
+            
+            # Generate LaTeX content for each PDF
+            latex_figures = []
+            for pdf_file in sorted(pdf_files):
+                # Use the provided caption (now required)
+                caption = self.config.caption
+                
+                # Generate label for this figure
+                figure_label = self.label
+                
+                # Create relative path for LaTeX inclusion
+                relative_path = f"covariance_plots/{pdf_file.name}"
+                
+                latex_content = f"""\\begin{{figure}}[htbp]
+    \\centering
+    \\includegraphics[width={type_config.width} \\linewidth,center]{{{relative_path}}}
+    \\caption{{{caption}}}
+    \\label{{{figure_label}}}
+\\end{{figure}}"""
+                
+                latex_figures.append(latex_content)
+            
+            return "\\n\\n".join(latex_figures)
+        
+        return self.safe_generate(_generate)
 
-if __name__ == "__main__":
-    main()

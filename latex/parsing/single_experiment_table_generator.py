@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Table generation functions for different types of LaTeX tables.
+High-level table generation functions for different types of LaTeX tables.
+
+This module contains table generation functions that use the utilities from latex_utils.py.
+Common data loading and formatting functions have been moved to latex_utils.py.
 """
 
 import pandas as pd
@@ -12,199 +15,37 @@ from collections import defaultdict
 try:
     from .latex_utils import (
         format_method_name, format_value, format_task_name,
-        LaTeXTableBuilder
+        LaTeXTableBuilder, format_value_with_ranking,
+        load_single_experiment_data, load_concept_scores_single,
+        load_alpaca_metrics_single, load_mmlu_metrics_single,
+        parse_method_and_beta, parse_task_name
     )
-    from .data_loader import parse_method_and_beta, parse_task_name
 except ImportError:
     from latex_utils import (
         format_method_name, format_value, format_task_name,
-        LaTeXTableBuilder
+        LaTeXTableBuilder, format_value_with_ranking,
+        load_single_experiment_data, load_concept_scores_single,
+        load_alpaca_metrics_single, load_mmlu_metrics_single,
+        parse_method_and_beta, parse_task_name
     )
-    from data_loader import parse_method_and_beta, parse_task_name
 
 
-def load_single_experiment_data(experiment_path):
-    """
-    Load all experimental data from a single experiment directory.
-    
-    Args:
-        experiment_path: Path to the experiment directory (e.g., /path/to/midsteer_sa_10k_last_renorm_clip)
-        
-    Returns:
-        pandas.DataFrame with columns: Method, Beta, Task, Target_Concept_Score, 
-                                      Alpaca_BLEU, Alpaca_BertF1, MMLU_BLEU, MMLU_BertF1
-    """
-    experiment_path = Path(experiment_path)
-    evaluation_dir = experiment_path / 'evaluation'
-    
-    if not evaluation_dir.exists():
-        raise FileNotFoundError(f"Evaluation directory not found: {evaluation_dir}")
-    
-    # Collect all data
-    all_data = defaultdict(dict)
-    
-    # Get all task directories
-    task_dirs = [d for d in evaluation_dir.iterdir() if d.is_dir()]
-    
-    for task_dir in task_dirs:
-        # Parse task name - only process base task directories (without __ suffix)
-        task_name = task_dir.name
-        if '_to_' in task_name and '__' not in task_name:
-            # Only process base task directories like "dogs_to_cats", not "dogs_to_cats__something"
-            source, target = parse_task_name(task_name)
-            if not source or not target:
-                continue
-            task_key = f"{source}_to_{target}"
-        else:
-            continue
-            
-        # Load concept scores for both target and source concepts
-        target_concept_scores = load_concept_scores_single(task_dir / 'eval', target)
-        source_concept_scores = load_concept_scores_single(task_dir / 'eval', source)
-        
-        # Load Alpaca metrics
-        alpaca_metrics = load_alpaca_metrics_single(task_dir / 'alpaca')
-        
-        # Load MMLU metrics
-        mmlu_metrics = load_mmlu_metrics_single(task_dir / 'mmlu')
-        
-        # Combine all metrics
-        all_methods_betas = set()
-        all_methods_betas.update(target_concept_scores.keys())
-        all_methods_betas.update(source_concept_scores.keys())
-        all_methods_betas.update(alpaca_metrics.keys())
-        all_methods_betas.update(mmlu_metrics.keys())
-        
-        for method_beta in all_methods_betas:
-            key = (*method_beta, task_key)
-            all_data[key]['target_concept_score'] = target_concept_scores.get(method_beta, None)
-            all_data[key]['source_concept_score'] = source_concept_scores.get(method_beta, None)
-            all_data[key]['alpaca_bleu'] = alpaca_metrics.get(method_beta, {}).get('bleu', None)
-            all_data[key]['alpaca_bert_f1'] = alpaca_metrics.get(method_beta, {}).get('bert_f1', None)
-            all_data[key]['mmlu_bleu'] = mmlu_metrics.get(method_beta, {}).get('bleu', None)
-            all_data[key]['mmlu_bert_f1'] = mmlu_metrics.get(method_beta, {}).get('bert_f1', None)
-    
-    # Convert to DataFrame
-    rows = []
-    for (method, beta, task), metrics in all_data.items():
-        row = {
-            'Method': method,
-            'Beta': beta,
-            'Task': task,
-            'Target_Concept_Score': metrics.get('target_concept_score'),
-            'Source_Concept_Score': metrics.get('source_concept_score'),
-            'Alpaca_BLEU': metrics.get('alpaca_bleu'),
-            'Alpaca_BertF1': metrics.get('alpaca_bert_f1'),
-            'MMLU_BLEU': metrics.get('mmlu_bleu'),
-            'MMLU_BertF1': metrics.get('mmlu_bert_f1')
-        }
-        rows.append(row)
-    
-    return pd.DataFrame(rows)
+# load_single_experiment_data moved to latex_utils.py
 
 
-def format_value_with_ranking(values, decimals=2):
-    """
-    Format a list of values with best (bold) and second best (underscore) highlighting.
-    
-    Args:
-        values: List of (value, original_string) tuples
-        decimals: Number of decimal places
-        
-    Returns:
-        List of formatted strings with LaTeX formatting
-    """
-    # Filter out None values and keep track of indices
-    valid_values = []
-    for i, (val, orig_str) in enumerate(values):
-        if val is not None and pd.notna(val):
-            valid_values.append((val, i, orig_str))
-    
-    if len(valid_values) == 0:
-        return [orig_str for _, orig_str in values]
-    
-    # Sort by value (descending for best first)
-    sorted_values = sorted(valid_values, key=lambda x: x[0], reverse=True)
-    
-    # Create result list
-    result = []
-    for i, (val, orig_str) in enumerate(values):
-        if val is None or pd.isna(val):
-            result.append(orig_str)
-        else:
-            # Find ranking of this value
-            rank = None
-            for j, (sorted_val, sorted_idx, _) in enumerate(sorted_values):
-                if sorted_idx == i:
-                    rank = j
-                    break
-            
-            if rank == 0:  # Best
-                result.append(f"BOLDXSTART{orig_str}BOLDXEND")
-            elif rank == 1:  # Second best
-                result.append(f"ULXSTART{orig_str}ULXEND")
-            else:
-                result.append(orig_str)
-    
-    return result
+# format_value_with_ranking moved to latex_utils.py
 
 
-def load_concept_scores_single(eval_path, target_concept):
-    """Load concept scores for target concept from eval/scores.tsv in a single experiment."""
-    scores_file = eval_path / 'scores.tsv'
-    if not scores_file.exists():
-        return {}
-    
-    df = pd.read_csv(scores_file, sep='\t')
-    target_df = df[df['concept'] == target_concept]
-    
-    scores = {}
-    for _, row in target_df.iterrows():
-        method, beta = parse_method_and_beta(row['file'])
-        scores[(method, beta)] = row['avg_score']
-    
-    return scores
+# load_concept_scores_single moved to latex_utils.py
 
 
-def load_alpaca_metrics_single(alpaca_path):
-    """Load Alpaca BLEU and Bert F1 scores from alpaca/scores.tsv in a single experiment."""
-    scores_file = alpaca_path / 'scores.tsv'
-    if not scores_file.exists():
-        return {}
-    
-    df = pd.read_csv(scores_file, sep='\t')
-    
-    metrics = {}
-    for _, row in df.iterrows():
-        method, beta = parse_method_and_beta(row['file'])
-        metrics[(method, beta)] = {
-            'bleu': row['bleu_mean'],
-            'bert_f1': row['bert_f1']
-        }
-    
-    return metrics
+# load_alpaca_metrics_single moved to latex_utils.py
 
 
-def load_mmlu_metrics_single(mmlu_path):
-    """Load MMLU BLEU and Bert F1 scores from mmlu/scores.tsv in a single experiment."""
-    scores_file = mmlu_path / 'scores.tsv'
-    if not scores_file.exists():
-        return {}
-    
-    df = pd.read_csv(scores_file, sep='\t')
-    
-    metrics = {}
-    for _, row in df.iterrows():
-        method, beta = parse_method_and_beta(row['file'])
-        metrics[(method, beta)] = {
-            'bleu': row['bleu_mean'],
-            'bert_f1': row['bert_f1']
-        }
-    
-    return metrics
+# load_mmlu_metrics_single moved to latex_utils.py
 
 
-def generate_single_experiment_table(experiment_path, output_file, enable_highlighting=True):
+def generate_single_experiment_table(experiment_path, output_file, enable_highlighting=True, custom_labels=None, return_content_only=False, task_filter=None, caption=None):
     """
     Generate separate comprehensive tables for each task in a single experiment.
     
@@ -212,6 +53,10 @@ def generate_single_experiment_table(experiment_path, output_file, enable_highli
         experiment_path: Path to the experiment directory
         output_file: Output LaTeX file path
         enable_highlighting: Whether to apply bold/underline highlighting for best/second-best results
+        custom_labels: Dictionary mapping task names to custom LaTeX labels
+        return_content_only: If True, return content without writing to file
+        task_filter: If provided, only generate table for this specific task
+        caption: Table caption (optional)
         
     Returns:
         LaTeX table content as string
@@ -228,8 +73,15 @@ def generate_single_experiment_table(experiment_path, output_file, enable_highli
     # Escape backslashes in experiment name for LaTeX
     exp_name_escaped = exp_name.replace("_", "\\_")
     
-    # Get unique tasks
-    tasks = sorted(df['Task'].unique())
+    # Get unique tasks, filter if task_filter is specified
+    if task_filter:
+        if task_filter in df['Task'].unique():
+            tasks = [task_filter]
+        else:
+            print(f"Task '{task_filter}' not found in data. Available tasks: {sorted(df['Task'].unique())}")
+            return ""
+    else:
+        tasks = sorted(df['Task'].unique())
     
     all_tables_content = []
     
@@ -244,9 +96,21 @@ def generate_single_experiment_table(experiment_path, output_file, enable_highli
         task_name_formatted = format_task_name(task)
         task_name_escaped = task_name_formatted.replace("→", "$\\rightarrow$") if task_name_formatted else task
         
+        # Use custom label if provided, otherwise use default
+        if custom_labels and task in custom_labels:
+            table_label = custom_labels[task]
+        else:
+            table_label = f"tab:{exp_name.replace('_', '')}_{task.replace('_', '')}"
+        
+        # Use provided caption or generate default
+        if caption is None:
+            table_caption = f"Comprehensive Results: {exp_name_escaped} - {task_name_escaped}"
+        else:
+            table_caption = caption
+        
         table = LaTeXTableBuilder(
-            caption=f"Comprehensive Results: {exp_name_escaped} - {task_name_escaped}",
-            label=f"tab:{exp_name.replace('_', '')}_{task.replace('_', '')}",
+            caption=table_caption,
+            label=table_label,
             col_spec=col_spec
         )
         
@@ -376,10 +240,47 @@ def generate_single_experiment_table(experiment_path, output_file, enable_highli
     combined_content = combined_content.replace("ULXSTART", "\\underline{")
     combined_content = combined_content.replace("ULXEND", "}")
     
-    # Save the corrected content
-    with open(output_file, 'w') as f:
-        f.write(combined_content)
-    
-    print(f"Single experiment comprehensive tables (one per task) saved to {output_file}")
+    # Save the corrected content if not return_content_only
+    if not return_content_only:
+        with open(output_file, 'w') as f:
+            f.write(combined_content)
+        print(f"Single experiment comprehensive tables (one per task) saved to {output_file}")
     
     return combined_content
+
+
+try:
+    from .artifacts import TableGenerator
+except ImportError:
+    from artifacts import TableGenerator
+
+class SingleExperimentTableGenerator(TableGenerator):
+    """Generator for single experiment result tables."""
+    
+    def generate(self) -> str:
+        """Generate the single experiment table LaTeX content."""
+        def _generate():
+            # Get the type-specific config
+            type_config = self.get_type_config('single_experiment_result')
+            
+            # Create a temporary output file path 
+            temp_output = self.output_dir / "temp_single_experiment.tex"
+            
+            # Generate custom labels using self.label (same pattern as RenormClipTableGenerator)
+            task = type_config.task_filter
+            custom_labels = {task: self.label}
+            
+            # Generate the table content using the existing function with custom labels
+            table_content = generate_single_experiment_table(
+                experiment_path=type_config.experiment_path,
+                output_file=str(temp_output),
+                enable_highlighting=type_config.enable_highlighting,
+                custom_labels=custom_labels,
+                return_content_only=True,
+                task_filter=type_config.task_filter,
+                caption=self.config.caption
+            )
+            
+            return table_content
+        
+        return self.safe_generate(_generate)

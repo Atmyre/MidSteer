@@ -6,7 +6,6 @@ For each task, creates a table showing all combinations of renorm/clip settings 
 
 import os
 import sys
-import argparse
 from pathlib import Path
 import pandas as pd
 from collections import defaultdict
@@ -14,7 +13,7 @@ from collections import defaultdict
 # Add the current directory to the path to import modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from table_generators import load_single_experiment_data
+from latex_utils import load_single_experiment_data
 from latex_utils import LaTeXTableBuilder, format_method_name, format_value, format_task_name
 
 
@@ -60,36 +59,8 @@ def load_experiment_data_with_settings(base_path, experiment_name):
     return results
 
 
-def select_beta_for_method(method, beta_values):
-    """
-    Select appropriate beta value for a given method.
-    
-    Args:
-        method: Method name
-        beta_values: Available beta values for this method
-        
-    Returns:
-        Selected beta value
-    """
-    # Default beta selection rules
-    if method == 'mean_matching':
-        # Prefer 2.0, but fall back to closest available
-        if 2.0 in beta_values:
-            return 2.0
-        else:
-            return min(beta_values, key=lambda x: abs(x - 2.0))
-    elif method == 'None':
-        return 0.0
-    else:
-        # For other methods, use the middle value or a reasonable default
-        beta_list = sorted(beta_values)
-        if len(beta_list) > 1:
-            return beta_list[len(beta_list) // 2]
-        else:
-            return beta_list[0]
 
-
-def generate_comparison_table(experiment_data, task, output_file, beta_selection=None, enable_highlighting=True):
+def generate_comparison_table(experiment_data, task, output_file, beta_value=2.0, enable_highlighting=True, custom_label=None, caption=None, return_content_only=False):
     """
     Generate a comparison table for a specific task.
     
@@ -97,8 +68,10 @@ def generate_comparison_table(experiment_data, task, output_file, beta_selection
         experiment_data: Dictionary mapping (renorm, clip) -> DataFrame
         task: Task name to generate table for
         output_file: Output LaTeX file path
-        beta_selection: Dictionary mapping method -> beta value (optional)
+        beta_value: Single beta value to use for all methods (default: 2.0)
         enable_highlighting: Whether to apply bold/underline highlighting
+        custom_label: Custom label to use instead of auto-generated one (optional)
+        caption: Table caption (optional)
         
     Returns:
         LaTeX table content as string
@@ -123,25 +96,20 @@ def generate_comparison_table(experiment_data, task, output_file, beta_selection
     if 'None' in all_df['Method'].unique():
         methods = ['None'] + methods
     
-    # For each method, determine the beta value to use
-    if beta_selection is None:
-        beta_selection = {}
-    
-    # Ensure all methods have beta values selected
-    for method in methods:
-        if method not in beta_selection:
-            method_df = all_df[all_df['Method'] == method]
-            available_betas = set(method_df['Beta'].unique())
-            beta_selection[method] = select_beta_for_method(method, available_betas)
-    
-    # Filter data to only include selected beta values
+    # For each method, use the specified beta value (or 0.0 for baseline)
+    # Filter data to only include the specified beta value for each method
     filtered_data = []
     for method in methods:
         method_df = all_df[all_df['Method'] == method]
-        if method in beta_selection:
-            beta_df = method_df[method_df['Beta'] == beta_selection[method]]
-            if not beta_df.empty:
-                filtered_data.append(beta_df)
+        if method == 'None':
+            # Baseline method uses beta=0.0
+            beta_df = method_df[method_df['Beta'] == 0.0]
+        else:
+            # All other methods use the specified beta value
+            beta_df = method_df[method_df['Beta'] == beta_value]
+        
+        if not beta_df.empty:
+            filtered_data.append(beta_df)
     
     if not filtered_data:
         print(f"No data found for selected beta values in task: {task}")
@@ -157,9 +125,16 @@ def generate_comparison_table(experiment_data, task, output_file, beta_selection
     task_name_formatted = format_task_name(task)
     task_name_escaped = task_name_formatted.replace("→", "$\\rightarrow$") if task_name_formatted else task
     
+    # Use custom label if provided, otherwise generate default
+    table_label = custom_label if custom_label else f"tab:renorm_clip_{task.replace('_', '')}"
+    
+    # Use provided caption or generate default
+    if caption is None:
+        caption = f"Renorm/Clip Comparison - {task_name_escaped}"
+    
     table = LaTeXTableBuilder(
-        caption=f"Renorm/Clip Comparison - {task_name_escaped}",
-        label=f"tab:renorm_clip_{task.replace('_', '')}",
+        caption=caption,
+        label=table_label,
         col_spec=col_spec
     )
     
@@ -200,7 +175,7 @@ def generate_comparison_table(experiment_data, task, output_file, beta_selection
     
     # Apply ranking formatting
     if enable_highlighting:
-        from table_generators import format_value_with_ranking
+        from latex_utils import format_value_with_ranking
         formatted_values = {}
         for key in all_values.keys():
             formatted_values[key] = format_value_with_ranking(all_values[key])
@@ -214,7 +189,7 @@ def generate_comparison_table(experiment_data, task, output_file, beta_selection
     for method_idx, method in enumerate(methods):
         method_df = final_df[final_df['Method'] == method]
         method_name = format_method_name(method)
-        beta_str = f"{beta_selection[method]:.1f}" if method != 'None' else "—"
+        beta_str = f"{beta_value:.1f}" if method != 'None' else "—"
         
         # Generate 4 rows for this method (all combinations)
         for config_idx, (renorm, clip) in enumerate([(True, True), (False, True), (True, False), (False, False)]):
@@ -251,8 +226,11 @@ def generate_comparison_table(experiment_data, task, output_file, beta_selection
         if method_idx < len(methods) - 1:
             table.add_hline()
     
-    # Save table
-    table_content = table.save(output_file)
+    # Get table content
+    if return_content_only:
+        table_content = table.finalize()
+    else:
+        table_content = table.save(output_file)
     
     # Post-process to fix LaTeX formatting
     table_content = table_content.replace("BOLDXSTART", "\\textbf{")
@@ -260,112 +238,74 @@ def generate_comparison_table(experiment_data, task, output_file, beta_selection
     table_content = table_content.replace("ULXSTART", "\\underline{")
     table_content = table_content.replace("ULXEND", "}")
     
-    # Save the corrected content
-    with open(output_file, 'w') as f:
-        f.write(table_content)
+    # Save the corrected content only if not return_content_only
+    if not return_content_only:
+        with open(output_file, 'w') as f:
+            f.write(table_content)
     
     return table_content
 
 
-def main():
-    """Main function to parse command line arguments and generate comparison tables."""
-    parser = argparse.ArgumentParser(
-        description="Generate LaTeX tables comparing different renorm and clip settings."
-    )
+try:
+    from .artifacts import TableGenerator
+except ImportError:
+    from artifacts import TableGenerator
+
+class RenormClipTableGenerator(TableGenerator):
+    """Generator for renorm/clip comparison tables."""
     
-    parser.add_argument(
-        "base_path",
-        help="Base path where experiments are located (e.g., /path/to/llm_exp/results/llama-2-7b-chat-hf)"
-    )
-    
-    parser.add_argument(
-        "experiment_name",
-        help="Base experiment name (e.g., midsteer_sa_50k_last)"
-    )
-    
-    parser.add_argument(
-        "--mean-matching-beta",
-        type=float,
-        default=2.0,
-        help="Beta value to use for mean matching method (default: 2.0)"
-    )
-    
-    parser.add_argument(
-        "--no-highlighting",
-        action="store_true",
-        help="Disable bold/underline highlighting for best/second-best results"
-    )
-    
-    parser.add_argument(
-        "--output-dir",
-        default=".",
-        help="Output directory for generated LaTeX files (default: current directory)"
-    )
-    
-    args = parser.parse_args()
-    
-    # Check if base path exists
-    base_path = Path(args.base_path)
-    if not base_path.exists():
-        print(f"Error: Base path does not exist: {base_path}")
-        sys.exit(1)
-    
-    # Load experiment data
-    print(f"Loading experiment data from: {base_path}")
-    experiment_data = load_experiment_data_with_settings(base_path, args.experiment_name)
-    
-    if not experiment_data:
-        print("Error: No experiment data found")
-        sys.exit(1)
-    
-    # Get all tasks
-    all_tasks = set()
-    for df in experiment_data.values():
-        all_tasks.update(df['Task'].unique())
-    
-    all_tasks = sorted(all_tasks)
-    print(f"Found tasks: {all_tasks}")
-    
-    # Beta selection
-    beta_selection = {'mean_matching': args.mean_matching_beta}
-    
-    # Generate tables for each task
-    output_dir = Path(args.output_dir)
-    # Create structured output directory for renorm/clip comparisons
-    comparison_output_dir = output_dir / "renorm_clip_comparison"
-    comparison_output_dir.mkdir(parents=True, exist_ok=True)
-    
-    enable_highlighting = not args.no_highlighting
-    
-    print(f"Output will be saved to: {comparison_output_dir}")
-    
-    for task in all_tasks:
-        output_file = comparison_output_dir / f"{args.experiment_name}_{task}_renorm_clip_comparison.tex"
-        
-        print(f"\nGenerating comparison table for task: {task}")
-        print(f"Output file: {output_file}")
-        
-        try:
-            table_content = generate_comparison_table(
-                experiment_data, 
-                task, 
-                str(output_file), 
-                beta_selection=beta_selection,
-                enable_highlighting=enable_highlighting
-            )
+    def generate(self) -> str:
+        """Generate the renorm/clip comparison table LaTeX content."""
+        def _generate():
+            # Extract config parameters from the type-specific config
+            type_config = self.get_type_config('renorm_clip_comparison_table')
             
-            if table_content:
-                print(f"Successfully generated table for {task}")
-            else:
-                print(f"No table generated for {task}")
+            base_path = Path(type_config.base_path)
+            experiment_name = type_config.experiment_name
+            
+            # Load data from all renorm/clip combinations
+            experiment_data = load_experiment_data_with_settings(base_path, experiment_name)
+            
+            if not experiment_data:
+                return f"% No data available for {experiment_name}"
+            
+            # Combine all data for task filtering
+            combined_data = []
+            for (renorm, clip), df in experiment_data.items():
+                df_copy = df.copy()
+                df_copy['Renorm'] = renorm
+                df_copy['Clip'] = clip
+                combined_data.append(df_copy)
+            
+            if not combined_data:
+                return f"% No data available for {experiment_name}"
                 
-        except Exception as e:
-            print(f"Error generating table for {task}: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    print(f"\nAll tables generated successfully in: {comparison_output_dir}")
-
-
-if __name__ == "__main__":
-    main() 
+            data = pd.concat(combined_data, ignore_index=True)
+            
+            # Get all tasks or filter by task if specified
+            if type_config.task_filter:
+                tasks = [type_config.task_filter]
+            else:
+                tasks = sorted(data['Task'].unique())
+            
+            tables_content = []
+            
+            for task in tasks:
+                # Generate table for this task (output_file not used since return_content_only=True)
+                table_content = generate_comparison_table(
+                    experiment_data,
+                    task,
+                    f"unused_{task}.tex",  # Filename not used since return_content_only=True
+                    beta_value=type_config.beta_value,
+                    enable_highlighting=type_config.enable_highlighting,
+                    custom_label=self.label,
+                    caption=self.config.caption,
+                    return_content_only=True
+                )
+                
+                if table_content:
+                    tables_content.append(table_content)
+            
+            return '\n\n'.join(tables_content)
+        
+        return self.safe_generate(_generate)

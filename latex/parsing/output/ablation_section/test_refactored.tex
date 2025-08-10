@@ -1,0 +1,405 @@
+\subsection{Ablations}
+
+\subsubsection{Renorm / CLIP comparisons}
+
+Tables \ref{tab:renorm_clip_table_dogstocats} show results with and without the renormalization step and with or without the clipping step.
+
+The renormalization step is introduced in the same way as for CASteer:
+
+\begin{align*}
+    \hat{h}_{norm} = \frac{f(h)}{\norm{f(h)}} \cdot \norm{h}    
+\end{align*}
+, where $f$ is a steering function (either CASteer, LEACE or MidSteer).
+
+
+For clipping, first let us notice that when considering either LEACE, CASteer or MidSteer, any transformation $f(h) = Ah + b$ has the form:
+
+\begin{align*}
+    A &= I - \beta U V^T \\
+    b &= c - Ac \\
+    f(h) &= A (h-c) + c = h - \underbrace{\beta UV^T \tilde{h}}_{=\Delta}
+\end{align*}
+
+, for some $c \in \mathbb{R}^d$, and $U, V \in \mathbb{R}^{d \times k}$ and $\tilde{h} = h - c$. Here, for CASteer $c=0$ and $U = V = s$. For LEACE and MidSteer, $c=\mathbb{R}[X]$ and $U, V$ are defined in theorems.
+
+We introduce clipping in a similar way as for CASteer: $f(h) = h - \beta U \max(V^T \tilde{h}, 0)$. The reason behind this is that $V^T u$ in all methods computes such vector $a$ s.t. $Cov(a^T, X)$ is as close to $u$ as possible. In other words, it computes per concept linear regression coefficients for $Z$. And we want to nullify those concepts which are not present, or present in negative form.
+
+The results for this can be found in \ref{tab:renorm_clip_table_dogstocats} and \ref{tab:renorm_clip_table_horsestomotorcycles}. As can be seen, renormalization does not help either method much, so the next tables will be presented without it.
+
+
+Clipping helps CASteer and LEACE more because in the LLM setup for $\beta=2$ they can oscillate back and forth for alternating tokens. Clipping also improves the results of MidSteer on Alpaca and MMLU, signifying that it helps mitigate unwanted changes in real-life scenarios where concrete concepts are not present. Since MidSteer already exhibits good results on these datasets, and without clipping it can be re-written in pure matrix-multiplication form (without altering the architecture of a neural network), we will present results on MidSteer without clipping.
+
+\newpage
+
+
+\begin{table}[htbp]
+\centering
+\caption{Renorm/Clip Comparison - Dogs$\to$Cats}
+\label{tab:renorm_clip_table_dogstocats}
+\begin{tabular}{l|c|c|c|cccccc|}
+\hline
+Method & $\beta$ & Renorm & Clip & \multicolumn{6}{c|}{Metrics} \\
+ &  &  &  & SCS & TCS & A-BLEU & A-BertF1 & M-BLEU & M-BertF1 \\
+\hline
+Baseline & — & \checkmark & \checkmark & \textbf{8.68} & 0.97 & — & — & — & — \\
+ &  &  & \checkmark & 8.64 & 1.00 & — & — & — & — \\
+ &  & \checkmark &  & \underline{8.67} & 0.95 & — & — & — & — \\
+ &  &  &  & 8.65 & 0.96 & — & — & — & — \\
+\hline
+CASteer & 2.0 & \checkmark & \checkmark & 4.64 & 5.60 & 0.776 & 0.976 & 0.753 & 0.968 \\
+ &  &  & \checkmark & 4.58 & 5.72 & 0.779 & 0.977 & 0.754 & 0.968 \\
+ &  & \checkmark &  & 6.05 & 4.13 & 0.667 & 0.964 & 0.556 & 0.942 \\
+ &  &  &  & 6.11 & 3.98 & 0.667 & 0.964 & 0.558 & 0.942 \\
+\hline
+LEACE & 2.0 & \checkmark & \checkmark & 3.58 & 6.25 & 0.880 & 0.988 & \underline{0.866} & \underline{0.983} \\
+ &  &  & \checkmark & 3.55 & 6.46 & 0.882 & 0.988 & \textbf{0.869} & \textbf{0.983} \\
+ &  & \checkmark &  & 4.17 & 5.42 & 0.814 & 0.980 & 0.719 & 0.963 \\
+ &  &  &  & 4.01 & 5.45 & 0.814 & 0.980 & 0.712 & 0.962 \\
+\hline
+Mean Matching & 2.0 & \checkmark & \checkmark & 3.20 & 7.00 & \textbf{0.928} & \textbf{0.993} & 0.841 & 0.979 \\
+ &  &  & \checkmark & 3.11 & \textbf{7.09} & \underline{0.927} & \underline{0.993} & 0.837 & 0.979 \\
+ &  & \checkmark &  & 3.16 & \underline{7.07} & 0.862 & 0.986 & 0.815 & 0.976 \\
+ &  &  &  & 3.08 & 7.05 & 0.865 & 0.986 & 0.815 & 0.976 \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Renorm/Clip Comparison - Horses$\to$Motorcycles}
+\label{tab:renorm_clip_table_horsestomotorcycles}
+\begin{tabular}{l|c|c|c|cccccc|}
+\hline
+Method & $\beta$ & Renorm & Clip & \multicolumn{6}{c|}{Metrics} \\
+ &  &  &  & SCS & TCS & A-BLEU & A-BertF1 & M-BLEU & M-BertF1 \\
+\hline
+Baseline & — & \checkmark & \checkmark & 8.64 & 0.60 & — & — & — & — \\
+ &  &  & \checkmark & \textbf{8.68} & 0.61 & — & — & — & — \\
+ &  & \checkmark &  & 8.63 & 0.55 & — & — & — & — \\
+ &  &  &  & \underline{8.64} & 0.59 & — & — & — & — \\
+\hline
+CASteer & 2.0 & \checkmark & \checkmark & 2.06 & \textbf{7.77} & 0.752 & 0.974 & 0.648 & 0.955 \\
+ &  &  & \checkmark & 2.10 & \underline{7.75} & 0.752 & 0.974 & 0.648 & 0.955 \\
+ &  & \checkmark &  & 2.61 & 7.01 & 0.666 & 0.964 & 0.555 & 0.942 \\
+ &  &  &  & 2.67 & 6.93 & 0.667 & 0.964 & 0.555 & 0.942 \\
+\hline
+LEACE & 2.0 & \checkmark & \checkmark & 4.53 & 4.86 & 0.867 & 0.986 & \underline{0.801} & \underline{0.974} \\
+ &  &  & \checkmark & 4.60 & 4.89 & 0.871 & 0.987 & \textbf{0.809} & \textbf{0.975} \\
+ &  & \checkmark &  & 5.31 & 3.63 & 0.797 & 0.979 & 0.707 & 0.962 \\
+ &  &  &  & 5.66 & 3.33 & 0.802 & 0.979 & 0.705 & 0.961 \\
+\hline
+Mean Matching & 2.0 & \checkmark & \checkmark & 2.84 & 6.81 & \textbf{0.903} & \textbf{0.990} & 0.751 & 0.968 \\
+ &  &  & \checkmark & 2.91 & 6.63 & \underline{0.901} & \underline{0.990} & 0.749 & 0.967 \\
+ &  & \checkmark &  & 3.08 & 6.58 & 0.856 & 0.985 & 0.742 & 0.966 \\
+ &  &  &  & 3.04 & 6.57 & 0.855 & 0.985 & 0.746 & 0.967 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Raw results}
+
+The raw results for different experiments and strengths of the method are presented in the following tables:
+\begin{itemize}
+    \item No renormalization, with clipping, steering dogs to cats: \ref{tab:single_experiment_table_with_clipping_dogs_to_cats}
+
+    \item No renormalization, with clipping, steering horses to motorcycles: \ref{tab:single_experiment_table_with_clipping_horses_to_motorcycles}
+
+    \item No renormalization, without clipping, steering dogs to cats: \ref{tab:single_experiment_table_without_clipping_dogs_to_cats}
+
+    \item No renormalization, without clipping, steering horses to motorcycles: \ref{tab:single_experiment_table_without_clipping_horses_to_motorcycles}
+\end{itemize}
+
+
+\begin{table}[htbp]
+\centering
+\caption{Comprehensive Results: midsteer\_sa\_50k\_last\_no\_renorm\_clip\_all\_strengths - Dogs$\to$Cats}
+\label{tab:single_experiment_table_with_clipping_dogs_to_cats}
+\begin{tabular}{l|l|cccccc|}
+\hline
+Method & $\beta$ & \multicolumn{6}{c|}{Dogs$\rightarrow$Cats} \\
+ &  & SCS & TCS & A-BLEU & A-BertF1 & M-BLEU & M-BertF1 \\
+\hline
+Baseline & — & \textbf{8.63} & 0.96 & — & — & — & — \\
+\hline
+CASteer & 1.0 & \underline{8.62} & 1.20 & 0.857 & 0.985 & 0.856 & 0.981 \\
+ & 1.5 & 7.83 & 2.17 & 0.810 & 0.980 & 0.802 & 0.974 \\
+ & 2.0 & 4.56 & 5.69 & 0.779 & 0.977 & 0.754 & 0.968 \\
+ & 2.5 & 3.55 & 6.55 & 0.745 & 0.973 & 0.715 & 0.963 \\
+ & 3.0 & 3.33 & 6.87 & 0.709 & 0.969 & 0.686 & 0.959 \\
+ & 3.5 & 2.99 & 7.24 & 0.682 & 0.966 & 0.649 & 0.954 \\
+ & 4.0 & 2.78 & 7.69 & 0.659 & 0.963 & 0.621 & 0.950 \\
+ & 4.5 & 2.61 & 7.68 & 0.636 & 0.960 & 0.595 & 0.947 \\
+ & 5.0 & 2.53 & 7.82 & 0.615 & 0.958 & 0.573 & 0.944 \\
+\hline
+LEACE & 1.0 & 8.48 & 1.25 & 0.925 & 0.993 & \textbf{0.927} & \textbf{0.990} \\
+ & 1.5 & 5.48 & 4.52 & 0.901 & 0.990 & 0.898 & 0.987 \\
+ & 2.0 & 3.54 & 6.35 & 0.882 & 0.988 & 0.869 & 0.983 \\
+ & 2.5 & 2.83 & 7.09 & 0.864 & 0.986 & 0.845 & 0.980 \\
+ & 3.0 & 2.72 & 7.39 & 0.849 & 0.984 & 0.825 & 0.977 \\
+ & 3.5 & 2.54 & 7.62 & 0.832 & 0.983 & 0.806 & 0.975 \\
+ & 4.0 & 2.53 & 7.63 & 0.817 & 0.981 & 0.785 & 0.972 \\
+ & 4.5 & 2.37 & 7.83 & 0.804 & 0.980 & 0.767 & 0.970 \\
+ & 5.0 & 2.28 & 7.82 & 0.792 & 0.978 & 0.753 & 0.968 \\
+\hline
+Mean Matching & 1.0 & 8.41 & 1.36 & \textbf{0.952} & \textbf{0.996} & \underline{0.915} & \underline{0.989} \\
+ & 1.5 & 5.35 & 4.89 & \underline{0.939} & \underline{0.995} & 0.875 & 0.984 \\
+ & 2.0 & 2.96 & 7.23 & 0.927 & 0.993 & 0.837 & 0.979 \\
+ & 2.5 & 2.37 & 7.84 & 0.913 & 0.992 & 0.808 & 0.975 \\
+ & 3.0 & 2.19 & 8.23 & 0.902 & 0.990 & 0.786 & 0.972 \\
+ & 3.5 & 1.94 & 8.34 & 0.892 & 0.989 & 0.760 & 0.969 \\
+ & 4.0 & 1.77 & \underline{8.51} & 0.880 & 0.988 & 0.735 & 0.966 \\
+ & 4.5 & 1.66 & 8.50 & 0.869 & 0.987 & 0.716 & 0.963 \\
+ & 5.0 & 1.65 & \textbf{8.55} & 0.858 & 0.985 & 0.690 & 0.960 \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Comprehensive Results: midsteer\_sa\_50k\_last\_no\_renorm\_clip\_all\_strengths - Horses$\to$Motorcycles}
+\label{tab:single_experiment_table_with_clipping_horses_to_motorcycles}
+\begin{tabular}{l|l|cccccc|}
+\hline
+Method & $\beta$ & \multicolumn{6}{c|}{Horses$\rightarrow$Motorcycles} \\
+ &  & SCS & TCS & A-BLEU & A-BertF1 & M-BLEU & M-BertF1 \\
+\hline
+Baseline & — & \textbf{8.65} & 0.58 & — & — & — & — \\
+\hline
+CASteer & 1.0 & \underline{8.61} & 0.72 & 0.836 & 0.983 & 0.771 & 0.970 \\
+ & 1.5 & 6.24 & 3.24 & 0.787 & 0.978 & 0.697 & 0.961 \\
+ & 2.0 & 2.18 & 7.65 & 0.752 & 0.974 & 0.648 & 0.955 \\
+ & 2.5 & 1.84 & 8.11 & 0.717 & 0.970 & 0.598 & 0.948 \\
+ & 3.0 & 1.77 & 8.26 & 0.689 & 0.968 & 0.564 & 0.944 \\
+ & 3.5 & 1.82 & 8.26 & 0.666 & 0.965 & 0.533 & 0.940 \\
+ & 4.0 & 1.85 & 8.27 & 0.636 & 0.961 & 0.504 & 0.937 \\
+ & 4.5 & 1.85 & 8.28 & 0.612 & 0.958 & 0.475 & 0.933 \\
+ & 5.0 & 1.75 & 8.34 & 0.582 & 0.955 & 0.444 & 0.929 \\
+\hline
+LEACE & 1.0 & 8.57 & 0.67 & 0.917 & 0.992 & \textbf{0.883} & \textbf{0.985} \\
+ & 1.5 & 8.23 & 1.02 & 0.894 & 0.989 & 0.846 & 0.980 \\
+ & 2.0 & 4.58 & 4.85 & 0.871 & 0.987 & 0.809 & 0.975 \\
+ & 2.5 & 2.47 & 7.13 & 0.845 & 0.984 & 0.776 & 0.971 \\
+ & 3.0 & 1.93 & 7.95 & 0.827 & 0.982 & 0.746 & 0.967 \\
+ & 3.5 & 1.77 & 8.14 & 0.811 & 0.980 & 0.719 & 0.964 \\
+ & 4.0 & 1.72 & 8.21 & 0.791 & 0.978 & 0.694 & 0.960 \\
+ & 4.5 & 1.74 & 8.31 & 0.776 & 0.976 & 0.676 & 0.958 \\
+ & 5.0 & 1.68 & 8.34 & 0.764 & 0.975 & 0.658 & 0.956 \\
+\hline
+Mean Matching & 1.0 & 8.56 & 0.70 & \textbf{0.940} & \textbf{0.994} & \underline{0.857} & \underline{0.981} \\
+ & 1.5 & 6.92 & 2.48 & \underline{0.921} & \underline{0.992} & 0.796 & 0.973 \\
+ & 2.0 & 2.95 & 6.66 & 0.901 & 0.990 & 0.749 & 0.967 \\
+ & 2.5 & 1.92 & 8.06 & 0.883 & 0.988 & 0.699 & 0.961 \\
+ & 3.0 & 1.76 & 8.32 & 0.868 & 0.987 & 0.664 & 0.956 \\
+ & 3.5 & 1.65 & \textbf{8.46} & 0.853 & 0.985 & 0.636 & 0.953 \\
+ & 4.0 & 1.65 & 8.32 & 0.840 & 0.983 & 0.610 & 0.949 \\
+ & 4.5 & 1.58 & 8.44 & 0.821 & 0.981 & 0.587 & 0.946 \\
+ & 5.0 & 1.48 & \underline{8.44} & 0.807 & 0.980 & 0.573 & 0.945 \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Comprehensive Results: midsteer\_sa\_50k\_last\_no\_renorm\_no\_clip\_all\_strengths - Dogs$\to$Cats}
+\label{tab:single_experiment_table_without_clipping_dogs_to_cats}
+\begin{tabular}{l|l|cccccc|}
+\hline
+Method & $\beta$ & \multicolumn{6}{c|}{Dogs$\rightarrow$Cats} \\
+ &  & SCS & TCS & A-BLEU & A-BertF1 & M-BLEU & M-BertF1 \\
+\hline
+Baseline & — & \textbf{8.66} & 1.02 & — & — & — & — \\
+\hline
+CASteer & 1.0 & \underline{8.62} & 1.12 & 0.786 & 0.977 & 0.690 & 0.959 \\
+ & 1.5 & 8.18 & 1.92 & 0.714 & 0.969 & 0.610 & 0.949 \\
+ & 2.0 & 5.94 & 4.04 & 0.667 & 0.964 & 0.558 & 0.942 \\
+ & 2.5 & 4.98 & 4.41 & 0.626 & 0.960 & 0.508 & 0.936 \\
+ & 3.0 & 4.74 & 4.57 & 0.586 & 0.955 & 0.468 & 0.931 \\
+ & 3.5 & 4.63 & 4.77 & 0.549 & 0.951 & 0.435 & 0.926 \\
+ & 4.0 & 4.56 & 4.75 & 0.507 & 0.946 & 0.403 & 0.922 \\
+ & 4.5 & 4.40 & 4.76 & 0.472 & 0.943 & 0.377 & 0.919 \\
+ & 5.0 & 4.44 & 4.91 & 0.432 & 0.938 & 0.340 & 0.915 \\
+\hline
+LEACE & 1.0 & 8.46 & 1.39 & 0.881 & 0.988 & 0.824 & 0.977 \\
+ & 1.5 & 5.70 & 4.19 & 0.845 & 0.984 & 0.760 & 0.969 \\
+ & 2.0 & 4.05 & 5.35 & 0.814 & 0.980 & 0.712 & 0.962 \\
+ & 2.5 & 3.74 & 5.50 & 0.785 & 0.977 & 0.675 & 0.958 \\
+ & 3.0 & 3.77 & 5.51 & 0.756 & 0.974 & 0.644 & 0.954 \\
+ & 3.5 & 3.72 & 5.46 & 0.732 & 0.971 & 0.615 & 0.950 \\
+ & 4.0 & 3.78 & 5.31 & 0.714 & 0.969 & 0.593 & 0.947 \\
+ & 4.5 & 3.61 & 5.47 & 0.693 & 0.967 & 0.569 & 0.944 \\
+ & 5.0 & 3.63 & 5.50 & 0.675 & 0.965 & 0.550 & 0.941 \\
+\hline
+Mean Matching & 1.0 & 8.41 & 1.35 & \textbf{0.920} & \textbf{0.992} & \textbf{0.900} & \textbf{0.987} \\
+ & 1.5 & 5.37 & 4.91 & \underline{0.890} & \underline{0.989} & \underline{0.852} & \underline{0.981} \\
+ & 2.0 & 2.99 & 7.14 & 0.865 & 0.986 & 0.815 & 0.976 \\
+ & 2.5 & 2.36 & 7.87 & 0.836 & 0.983 & 0.786 & 0.972 \\
+ & 3.0 & 2.21 & 8.21 & 0.820 & 0.981 & 0.758 & 0.969 \\
+ & 3.5 & 1.97 & 8.35 & 0.801 & 0.979 & 0.734 & 0.965 \\
+ & 4.0 & 1.82 & 8.49 & 0.787 & 0.978 & 0.708 & 0.962 \\
+ & 4.5 & 1.70 & \underline{8.55} & 0.764 & 0.975 & 0.683 & 0.959 \\
+ & 5.0 & 1.64 & \textbf{8.56} & 0.749 & 0.974 & 0.662 & 0.956 \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Comprehensive Results: midsteer\_sa\_50k\_last\_no\_renorm\_no\_clip\_all\_strengths - Horses$\to$Motorcycles}
+\label{tab:single_experiment_table_without_clipping_horses_to_motorcycles}
+\begin{tabular}{l|l|cccccc|}
+\hline
+Method & $\beta$ & \multicolumn{6}{c|}{Horses$\rightarrow$Motorcycles} \\
+ &  & SCS & TCS & A-BLEU & A-BertF1 & M-BLEU & M-BertF1 \\
+\hline
+Baseline & — & \textbf{8.68} & 0.59 & — & — & — & — \\
+\hline
+CASteer & 1.0 & \underline{8.60} & 0.64 & 0.780 & 0.977 & 0.697 & 0.960 \\
+ & 1.5 & 6.54 & 2.81 & 0.711 & 0.969 & 0.626 & 0.951 \\
+ & 2.0 & 2.59 & 6.92 & 0.667 & 0.964 & 0.555 & 0.942 \\
+ & 2.5 & 2.63 & 7.08 & 0.624 & 0.960 & 0.507 & 0.936 \\
+ & 3.0 & 2.92 & 6.84 & 0.579 & 0.955 & 0.462 & 0.930 \\
+ & 3.5 & 3.00 & 6.31 & 0.536 & 0.950 & 0.424 & 0.926 \\
+ & 4.0 & 2.95 & 6.05 & 0.492 & 0.945 & 0.391 & 0.921 \\
+ & 4.5 & 2.92 & 5.75 & 0.456 & 0.941 & 0.353 & 0.916 \\
+ & 5.0 & 3.10 & 5.54 & 0.421 & 0.937 & 0.326 & 0.912 \\
+\hline
+LEACE & 1.0 & 8.57 & 0.68 & 0.878 & 0.988 & \underline{0.826} & \underline{0.977} \\
+ & 1.5 & 8.34 & 0.95 & 0.837 & 0.983 & 0.756 & 0.968 \\
+ & 2.0 & 5.69 & 3.20 & 0.802 & 0.979 & 0.705 & 0.961 \\
+ & 2.5 & 4.09 & 4.79 & 0.761 & 0.974 & 0.670 & 0.957 \\
+ & 3.0 & 3.65 & 5.16 & 0.732 & 0.971 & 0.634 & 0.952 \\
+ & 3.5 & 3.55 & 5.51 & 0.704 & 0.968 & 0.598 & 0.948 \\
+ & 4.0 & 3.38 & 5.27 & 0.679 & 0.965 & 0.574 & 0.945 \\
+ & 4.5 & 3.43 & 5.28 & 0.663 & 0.964 & 0.548 & 0.942 \\
+ & 5.0 & 3.45 & 5.24 & 0.642 & 0.961 & 0.525 & 0.939 \\
+\hline
+Mean Matching & 1.0 & 8.56 & 0.73 & \textbf{0.918} & \textbf{0.992} & \textbf{0.855} & \textbf{0.981} \\
+ & 1.5 & 7.04 & 2.28 & \underline{0.882} & \underline{0.988} & 0.802 & 0.974 \\
+ & 2.0 & 2.88 & 6.74 & 0.855 & 0.985 & 0.746 & 0.967 \\
+ & 2.5 & 1.93 & 8.08 & 0.830 & 0.982 & 0.697 & 0.960 \\
+ & 3.0 & 1.72 & 8.32 & 0.806 & 0.980 & 0.661 & 0.956 \\
+ & 3.5 & 1.63 & \underline{8.42} & 0.784 & 0.978 & 0.631 & 0.952 \\
+ & 4.0 & 1.62 & 8.39 & 0.760 & 0.975 & 0.598 & 0.948 \\
+ & 4.5 & 1.61 & 8.39 & 0.741 & 0.973 & 0.580 & 0.945 \\
+ & 5.0 & 1.46 & \textbf{8.42} & 0.719 & 0.971 & 0.558 & 0.943 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Pareto efficient frontier}
+
+In this set of experiments, we tried to find an optimal method by plotting the target concepts scores (TCS) and the Alpaca BLEU score for each method for each $\beta$. This allows us to compare different methods that can inherently have different optimal values of $\beta$. We construct a set of points which cannot be improved in both quantities by either switching to a different method or a different $\beta$, which we call efficiency frontier. If no points for the method lie below the efficiency frontier, than this method is optimal.
+
+All results are presnted in the following figures:
+
+\begin{itemize}
+    \item Dogs $\to$ Cats, with clipping: \ref{fig:midsteer_sa_50k_last_no_renorm_clip_all_strengths_dogs_to_cats_pareto_frontier}
+    \item Horses $\to$ Motorcycles, with clipping: \ref{fig:midsteer_sa_50k_last_no_renorm_clip_all_strengths_horses_to_motorcycles_pareto_frontier}
+    \item Dogs $\to$ Cats, without clipping: \ref{fig:midsteer_sa_50k_last_no_renorm_no_clip_all_strengths_dogs_to_cats_pareto_frontier}
+    \item Horses $\to$ Motorcycles, without clipping: \ref{fig:midsteer_sa_50k_last_no_renorm_no_clip_all_strengths_horses_to_motorcycles_pareto_frontier}
+\end{itemize}
+
+Mixed clipping results are presented in the following figures:
+
+\begin{itemize}
+    \item Horses $\to$ Motorcycles: \ref{fig:mixed_clip_comparison_horses_to_motorcycles_pareto_frontier}
+
+    \item Dogs $\to$ Cats:
+    \ref{fig:mixed_clip_comparison_dogs_to_cats_pareto_frontier}
+\end{itemize}
+
+
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\linewidth,center]{pareto_plots/midsteer_sa_50k_last_no_renorm_clip_all_strengths_dogs_to_cats_pareto_frontier.pdf}
+    \caption{Pareto Efficiency Frontier for Dogs $\to$ Cats steering, with clipping}
+    \label{fig:pareto_frontier_chart_dogs_cats_with_clipping_dogs_to_cats}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\linewidth,center]{pareto_plots/midsteer_sa_50k_last_no_renorm_clip_all_strengths_horses_to_motorcycles_pareto_frontier.pdf}
+    \caption{Pareto Efficiency Frontier for Horses $\to$ Motorcycles steering, with clipping}
+    \label{fig:pareto_frontier_chart_horses_motorcycles_with_clipping_horses_to_motorcycles}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\linewidth,center]{pareto_plots/midsteer_sa_50k_last_no_renorm_no_clip_all_strengths_dogs_to_cats_pareto_frontier.pdf}
+    \caption{Pareto Efficiency Frontier for Dogs $\to$ Cats steering, without clipping}
+    \label{fig:pareto_frontier_chart_dogs_cats_without_clipping_dogs_to_cats}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\linewidth,center]{pareto_plots/midsteer_sa_50k_last_no_renorm_no_clip_all_strengths_horses_to_motorcycles_pareto_frontier.pdf}
+    \caption{Pareto Efficiency Frontier for Horses $\to$ Motorcycles steering, without clipping}
+    \label{fig:pareto_frontier_chart_horses_motorcycles_without_clipping_horses_to_motorcycles}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.3\linewidth,center]{pareto_plots/mixed_clip_comparison_dogs_to_cats_pareto_frontier.pdf}
+    \caption{Pareto Efficiency Frontier for Dogs $\to$ Cats steering and mixed clipping use}
+    \label{fig:pareto_frontier_chart_dogs_cats_mixed_clipping_dogs_to_cats}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.3\linewidth,center]{pareto_plots/mixed_clip_comparison_horses_to_motorcycles_pareto_frontier.pdf}
+    \caption{Pareto Efficiency Frontier for Horse $\to$ Motorcycle steering and mixed clipping use}
+    \label{fig:pareto_frontier_chart_horses_motorcycles_mixed_clipping_horses_to_motorcycles}
+\end{figure}
+
+\subsubsection{Covariance comparison}
+
+In this section, we try to find the optimal number of samples to estimate covariances. Since covariances are used for whitening, having more samples to estimate from might improve the ALPACA and MMLU results.
+
+In figure \ref{fig:covariance_comparison_no-renorm-no-clip_combined-tasks_alpaca-bleu_beta-2.0} we can observe that the optimal number of covariances lies in 5 to 10 thousand, depending on the method.
+
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.1 \linewidth,center]{covariance_plots/covariance_comparison_no-renorm-no-clip_combined-tasks_alpaca-bleu_beta-2.0.pdf}
+    \caption{Alpaca BLEU scores on a held-out subset for different methods and different steering tasks. Covariances are estimated on a separate training subset using 100, 500, 1000, 5000, 10000, 20000 and 50000 samples.}
+    \label{fig:covariance_comparison_chart_comparison_plots}
+\end{figure}\n\n\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.1 \linewidth,center]{covariance_plots/covariance_comparison_no-renorm-no-clip_combined-tasks_target-concept-score_beta-2.0.pdf}
+    \caption{Alpaca BLEU scores on a held-out subset for different methods and different steering tasks. Covariances are estimated on a separate training subset using 100, 500, 1000, 5000, 10000, 20000 and 50000 samples.}
+    \label{fig:covariance_comparison_chart_comparison_plots}
+\end{figure}
+
+\subsubsection{Implicit concepts}
+
+In this section, we compare how methods work on an implicitly defined concept. For horse, we used implicit definitions as "knight's riding mammal", "large equine". For dog we used "man's best friend" and "domesticated canine". The results are presented in tables \ref{tab:implicitconcept_knight_s_riding_mammal_horsestomotorcycles_avg2} and \ref{tab:implicitconcept_man_s_best_friend_dogstocats_avg2}. All methods loose some peformance when switching to implicitly deifned concept, but MidSteer maintains its advantage over other methods.
+
+
+
+\begin{table}[htbp]
+\centering
+\caption{Comprehensive Results: Implicit Concept (avg. of 2 concepts) - Horses$\to$Motorcycles}
+\label{tab:implicitconcept_knight_s_riding_mammal_horsestomotorcycles_avg2}
+\begin{tabular}{l|l|cccccc|}
+\hline
+Method & $\beta$ & \multicolumn{6}{c|}{SCS (avg. 2 implicit concepts)} \\
+ &  & SCS & TCS & A-BLEU & A-BertF1 & M-BLEU & M-BertF1 \\
+\hline
+CASteer\textsuperscript{†} & 2.0 & 6.94 & 4.60 & 0.752 & 0.974 & 0.648 & 0.955 \\
+ & 3.0 & 6.01 & 5.25 & 0.689 & 0.968 & 0.564 & 0.944 \\
+ & 4.0 & 5.44 & \underline{5.74} & 0.636 & 0.961 & 0.504 & 0.937 \\
+\hline
+LEACE\textsuperscript{†} & 2.0 & \textbf{7.50} & 4.34 & \underline{0.871} & \underline{0.987} & \textbf{0.809} & \textbf{0.975} \\
+ & 3.0 & 6.60 & 5.04 & 0.827 & 0.982 & 0.746 & 0.967 \\
+ & 4.0 & 5.95 & 5.31 & 0.791 & 0.978 & 0.694 & 0.960 \\
+\hline
+Mean Matching\textsuperscript{‡} & 2.0 & \underline{7.13} & 4.54 & \textbf{0.901} & \textbf{0.990} & \underline{0.749} & \underline{0.967} \\
+ & 3.0 & 6.08 & 5.53 & 0.868 & 0.987 & 0.664 & 0.956 \\
+ & 4.0 & 5.44 & \textbf{6.03} & 0.840 & 0.983 & 0.610 & 0.949 \\
+\hline
+\end{tabular}
+\\[0.5em]
+\footnotesize
+\textsuperscript{†} With clipping \quad \textsuperscript{‡} Without clipping (fully compliant matrix form)
+\end{table}

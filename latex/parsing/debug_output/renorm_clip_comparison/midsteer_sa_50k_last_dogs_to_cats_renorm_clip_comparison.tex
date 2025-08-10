@@ -1,0 +1,31 @@
+\begin{table}[htbp]
+\centering
+\caption{Renorm/Clip Comparison - Dogs$\rightarrow$Cats}
+\label{tab:renorm_clip_dogstocats}
+\begin{tabular}{l|c|c|c|cccccc|}
+\hline
+Method & $\beta$ & Renorm & Clip & \multicolumn{6}{c|}{Metrics} \\
+ &  &  &  & SCS & TCS & A-BLEU & A-BertF1 & M-BLEU & M-BertF1 \\
+\hline
+Baseline & — & \checkmark & \checkmark & \textbf{8.68} & 0.97 & — & — & — & — \\
+ &  &  & \checkmark & 8.64 & 1.00 & — & — & — & — \\
+ &  & \checkmark &  & \underline{8.67} & 0.95 & — & — & — & — \\
+ &  &  &  & 8.65 & 0.96 & — & — & — & — \\
+\hline
+CASteer & 2.0 & \checkmark & \checkmark & 4.64 & 5.60 & 0.776 & 0.976 & 0.753 & 0.968 \\
+ &  &  & \checkmark & 4.58 & 5.72 & 0.779 & 0.977 & 0.754 & 0.968 \\
+ &  & \checkmark &  & 6.05 & 4.13 & 0.667 & 0.964 & 0.556 & 0.942 \\
+ &  &  &  & 6.11 & 3.98 & 0.667 & 0.964 & 0.558 & 0.942 \\
+\hline
+LEACE & 2.0 & \checkmark & \checkmark & 3.58 & 6.25 & 0.880 & 0.988 & \underline{0.866} & \underline{0.983} \\
+ &  &  & \checkmark & 3.55 & 6.46 & 0.882 & 0.988 & \textbf{0.869} & \textbf{0.983} \\
+ &  & \checkmark &  & 4.17 & 5.42 & 0.814 & 0.980 & 0.719 & 0.963 \\
+ &  &  &  & 4.01 & 5.45 & 0.814 & 0.980 & 0.712 & 0.962 \\
+\hline
+Mean Matching & 2.0 & \checkmark & \checkmark & 3.20 & 7.00 & \textbf{0.928} & \textbf{0.993} & 0.841 & 0.979 \\
+ &  &  & \checkmark & 3.11 & \textbf{7.09} & \underline{0.927} & \underline{0.993} & 0.837 & 0.979 \\
+ &  & \checkmark &  & 3.16 & \underline{7.07} & 0.862 & 0.986 & 0.815 & 0.976 \\
+ &  &  &  & 3.08 & 7.05 & 0.865 & 0.986 & 0.815 & 0.976 \\
+\hline
+\end{tabular}
+\end{table}

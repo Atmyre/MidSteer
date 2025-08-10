@@ -5,16 +5,17 @@ Demo script showing how to use the new single experiment functions.
 
 import os
 import sys
-import argparse
 from pathlib import Path
 
 # Add the current directory to the path to import modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from table_generators import (
-    load_single_experiment_data, 
-    generate_single_experiment_table
+from latex_utils import (
+    load_single_experiment_data, load_concept_scores_single,
+    load_alpaca_metrics_single, load_mmlu_metrics_single,
+    parse_method_and_beta, parse_task_name
 )
+from single_experiment_table_generator import generate_single_experiment_table
 import pandas as pd
 
 def normalize_concept_name(concept_name):
@@ -106,7 +107,7 @@ def load_implicit_concept_data(experiment_paths, source_concepts, selected_betas
         concepts_found[base_task] = []
         
         # Parse the task to get source and target concepts
-        from data_loader import parse_task_name
+        # parse_task_name now imported from latex_utils
         source_concept, target_concept = parse_task_name(base_task)
         if not source_concept or not target_concept:
             print(f"Could not parse task name: {base_task}")
@@ -374,6 +375,66 @@ def generate_implicit_concept_table(df, source_concepts, enable_highlighting=Tru
             'mean_matching': 'Mean Matching\\textsuperscript{‡}'
         }
         
+        # Collect all rows for ranking if highlighting is enabled
+        all_rows = []
+        for method in methods:
+            method_data = task_df[task_df['Method'] == method].sort_values('Beta')
+            if not method_data.empty:
+                for _, row in method_data.iterrows():
+                    all_rows.append(row)
+        
+        # Apply highlighting if enabled
+        if enable_highlighting and len(all_rows) > 1:
+            # Collect values for ranking (excluding baseline/None method)
+            non_baseline_rows = [row for row in all_rows if row['Method'] != 'None']
+            
+            if len(non_baseline_rows) > 1:
+                # Collect values for each metric
+                scs_values = [(row['Source_Concept_Score'], f"{row['Source_Concept_Score']:.2f}") 
+                              if pd.notna(row['Source_Concept_Score']) else (None, "—") 
+                              for row in non_baseline_rows]
+                tcs_values = [(row['Target_Concept_Score'], f"{row['Target_Concept_Score']:.2f}") 
+                              if pd.notna(row['Target_Concept_Score']) else (None, "—") 
+                              for row in non_baseline_rows]
+                ableu_values = [(row['Alpaca_BLEU'], f"{row['Alpaca_BLEU']:.3f}") 
+                                if pd.notna(row['Alpaca_BLEU']) else (None, "—") 
+                                for row in non_baseline_rows]
+                abertf1_values = [(row['Alpaca_BertF1'], f"{row['Alpaca_BertF1']:.3f}") 
+                                  if pd.notna(row['Alpaca_BertF1']) else (None, "—") 
+                                  for row in non_baseline_rows]
+                mbleu_values = [(row['MMLU_BLEU'], f"{row['MMLU_BLEU']:.3f}") 
+                                if pd.notna(row['MMLU_BLEU']) else (None, "—") 
+                                for row in non_baseline_rows]
+                mbertf1_values = [(row['MMLU_BertF1'], f"{row['MMLU_BertF1']:.3f}") 
+                                  if pd.notna(row['MMLU_BertF1']) else (None, "—") 
+                                  for row in non_baseline_rows]
+                
+                # Apply ranking (import format_value_with_ranking from table_generators)
+                try:
+                    from latex_utils import format_value_with_ranking
+                    formatted_scs = format_value_with_ranking(scs_values, decimals=2)
+                    formatted_tcs = format_value_with_ranking(tcs_values, decimals=2)
+                    formatted_ableu = format_value_with_ranking(ableu_values, decimals=3)
+                    formatted_abertf1 = format_value_with_ranking(abertf1_values, decimals=3)
+                    formatted_mbleu = format_value_with_ranking(mbleu_values, decimals=3)
+                    formatted_mbertf1 = format_value_with_ranking(mbertf1_values, decimals=3)
+                except ImportError:
+                    # Fallback if import fails
+                    formatted_scs = [orig_str for _, orig_str in scs_values]
+                    formatted_tcs = [orig_str for _, orig_str in tcs_values]
+                    formatted_ableu = [orig_str for _, orig_str in ableu_values]
+                    formatted_abertf1 = [orig_str for _, orig_str in abertf1_values]
+                    formatted_mbleu = [orig_str for _, orig_str in mbleu_values]
+                    formatted_mbertf1 = [orig_str for _, orig_str in mbertf1_values]
+            else:
+                # Not enough rows for ranking
+                formatted_scs = formatted_tcs = formatted_ableu = formatted_abertf1 = formatted_mbleu = formatted_mbertf1 = []
+        else:
+            # No highlighting
+            formatted_scs = formatted_tcs = formatted_ableu = formatted_abertf1 = formatted_mbleu = formatted_mbertf1 = []
+        
+        # Generate table rows
+        non_baseline_idx = 0
         for method in methods:
             method_data = task_df[task_df['Method'] == method].sort_values('Beta')
             
@@ -385,20 +446,31 @@ def generate_implicit_concept_table(df, source_concepts, enable_highlighting=Tru
                 method_name = method_labels.get(method, method) if i == 0 else ""
                 beta_str = "—" if row['Beta'] == 0.0 else f"{row['Beta']:.1f}"
                 
-                # Format values
-                scs = f"{row['Source_Concept_Score']:.2f}" if pd.notna(row['Source_Concept_Score']) else "—"
-                tcs = f"{row['Target_Concept_Score']:.2f}" if pd.notna(row['Target_Concept_Score']) else "—"
-                
                 if method == 'None':
-                    # Baseline row - no Alpaca/MMLU scores
+                    # Baseline row - no highlighting, no Alpaca/MMLU scores
+                    scs = f"{row['Source_Concept_Score']:.2f}" if pd.notna(row['Source_Concept_Score']) else "—"
+                    tcs = f"{row['Target_Concept_Score']:.2f}" if pd.notna(row['Target_Concept_Score']) else "—"
                     line = f"{method_name} & {beta_str} & {scs} & {tcs} & — & — & — & — \\\\"
                 else:
-                    ableu = f"{row['Alpaca_BLEU']:.3f}" if pd.notna(row['Alpaca_BLEU']) else "—"
-                    abertf1 = f"{row['Alpaca_BertF1']:.3f}" if pd.notna(row['Alpaca_BertF1']) else "—"
-                    mbleu = f"{row['MMLU_BLEU']:.3f}" if pd.notna(row['MMLU_BLEU']) else "—"
-                    mbertf1 = f"{row['MMLU_BertF1']:.3f}" if pd.notna(row['MMLU_BertF1']) else "—"
+                    # Non-baseline row - use formatted values if highlighting is enabled
+                    if enable_highlighting and len(formatted_scs) > non_baseline_idx:
+                        scs = formatted_scs[non_baseline_idx]
+                        tcs = formatted_tcs[non_baseline_idx]
+                        ableu = formatted_ableu[non_baseline_idx]
+                        abertf1 = formatted_abertf1[non_baseline_idx]
+                        mbleu = formatted_mbleu[non_baseline_idx]
+                        mbertf1 = formatted_mbertf1[non_baseline_idx]
+                    else:
+                        # Fallback to simple formatting
+                        scs = f"{row['Source_Concept_Score']:.2f}" if pd.notna(row['Source_Concept_Score']) else "—"
+                        tcs = f"{row['Target_Concept_Score']:.2f}" if pd.notna(row['Target_Concept_Score']) else "—"
+                        ableu = f"{row['Alpaca_BLEU']:.3f}" if pd.notna(row['Alpaca_BLEU']) else "—"
+                        abertf1 = f"{row['Alpaca_BertF1']:.3f}" if pd.notna(row['Alpaca_BertF1']) else "—"
+                        mbleu = f"{row['MMLU_BLEU']:.3f}" if pd.notna(row['MMLU_BLEU']) else "—"
+                        mbertf1 = f"{row['MMLU_BertF1']:.3f}" if pd.notna(row['MMLU_BertF1']) else "—"
                     
                     line = f"{method_name} & {beta_str} & {scs} & {tcs} & {ableu} & {abertf1} & {mbleu} & {mbertf1} \\\\"
+                    non_baseline_idx += 1
                 
                 table_lines.append(line)
             
@@ -415,321 +487,66 @@ def generate_implicit_concept_table(df, source_concepts, enable_highlighting=Tru
     
     return '\n\n'.join(tables)
 
-def demo_single_experiment(experiment_path, output_file, enable_highlighting=True, selected_betas=None):
-    """Demonstrate loading and generating tables for a single experiment."""
+
+try:
+    from .artifacts import TableGenerator
+except ImportError:
+    from artifacts import TableGenerator
+
+class ImplicitConceptTableGenerator(TableGenerator):
+    """Generator for implicit concept result tables."""
     
-    print("Loading data from single experiment...")
-    print(f"Experiment path: {experiment_path}")
-    print(f"Output file: {output_file}")
-    print(f"Highlighting enabled: {enable_highlighting}")
-    if selected_betas:
-        print(f"Beta filtering enabled: {selected_betas}")
-    
-    try:
-        # Load data
-        df = load_single_experiment_data(experiment_path)
-        
-        # Filter by selected betas if specified
-        if selected_betas is not None:
-            original_count = len(df)
-            df = df[df['Beta'].isin(selected_betas)]
-            filtered_count = len(df)
-            print(f"Beta filtering: {original_count} → {filtered_count} rows (kept {len(df['Beta'].unique())} beta values)")
+    def generate(self) -> str:
+        """Generate the implicit concept table LaTeX content."""
+        def _generate():
+            # Get the type-specific config
+            type_config = self.get_type_config('implicit_concept_result')
+            
+            # Create experiment paths dictionary (format expected by load_implicit_concept_data)
+            experiment_paths = {
+                'casteer_leace': type_config.casteer_leace_experiment,
+                'midsteer': type_config.midsteer_experiment
+            }
+            
+            # Convert source concepts list to comma-separated string (format expected by functions)
+            source_concepts_str = ",".join(type_config.source_concepts)
+            
+            print(f"Loading implicit concept data with concepts: {type_config.source_concepts}")
+            
+            # Load data with implicit concept
+            df, tasks_with_concepts = load_implicit_concept_data(
+                experiment_paths, 
+                source_concepts_str, 
+                type_config.selected_betas
+            )
             
             if df.empty:
-                print("Warning: No data remaining after beta filtering!")
-                return
-        
-        if df.empty:
-            print("No data found!")
-            return
+                return "% No implicit concept data found"
             
-        print(f"Loaded {len(df)} rows of data")
-        print(f"Methods: {sorted(df['Method'].unique())}")
-        print(f"Tasks: {sorted(df['Task'].unique())}")
-        print(f"Beta values: {sorted(df['Beta'].unique())}")
-        
-        # Display a sample of the data
-        print("\nSample data:")
-        print(df.head())
-        
-        # Generate comprehensive table
-        print("\nGenerating comprehensive table...")
-        comprehensive_table = generate_single_experiment_table(
-            experiment_path, 
-            output_file,
-            enable_highlighting=enable_highlighting
-        )
-        
-        print("\nDemo completed successfully!")
-        print("Generated files:")
-        print(f"- {output_file}")
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
-
-
-def demo_implicit_concept_experiment(experiment_paths, source_concept, output_file, enable_highlighting=True, selected_betas=None):
-    """Demonstrate loading and generating tables for implicit concept experiments."""
-    
-    print("Loading data from implicit concept experiment...")
-    if isinstance(experiment_paths, dict):
-        print(f"Method-specific experiment paths:")
-        for method, path in experiment_paths.items():
-            print(f"  {method}: {path}")
-    else:
-        print(f"Single experiment path: {experiment_paths}")
-    print(f"Source concept: {source_concept}")
-    print(f"Output file: {output_file}")
-    print(f"Highlighting enabled: {enable_highlighting}")
-    if selected_betas:
-        print(f"Beta filtering enabled: {selected_betas}")
-    
-    try:
-        # Load data with implicit concept
-        df, tasks_with_concepts = load_implicit_concept_data(experiment_paths, source_concept, selected_betas)
-        
-        if df.empty:
-            print("No data found!")
-            return
+            # Generate the table content using the existing function
+            table_content = generate_implicit_concept_table(
+                df, 
+                source_concepts_str, 
+                type_config.enable_highlighting, 
+                tasks_with_concepts
+            )
             
-        print(f"Loaded {len(df)} rows of data")
-        print(f"Methods: {sorted(df['Method'].unique())}")
-        print(f"Tasks: {sorted(df['Task'].unique())}")
-        print(f"Beta values: {sorted(df['Beta'].unique())}")
-        
-        # Display a sample of the data
-        print("\nSample data:")
-        print(df.head())
-        
-        # Parse concept list for better logging
-        if isinstance(source_concept, str):
-            concept_list = [c.strip() for c in source_concept.split(',')]
-        else:
-            concept_list = source_concept
-        
-        # For implicit concepts, we need a custom table generation approach
-        # since the standard generate_single_experiment_table won't handle the modified data
-        print("\nGenerating comprehensive table with implicit concepts...")
-        if len(concept_list) > 1:
-            print(f"Using averaged scores from {len(concept_list)} implicit concepts:")
-            for i, concept in enumerate(concept_list, 1):
-                print(f"  {i}. '{concept}'")
-        else:
-            print(f"Using single implicit concept: '{concept_list[0]}'")
-        
-        # Generate table directly from the modified dataframe
-        latex_content = generate_implicit_concept_table(df, source_concept, enable_highlighting, tasks_with_concepts)
-        
-        # Write the LaTeX content to the output file
-        with open(output_file, 'w') as f:
-            f.write(latex_content)
+            # Post-process to fix LaTeX formatting (same as other table generators)
+            table_content = table_content.replace("BOLDXSTART", "\\textbf{")
+            table_content = table_content.replace("BOLDXEND", "}")
+            table_content = table_content.replace("ULXSTART", "\\underline{")
+            table_content = table_content.replace("ULXEND", "}")
             
-        print(f"Custom table generation completed using implicit concept scores")
+            # If a custom caption is provided, we need to replace the default caption
+            if self.config.caption:
+                # Find and replace the caption line in the generated content
+                lines = table_content.split('\n')
+                for i, line in enumerate(lines):
+                    if line.strip().startswith('\\caption{'):
+                        lines[i] = f'\\caption{{{self.config.caption}}}'
+                        break
+                table_content = '\n'.join(lines)
+            
+            return table_content
         
-        print("\nImplicit concept demo completed successfully!")
-        print("Generated files:")
-        print(f"- {output_file}")
-        if len(concept_list) > 1:
-            print(f"Note: Source concept scores averaged across {len(concept_list)} implicit concepts:")
-            for concept in concept_list:
-                print(f"  - '{concept}'")
-        else:
-            print(f"Note: Source concept scores updated for '{concept_list[0]}'")
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
-
-
-def main():
-    """Main function to parse command line arguments and run the demo."""
-    parser = argparse.ArgumentParser(
-        description="Generate comprehensive LaTeX tables from experiment directories.",
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    
-    # Global arguments
-    parser.add_argument(
-        "--no-highlighting",
-        action="store_true",
-        help="Disable bold/underline highlighting for best/second-best results (highlighting is enabled by default)"
-    )
-    
-    parser.add_argument(
-        "--output-dir",
-        default=".",
-        help="Output directory for generated LaTeX files (default: current directory)"
-    )
-    
-    parser.add_argument(
-        "--betas",
-        help="Comma-separated list of beta values to include in tables (e.g., '1.0,2.0,3.0'). Default: include all available betas"
-    )
-    
-    # Create subparsers for different modes
-    subparsers = parser.add_subparsers(
-        dest='mode',
-        help='Operation mode',
-        required=True
-    )
-    
-    # Standard mode subparser
-    standard_parser = subparsers.add_parser(
-        'standard',
-        help='Generate tables from a single experiment directory',
-        description='Standard mode: Generate comprehensive LaTeX tables from a single experiment directory.\n\n'
-                   'Example:\n'
-                   '  python parse_single_experiment.py standard --experiment-path /path/to/midsteer_sa_10k_last_renorm_clip',
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    
-    standard_parser.add_argument(
-        "--experiment-path",
-        required=True,
-        help="Path to the experiment directory (e.g., /path/to/midsteer_sa_10k_last_renorm_clip)"
-    )
-    
-    standard_parser.add_argument(
-        "--output-filename",
-        default="single_experiment_comprehensive.tex",
-        help="Output LaTeX file name (default: single_experiment_comprehensive.tex)"
-    )
-    
-    # Implicit concept mode subparser
-    implicit_parser = subparsers.add_parser(
-        'implicit',
-        help='Generate tables with implicit concept averaging and method-specific experiments',
-        description='Implicit concept mode: Generate tables using multiple implicit concept names and method-specific experiments.\n\n'
-                   'Examples:\n'
-                   '  # Multiple concepts:\n'
-                   '  python parse_single_experiment.py implicit --source-concept "knight\'s riding mammal,large equine" --casteer-leace-experiment /path/to/clip_exp --midsteer-experiment /path/to/no_clip_exp\n\n'
-                   '  # Single concept:\n'
-                   '  python parse_single_experiment.py implicit --source-concept "knight\'s riding mammal" --casteer-leace-experiment /path/to/clip_exp --midsteer-experiment /path/to/no_clip_exp',
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    
-    implicit_parser.add_argument(
-        "--source-concept",
-        required=True,
-        help="Source concept name(s). For multiple concepts, separate with commas: 'knight\'s riding mammal,large equine,domesticated ungulate'"
-    )
-    
-    implicit_parser.add_argument(
-        "--casteer-leace-experiment",
-        required=True,
-        help="Experiment directory for CASteer and LEACE methods (usually with clipping)"
-    )
-    
-    implicit_parser.add_argument(
-        "--midsteer-experiment",
-        required=True, 
-        help="Experiment directory for MidSteer/Mean Matching method (usually no clipping)"
-    )
-    
-    implicit_parser.add_argument(
-        "--output-filename",
-        help="Output LaTeX file name (default: auto-generated based on concepts)"
-    )
-    
-    args = parser.parse_args()
-    
-    enable_highlighting = not args.no_highlighting
-    
-    # Parse beta values if specified
-    selected_betas = None
-    if args.betas:
-        try:
-            selected_betas = [float(beta.strip()) for beta in args.betas.split(',')]
-            print(f"Filtering to specified beta values: {selected_betas}")
-        except ValueError as e:
-            print(f"Error parsing beta values '{args.betas}': {e}")
-            print("Beta values must be comma-separated numbers (e.g., '1.0,2.0,3.0')")
-            sys.exit(1)
-    
-    if args.mode == 'implicit':
-        # Implicit concept mode - validate experiment paths
-        casteer_leace_path = Path(args.casteer_leace_experiment)
-        if not casteer_leace_path.exists():
-            print(f"Error: CASteer/LEACE experiment path does not exist: {casteer_leace_path}")
-            sys.exit(1)
-        if not casteer_leace_path.is_dir():
-            print(f"Error: CASteer/LEACE experiment path is not a directory: {casteer_leace_path}")
-            sys.exit(1)
-        
-        midsteer_path = Path(args.midsteer_experiment)
-        if not midsteer_path.exists():
-            print(f"Error: MidSteer experiment path does not exist: {midsteer_path}")
-            sys.exit(1)
-        if not midsteer_path.is_dir():
-            print(f"Error: MidSteer experiment path is not a directory: {midsteer_path}")
-            sys.exit(1)
-        
-        # Create experiment paths dictionary
-        experiment_paths = {
-            'casteer_leace': str(casteer_leace_path),
-            'midsteer': str(midsteer_path)
-        }
-        
-        # Create structured output directory for implicit concept experiments
-        output_dir = Path(args.output_dir)
-        implicit_concept_output_dir = output_dir / "implicit_concept"
-        implicit_concept_output_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Generate filename with source concept(s)
-        concept_list = [c.strip() for c in args.source_concept.split(',')]
-        if len(concept_list) == 1:
-            concept_safe_name = normalize_concept_name(concept_list[0])
-        else:
-            # For multiple concepts, use the first concept + count
-            first_concept_safe = normalize_concept_name(concept_list[0])
-            concept_safe_name = f"{first_concept_safe}_plus{len(concept_list)-1}more"
-        
-        if args.output_filename:
-            # Use user-specified filename
-            filename = args.output_filename
-        else:
-            # Use auto-generated filename based on concept name
-            filename = f"implicit_concept_{concept_safe_name}.tex"
-        
-        output_file = implicit_concept_output_dir / filename
-        
-        print(f"Output will be saved to: {implicit_concept_output_dir}")
-        
-        # Run the implicit concept demo
-        demo_implicit_concept_experiment(experiment_paths, args.source_concept, output_file, enable_highlighting, selected_betas)
-        
-    elif args.mode == 'standard':
-        # Standard mode
-        experiment_path = Path(args.experiment_path)
-        if not experiment_path.exists():
-            print(f"Error: Experiment path does not exist: {experiment_path}")
-            sys.exit(1)
-        
-        if not experiment_path.is_dir():
-            print(f"Error: Experiment path is not a directory: {experiment_path}")
-            sys.exit(1)
-        
-        # Create structured output directory for single experiments
-        output_dir = Path(args.output_dir)
-        single_experiment_output_dir = output_dir / "single_experiment"
-        single_experiment_output_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Construct full output path
-        output_file = single_experiment_output_dir / args.output_filename
-        
-        print(f"Output will be saved to: {single_experiment_output_dir}")
-        
-        # Run the standard demo
-        demo_single_experiment(str(experiment_path), str(output_file), enable_highlighting, selected_betas)
-        
-    else:
-        print(f"Error: Unknown mode '{args.mode}'")
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main() 
+        return self.safe_generate(_generate)
