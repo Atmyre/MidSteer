@@ -144,6 +144,15 @@ class LaTeXTableBuilder:
         row = " & ".join(formatted_cells) + " \\\\"
         self.lines.append(row)
     
+    def add_row(self, cells):
+        """Add a row to the table (alias for add_data_row for backward compatibility)."""
+        return self.add_data_row(cells)
+    
+    def add_raw_row(self, cells):
+        """Add a raw row to the table without escaping LaTeX special characters."""
+        row = " & ".join(str(cell) for cell in cells) + " \\\\"
+        self.lines.append(row)
+    
     def finalize(self):
         """Finalize the table and return LaTeX content."""
         self.lines.extend(create_latex_table_footer())

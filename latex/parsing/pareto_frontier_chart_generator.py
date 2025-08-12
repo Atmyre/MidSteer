@@ -351,32 +351,10 @@ class ParetoFrontierChartGenerator(ChartGenerator):
             # Generate LaTeX content for each PDF
             latex_figures = []
             for pdf_file in sorted(pdf_files):
-                # Extract task name from filename for caption
-                filename = pdf_file.stem
-                
-                # Create a readable caption from filename
-                if "dogs_to_cats" in filename:
-                    task_name = "Dogs → Cats"
-                elif "horses_to_motorcycles" in filename:
-                    task_name = "Horses → Motorcycles"
-                else:
-                    task_name = filename.replace("_", " ").title()
-                
                 # Use the provided caption (now required)
                 caption = self.config.caption
                 
-                # Generate unique label for each figure (include task to avoid conflicts)
-                # Extract task from filename: find "dogs_to_cats" or "horses_to_motorcycles" pattern
-                if "dogs_to_cats" in filename:
-                    task_suffix = "dogs_to_cats"
-                elif "horses_to_motorcycles" in filename:
-                    task_suffix = "horses_to_motorcycles"
-                else:
-                    # Fallback: use last meaningful parts of filename
-                    parts = filename.split('_')
-                    task_suffix = '_'.join(parts[-3:-1])  # Take last 2 meaningful parts before "pareto"
-                
-                unique_label = f"{self.label}_{task_suffix}"
+                unique_label = self.label
                 
                 # Use relative path from output directory
                 relative_pdf_path = f"pareto_plots/{pdf_file.name}"

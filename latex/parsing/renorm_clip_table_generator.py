@@ -17,29 +17,20 @@ from latex_utils import load_single_experiment_data
 from latex_utils import LaTeXTableBuilder, format_method_name, format_value, format_task_name
 
 
-def load_experiment_data_with_settings(base_path, experiment_name):
+def load_experiment_data_with_explicit_paths(experiment_paths):
     """
-    Load data from all 4 experiment variants (renorm/clip combinations).
+    Load data from 4 explicit experiment paths (renorm/clip combinations).
     
     Args:
-        base_path: Base path where experiments are located
-        experiment_name: Base experiment name (e.g., "midsteer_sa_50k_last")
+        experiment_paths: Dictionary mapping (renorm, clip) -> experiment_path
         
     Returns:
         Dictionary mapping (renorm, clip) -> DataFrame
     """
     results = {}
     
-    # Define the 4 combinations
-    combinations = [
-        (True, True, "renorm_clip"),
-        (False, True, "no_renorm_clip"),
-        (True, False, "renorm_no_clip"),
-        (False, False, "no_renorm_no_clip")
-    ]
-    
-    for renorm, clip, suffix in combinations:
-        exp_path = base_path / f"{experiment_name}_{suffix}"
+    for (renorm, clip), exp_path in experiment_paths.items():
+        exp_path = Path(exp_path)
         
         if exp_path.exists():
             try:
@@ -57,6 +48,7 @@ def load_experiment_data_with_settings(base_path, experiment_name):
             print(f"Warning: {exp_path.name} not found")
     
     return results
+
 
 
 
@@ -260,14 +252,19 @@ class RenormClipTableGenerator(TableGenerator):
             # Extract config parameters from the type-specific config
             type_config = self.get_type_config('renorm_clip_comparison_table')
             
-            base_path = Path(type_config.base_path)
-            experiment_name = type_config.experiment_name
+            # Create experiment paths dictionary from the 4 explicit paths
+            experiment_paths = {
+                (True, True): type_config.renorm_clip_experiment,
+                (False, True): type_config.no_renorm_clip_experiment,
+                (True, False): type_config.renorm_no_clip_experiment,
+                (False, False): type_config.no_renorm_no_clip_experiment
+            }
             
             # Load data from all renorm/clip combinations
-            experiment_data = load_experiment_data_with_settings(base_path, experiment_name)
+            experiment_data = load_experiment_data_with_explicit_paths(experiment_paths)
             
             if not experiment_data:
-                return f"% No data available for {experiment_name}"
+                return f"% No data available for the specified experiment paths"
             
             # Combine all data for task filtering
             combined_data = []
@@ -278,7 +275,7 @@ class RenormClipTableGenerator(TableGenerator):
                 combined_data.append(df_copy)
             
             if not combined_data:
-                return f"% No data available for {experiment_name}"
+                return f"% No data available for the specified experiment paths"
                 
             data = pd.concat(combined_data, ignore_index=True)
             

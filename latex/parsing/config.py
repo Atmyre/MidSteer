@@ -12,8 +12,10 @@ import yaml
 class RenormClipTableConfig(BaseModel):
     """Configuration for renorm/clip comparison tables."""
     
-    base_path: str = Field(..., description="Base path where experiments are located")
-    experiment_name: str = Field(..., description="Base experiment name")
+    renorm_clip_experiment: str = Field(..., description="Path to experiment with renorm=True, clip=True")
+    no_renorm_clip_experiment: str = Field(..., description="Path to experiment with renorm=False, clip=True")
+    renorm_no_clip_experiment: str = Field(..., description="Path to experiment with renorm=True, clip=False")
+    no_renorm_no_clip_experiment: str = Field(..., description="Path to experiment with renorm=False, clip=False")
     beta_value: float = Field(2.0, description="Beta value to use for all methods")
     enable_highlighting: bool = Field(True, description="Enable bold/underline highlighting")
     task_filter: Optional[str] = Field(None, description="Filter to specific task")
@@ -59,10 +61,21 @@ class CovarianceComparisonChartConfig(BaseModel):
 class SingleExperimentResultConfig(BaseModel):
     """Configuration for single experiment result tables."""
     
-    experiment_path: str = Field(..., description="Path to the experiment directory relative to base_path")
+    # Backward compatibility: single experiment path
+    experiment_path: Optional[str] = Field(None, description="Path to the experiment directory relative to base_path (for backward compatibility)")
+    
+    # Method-specific experiment paths (new feature)
+    casteer_leace_experiment: Optional[str] = Field(None, description="Path to experiment for CASteer/LEACE methods (typically with clipping)")
+    midsteer_experiment: Optional[str] = Field(None, description="Path to experiment for MidSteer method (typically without clipping)")
+    
     enable_highlighting: bool = Field(True, description="Enable bold/underline highlighting for best/second-best results")
     selected_betas: Optional[List[float]] = Field(None, description="List of beta values to include (None for all)")
-    task_filter: str = Field(..., description="Filter to specific task (required)")
+    task_filter: Union[str, List[str]] = Field(..., description="Task name(s) to include - string for single task or list for multiple tasks (required)")
+    
+    def model_post_init(self, __context):
+        """Validate that either experiment_path or both method-specific paths are provided."""
+        if self.experiment_path is None and (self.casteer_leace_experiment is None or self.midsteer_experiment is None):
+            raise ValueError("Either experiment_path (backward compatibility) or both casteer_leace_experiment and midsteer_experiment must be specified")
 
 
 class ImplicitConceptResultConfig(BaseModel):

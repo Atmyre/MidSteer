@@ -56,7 +56,8 @@ def find_covariance_experiments(base_dir, pattern_template):
                     if multiplier == 'k':
                         num *= 1000
                     num_cov = int(num)
-                    experiments[num_cov] = str(exp_dir)
+                    if num_cov > 0:
+                        experiments[num_cov] = str(exp_dir)
                 except ValueError:
                     continue
     
@@ -317,7 +318,7 @@ def plot_covariance_comparison(base_dir, output_dir, pattern_template, methods=[
         beta_suffix = f"_beta-{beta_filter}" if beta_filter is not None else ""
         
         # Create a simple pattern identifier from the template
-        pattern_id = pattern_template.replace('midsteer_sa_{num}_last_', '').replace('_', '-')
+        pattern_id = pattern_template.replace('{num}', 'N').replace('_', '-')
         
         # Save as PDF only
         output_file_pdf = output_dir / f"covariance_comparison_{pattern_id}_combined-tasks_{safe_metric}{beta_suffix}.pdf"
@@ -373,7 +374,7 @@ class CovarianceComparisonChartGenerator(ChartGenerator):
                 caption = self.config.caption
                 
                 # Generate label for this figure
-                figure_label = self.label
+                figure_label = pdf_file.name.replace('.pdf', '')
                 
                 # Create relative path for LaTeX inclusion
                 relative_path = f"covariance_plots/{pdf_file.name}"
