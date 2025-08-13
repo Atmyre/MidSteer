@@ -18,7 +18,7 @@ from CAA.llama_wrapper import LlamaWrapper
 import argparse
 from typing import List
 from core.llm_steering import llm_register_vector_control
-from utils import get_device
+from core.utils import get_device
 from CAA.utils.tokenize import tokenize_llama_base, tokenize_llama_chat
 from CAA.behaviors import (
     get_external_vector_dir,

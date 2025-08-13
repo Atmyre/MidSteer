@@ -1,6 +1,3 @@
-from typing import Any
-import pickle
-import os
 
 
 def get_imagenet_classes(num=50):
@@ -69,7 +66,3 @@ def read_prompt_file(path: str) -> list[str]:
         return list(map(str.strip, fin.readlines()))
 
 
-def pickle_stats(obj: Any, path: str):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'wb') as fout:
-        pickle.dump(obj, fout)

@@ -12,8 +12,8 @@ from pydantic import BaseModel
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from dataset import ALPACA_DEFAULT_INSTRUCTION, tokenize_with_chat_template
-from utils import init_llm_model_and_tokenizer
+from core.dataset import ALPACA_DEFAULT_INSTRUCTION, tokenize_with_chat_template
+from core.utils import init_llm_model_and_tokenizer
 
 class Response(BaseModel):
     score: float

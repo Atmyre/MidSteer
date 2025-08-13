@@ -2,11 +2,11 @@ import argparse
 import os
 import torch
 
-from dataset import ALPACA_DEFAULT_INSTRUCTION, QuestionsDataset
+from core.dataset import ALPACA_DEFAULT_INSTRUCTION, QuestionsDataset
 
 from core.llm_steering import llm_register_vector_control
-from utils import init_llm_model_and_tokenizer
-from utils import get_device
+from core.utils import init_llm_model_and_tokenizer
+from core.utils import get_device
 from core.vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
 import tqdm
 

@@ -7,9 +7,9 @@ import PIL
 import torch
 
 from core.pickle import unpickle
-from construct_prompts import read_prompt_file
+from core.prompts import read_prompt_file
 from core.controller import VectorControl, register_vector_controls
-from utils import get_device, init_pipeline_for_image_model, run_image_model
+from core.utils import get_device, init_pipeline_for_image_model, run_image_model
 
 
 class Wobbler(VectorControl):

@@ -7,16 +7,16 @@ from contextlib import contextmanager
 import torch
 import tqdm
 
-from dataset import ALPACA_DEFAULT_INSTRUCTION, MMLU_SYSTEM_PROMPT, QuestionsDataset, AlpacaDataset, TemplateDataset, MMLUDataset
+from core.dataset import ALPACA_DEFAULT_INSTRUCTION, MMLU_SYSTEM_PROMPT, QuestionsDataset, AlpacaDataset, TemplateDataset, MMLUDataset
 from core.pickle import unpickle
 from core.pickle import unpickle_pack
 from transformers import GenerationConfig
 
 from core.controller import CrossAttentionOutputSteering, ModelToSteer
 from core.llm_steering import llm_register_vector_control
-from utils import init_llm_model_and_tokenizer
+from core.utils import init_llm_model_and_tokenizer
 from CAA.utils.tokenize import tokenize_llama_base, tokenize_llama_chat
-from utils import get_device
+from core.utils import get_device
 
 
 from transformers import AutoModelForCausalLM

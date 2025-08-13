@@ -15,7 +15,7 @@ import typing as tp
 
 from core.controller import VectorControl
 from core.llm_steering import llm_register_vector_control
-from utils import get_device
+from core.utils import get_device
 
 
 class AttnWrapper(t.nn.Module):

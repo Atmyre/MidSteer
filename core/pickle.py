@@ -1,3 +1,5 @@
+import os
+from typing import Any
 import torch
 import pickle
 import io
@@ -31,3 +33,9 @@ def unpickle_pack(path: str | None) -> list[dict]:
     for subpath in path.split(','):
         result.append(unpickle(subpath))
     return result
+
+
+def pickle_stats(obj: Any, path: str):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'wb') as fout:
+        pickle.dump(obj, fout)

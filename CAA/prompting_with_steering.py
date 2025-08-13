@@ -30,7 +30,7 @@ from CAA.behaviors import (
 )
 from core.controller import CrossAttentionOutputSteering, ModelToSteer
 from core.pickle import unpickle
-from utils import get_device
+from core.utils import get_device
 import typing as tp
 
 load_dotenv()

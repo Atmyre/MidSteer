@@ -8,7 +8,7 @@ import time
 from diffusers import StableDiffusionPipeline, DiffusionPipeline, AutoPipelineForText2Image
 from core.pickle import unpickle
 from core.pickle import unpickle_pack
-from utils import get_device, init_pipeline_for_image_model, run_image_model
+from core.utils import get_device, init_pipeline_for_image_model, run_image_model
 
 # local imports
 from core.controller_hooks import CrossAttentionOutputSteeringHook, ModelToSteer, DiffusionVectorControlMode, register_vector_controls_with_hooks

@@ -11,11 +11,11 @@ from scipy.linalg import fractional_matrix_power
 import torch
 
 # local imports
-from construct_prompts import get_prompts_concrete, get_prompts_style, get_prompts_human_related, pickle_stats, read_prompt_file
+from core.prompts import get_prompts_concrete, get_prompts_style, get_prompts_human_related, read_prompt_file
 # from core.controller import DiffusionVectorControlMode, register_vector_controls
 from core.controller_hooks import register_vector_controls_with_hooks, DiffusionVectorControlMode
 from core.math import fractional_matrix_power_cov_torch
-from utils import get_device, init_pipeline_for_image_model, run_image_model
+from core.utils import get_device, init_pipeline_for_image_model, run_image_model
 
 # parsing arguments
 import argparse
