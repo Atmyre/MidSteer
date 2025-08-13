@@ -37,7 +37,7 @@ def compute_vectors(
     os.makedirs(output_dir, exist_ok=True)
 
     dataset = QuestionsDataset(
-        data_path=f'llm_exp/datasets/train/{topic}_questions_batch_*.json',
+        data_path=f'exp/datasets/train/{topic}_questions_batch_*.json',
         tokenizer=tokenizer,
         use_chat=use_chat,
         device=device,

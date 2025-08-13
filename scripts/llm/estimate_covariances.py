@@ -32,7 +32,7 @@ def main(
     device = get_device()
 
     dataset = AlpacaDataset(
-        data_path=f'llm_exp/datasets/eval/alpaca_instruct/alpaca_data.json',
+        data_path=f'exp/datasets/eval/alpaca_instruct/alpaca_data.json',
         tokenizer=tokenizer,
         use_chat=use_chat,
         device=device,

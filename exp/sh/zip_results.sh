@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Script to archive scores.tsv files from llm_exp/results directory
+# Script to archive scores.tsv files from exp/results directory
 # while preserving directory structure using tar.gz
 #
 # Usage:
@@ -26,7 +26,7 @@ show_usage() {
 # If no arguments provided, archive everything
 if [ $# -eq 0 ]; then
     echo "No arguments provided. Archiving all scores.tsv files..."
-    find llm_exp/results -name "scores.tsv" -type f | tar -czf scores.tar.gz -T -
+    find exp/results -name "scores.tsv" -type f | tar -czf scores.tar.gz -T -
 else
     # Process each argument as experiment name or pattern
     temp_file_list=$(mktemp)
@@ -35,7 +35,7 @@ else
         echo "Processing pattern: $pattern"
         
         # Find matching directories and then look for scores.tsv files in them
-        find llm_exp/results -maxdepth 2 -type d -name "*${pattern}*" | while read -r dir; do
+        find exp/results -maxdepth 2 -type d -name "*${pattern}*" | while read -r dir; do
             find "$dir" -name "scores.tsv" -type f >> "$temp_file_list"
         done
     done
@@ -48,7 +48,7 @@ else
     else
         echo "No scores.tsv files found matching the specified patterns"
         echo "Available experiments:"
-        find llm_exp/results -type d -mindepth 2 -maxdepth 2 | sed 's|llm_exp/results/[^/]*/||' | sort -u
+        find exp/results -type d -mindepth 2 -maxdepth 2 | sed 's|exp/results/[^/]*/||' | sort -u
         rm "$temp_file_list"
         exit 1
     fi

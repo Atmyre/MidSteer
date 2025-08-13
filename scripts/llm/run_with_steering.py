@@ -86,7 +86,7 @@ def main(
 
     if dataset_type == 'alpaca':
         dataset = AlpacaDataset(
-            data_path=f'llm_exp/datasets/eval/alpaca_instruct/alpaca_data.json',
+            data_path=f'exp/datasets/eval/alpaca_instruct/alpaca_data.json',
             tokenizer=tokenizer,
             use_chat=use_chat,
             device=device,
@@ -95,7 +95,7 @@ def main(
         )
     elif dataset_type == 'template':
         dataset = TemplateDataset(
-            template_path=f'llm_exp/datasets/eval/concepts/template.json',
+            template_path=f'exp/datasets/eval/concepts/template.json',
             concept=source_concept,
             tokenizer=tokenizer,
             use_chat=use_chat,
@@ -105,7 +105,7 @@ def main(
         )
     elif dataset_type == 'mmlu':
         dataset = MMLUDataset(
-            data_path=f'llm_exp/datasets/eval/mmlu/mmlu_full.json',
+            data_path=f'exp/datasets/eval/mmlu/mmlu_full.json',
             tokenizer=tokenizer,
             use_chat=use_chat,
             device=device,

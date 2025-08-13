@@ -61,7 +61,7 @@ def generate_questions_batch(topic: str, model: str, num_questions: int = 100) -
 
 def save_questions(questions: List[str], topic: str, batch_num: int):
     """Save generated questions to a JSON file."""
-    output_dir = Path("llm_exp/datasets/train")
+    output_dir = Path("exp/datasets/train")
     output_dir.mkdir(parents=True, exist_ok=True)
     
     filename = output_dir / f"{topic}_questions_batch_{batch_num}.json"

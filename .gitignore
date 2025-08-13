@@ -26,8 +26,8 @@ scores.tar.gz
 
 /latex/output
 
-/llm_exp/results/
-/llm_exp/local/
-/llm_exp/logs/
+/exp/results/
+/exp/local/
+/exp/logs/
 
 /notebooks/

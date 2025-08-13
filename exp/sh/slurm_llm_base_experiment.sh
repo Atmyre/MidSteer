@@ -2,8 +2,8 @@
 #SBATCH --partition=camera-xlong
 #SBATCH --gpus=4
 #SBATCH --time=48:00:00
-#SBATCH --output=./llm_exp/logs/slurm-%x-%j.out
-#SBATCH --error=./llm_exp/logs/slurm-%x-%j.err
+#SBATCH --output=./exp/logs/slurm-%x-%j.out
+#SBATCH --error=./exp/logs/slurm-%x-%j.err
 
 
 set -eoux pipefail
@@ -69,7 +69,7 @@ fi
 
 
 additional_steering_params="$mm_normalize_centers $intermediate_clipping $renormalize_after_steering $zero_mu_neutral"
-base_dir=./llm_exp/results/llama-2-7b-chat-hf/$SLURM_JOB_NAME
+base_dir=./exp/results/llama-2-7b-chat-hf/$SLURM_JOB_NAME
 
 export PYTHONPATH=.
 
@@ -82,7 +82,7 @@ topics="horses motorcycles cats dogs"
 steering_vectors_dir=$base_dir/steering_vectors
 
 if [ $num_covariances -eq 0 ]; then
-    $run_cmd $python ./llm_estimate_covariances.py \
+    $run_cmd $python scripts/llm/estimate_covariances.py \
         --model_name $model_name \
         --layer_type $layer_type \
         --token_aggregation_mode $token_aggregation_mode \
@@ -95,7 +95,7 @@ if [ $num_covariances -eq 0 ]; then
         additional_steering_params="$additional_steering_params --zero_mu_neutral"
     fi
 else
-    $run_cmd $python ./llm_estimate_covariances.py \
+    $run_cmd $python scripts/llm/estimate_covariances.py \
         --model_name $model_name \
         --layer_type $layer_type \
         --token_aggregation_mode $token_aggregation_mode \
@@ -106,7 +106,7 @@ else
 fi
 
 
-$run_cmd $python ./llm_generate_steering_vectors.py \
+$run_cmd $python scripts/llm/generate_steering_vectors.py \
     --model_name $model_name \
     --layer_type $layer_type \
     --topics $topics \
@@ -149,7 +149,7 @@ for source_concept in "${!concept_pairs[@]}"; do
     )
 
     for params in "${eval_params[@]}"; do
-        $run_cmd $python ./llm_run_with_steering.py \
+        $run_cmd $python scripts/llm/run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept $source_concept \
@@ -158,7 +158,7 @@ for source_concept in "${!concept_pairs[@]}"; do
             $params &
 
         for strength in $strengths; do
-            $run_cmd $python ./llm_run_with_steering.py \
+            $run_cmd $python scripts/llm/run_with_steering.py \
                 --model_name $model_name \
                 --layer_type $layer_type \
                 --source_concept $source_concept \
@@ -173,7 +173,7 @@ for source_concept in "${!concept_pairs[@]}"; do
         done
 
         for strength in $strengths; do
-            $run_cmd $python ./llm_run_with_steering.py \
+            $run_cmd $python scripts/llm/run_with_steering.py \
                 --model_name $model_name \
                 --layer_type $layer_type \
                 --source_concept $source_concept \
@@ -188,7 +188,7 @@ for source_concept in "${!concept_pairs[@]}"; do
         done
 
         for strength in $strengths; do
-            $run_cmd $python ./llm_run_with_steering.py \
+            $run_cmd $python scripts/llm/run_with_steering.py \
                 --model_name $model_name \
                 --layer_type $layer_type \
                 --source_concept $source_concept \
@@ -206,14 +206,14 @@ for source_concept in "${!concept_pairs[@]}"; do
     done
 
 
-    $run_cmd $python ./llm_concept_scoring.py \
+    $run_cmd $python scripts/llm/concept_scoring.py \
         --concept $source_concept $target_concept \
         --dir "$results_subdir/eval"
 
-    $run_cmd $python ./llm_consistency_scoring.py \
+    $run_cmd $python scripts/llm/consistency_scoring.py \
         --dir "$results_subdir/alpaca"
 
-    $run_cmd $python ./llm_consistency_scoring.py \
+    $run_cmd $python scripts/llm/consistency_scoring.py \
         --dir "$results_subdir/mmlu"
 
 done
@@ -242,7 +242,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
 
     declare -a concept_params=(--dataset_type template --samples_per_question $concept_samples_per_question --max_new_tokens $concept_max_new_tokens --output_dir $results_subdir/eval)
 
-    $run_cmd $python ./llm_run_with_steering.py \
+    $run_cmd $python scripts/llm/run_with_steering.py \
         --model_name $model_name \
         --layer_type $layer_type \
         --source_concept "$concept_to_steer" \
@@ -251,7 +251,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
         "${concept_params[@]}" &
 
     for strength in $strengths; do
-        $run_cmd $python ./llm_run_with_steering.py \
+        $run_cmd $python scripts/llm/run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept "$concept_to_steer" \
@@ -266,7 +266,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
     done
 
     for strength in $strengths; do
-        $run_cmd $python ./llm_run_with_steering.py \
+        $run_cmd $python scripts/llm/run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept "$concept_to_steer" \
@@ -281,7 +281,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
     done
 
     for strength in $strengths; do
-        $run_cmd $python ./llm_run_with_steering.py \
+        $run_cmd $python scripts/llm/run_with_steering.py \
             --model_name $model_name \
             --layer_type $layer_type \
             --source_concept "$concept_to_steer" \
@@ -297,7 +297,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
 
     wait
 
-    $run_cmd $python ./llm_concept_scoring.py \
+    $run_cmd $python scripts/llm/concept_scoring.py \
         --concept "$source_concept" "$target_concept" "$concept_to_steer" \
         --dir "$results_subdir/eval"
 
