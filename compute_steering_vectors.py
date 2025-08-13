@@ -40,7 +40,9 @@ def gather_stats_for_prompts(
         normalize=normalize_vectors,
         compute_covariances=True,
     )
-    register_vector_controls_with_hooks(pipe.unet, stats_handler)
+    # Register hooks on the appropriate model component
+    model_component = getattr(pipe, 'transformer', None) or pipe.unet
+    register_vector_controls_with_hooks(model_component, stats_handler)
 
     print("Gathering statistics for concept prompts...")
     for idx, prompt in tqdm.tqdm(enumerate(prompts), total=len(prompts)):
@@ -85,11 +87,9 @@ def gather_stats_for_prompt_pairs(
         compute_covariances=False,
     )
     
-    # print(pipe.transformer)
-    try:
-        register_vector_controls_with_hooks(pipe.unet, pos_stats_handler, neg_stats_handler)
-    except:
-        register_vector_controls_with_hooks(pipe.transformer, pos_stats_handler, neg_stats_handler)
+    # Register hooks on the appropriate model component
+    model_component = getattr(pipe, 'transformer', None) or pipe.unet
+    register_vector_controls_with_hooks(model_component, pos_stats_handler, neg_stats_handler)
 
     print("Gathering statistics for concept prompts...")
     for idx, (pos_prompt, neg_prompt) in tqdm.tqdm(
@@ -283,7 +283,7 @@ def run(args: argparse.Namespace):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux', 'flux-schnell'], default="sd14")
+    parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux', 'flux-schnell', 'sana', 'sana-600m'], default="sd14")
     parser.add_argument('--mode', type=str, choices=['concrete', 'human-related', 'style', 'file'], default="style")
     parser.add_argument('--control_mode', type=DiffusionVectorControlMode, choices=[str(x) for x in DiffusionVectorControlMode], default='attn_output', help='Vector control mode')
     parser.add_argument('--prompts_pos_file', type=str, default=None,

@@ -293,13 +293,14 @@ class CrossAttentionOutputSteeringHook(VectorControlHook):
 
         vector = vector.detach().clone()
 
-        if self.model_to_steer == ModelToSteer.LLAMA or (place_in_unet in ['up', 'mid', 'joint'] or (place_in_unet == 'down' and not self.steer_only_up)): 
+        if self.model_to_steer == ModelToSteer.LLAMA or (place_in_unet in ['up', 'mid', 'joint', 'single', 'sana'] or (place_in_unet == 'down' and not self.steer_only_up)): 
             num_steer = diffusion_step
 
             norm = torch.norm(vector, dim=-1, keepdim=True)
             if self.steer_type == 'casteer':
                 if self.steer_back:
                     for casteer_vectors in self.casteer_vectors:
+                        print(place_in_unet, len(casteer_vectors[num_steer][place_in_unet]))
                         vector[batch_slice, ...] = self.steer_backward_CASteer(vector[batch_slice, ...], *casteer_vectors[num_steer][place_in_unet][block_index])
                         vector = self.renormalize(vector, norm)
                 else:
@@ -377,9 +378,12 @@ class HookManager:
         """Recursively find transformer blocks and register hooks"""
         block_count = 0
         
-        # Check if this is a FLUX model
+        Check if this is a FLUX model
         if self._is_flux_model(model):
             block_count += self._register_flux_model_hooks(model)
+        # Check if this is a SANA model
+        elif self._is_sana_model(model):
+            block_count += self._register_sana_model_hooks(model)
         else:
             # Traditional SD UNet structure
             for name, module in model.named_children():
@@ -405,6 +409,47 @@ class HookManager:
         ]
         
         return sum(flux_indicators) >= 2
+
+    def _is_sana_model(self, model) -> bool:
+        """Check if the model is a SANA-based diffusion model"""
+        # Look for characteristic SANA model attributes
+        sana_indicators = [
+            hasattr(model, 'transformer'),          # SANA uses transformer architecture
+            hasattr(model, 'blocks'),               # SANA has transformer blocks
+            any('sana' in str(type(module)).lower() for _, module in model.named_modules()),
+            any('lineartransformer' in str(type(module)).lower() for _, module in model.named_modules()),
+            any('linearmultiheadattention' in str(type(module)).lower() for _, module in model.named_modules()),
+        ]
+        
+        return sum(sana_indicators) >= 2
+    
+    def _register_sana_model_hooks(self, model) -> int:
+        """Register hooks for SANA model architecture"""
+        block_count = 0
+        
+        # SANA models have a transformer structure with blocks
+        # Look for transformer blocks
+        if hasattr(model, 'blocks'):
+            for block in model.blocks:
+                self._register_hooks_for_sana_block(block, "sana")
+                block_count += 1
+        
+        # Also check transformer submodule
+        if hasattr(model, 'transformer') and hasattr(model.transformer, 'blocks'):
+            for block in model.transformer.blocks:
+                self._register_hooks_for_sana_block(block, "sana")
+                block_count += 1
+        
+        # Fallback: search recursively for any SANA blocks
+        if block_count == 0:
+            for name, module in model.named_modules():
+                class_name = module.__class__.__name__
+                # print(class_name)
+                if any(sana_name in class_name for sana_name in ['SanaTransformerBlock']):
+                    self._register_hooks_for_sana_block(module, "sana")
+                    block_count += 1
+        
+        return block_count
     
     def _register_flux_model_hooks(self, model) -> int:
         """Register hooks for FLUX model architecture"""
@@ -465,6 +510,10 @@ class HookManager:
             elif class_name in ['JointTransformerBlock', 'SingleTransformerBlock', 'MMDiTBlock', 'FluxTransformerBlock', 'FluxSingleTransformerBlock']:
                 # FLUX DiT blocks (various naming conventions)
                 self._register_hooks_for_flux_block(submodule, place_in_unet)
+                block_count += 1
+            elif any(sana_name in class_name for sana_name in ['SanaTransformerBlock']):
+                # SANA transformer blocks
+                self._register_hooks_for_sana_block(submodule, place_in_unet)
                 block_count += 1
             elif hasattr(submodule, 'attn') and hasattr(submodule.attn, 'to_q'):
                 # Generic transformer block detection for FLUX variants
@@ -540,6 +589,36 @@ class HookManager:
                 # Hook into FLUX key/value computation
                 self._register_flux_key_value_hooks(block, control, place_in_unet)
     
+    def _register_hooks_for_sana_block(self, block, place_in_unet: str):
+        """Register hooks for SANA transformer blocks"""
+        # Store module info for the hook callbacks
+        self.module_info[id(block)] = place_in_unet
+        
+        # Register hooks based on control modes for SANA architecture
+        for control in self.controls:
+            if control._mode == DiffusionVectorControlMode.ATTN_OUTPUT:
+                # SANA blocks may have different attention module names
+                attn_module = self._get_sana_attention_module(block)
+                # print(block)
+                # print(attn_module)
+                if attn_module is not None:
+                    hook = attn_module.register_forward_hook(
+                        self._create_sana_attn_output_hook(control, place_in_unet)
+                    )
+                    self.hooks.append(hook)
+            elif control._mode == DiffusionVectorControlMode.ATTN_HEADS:
+                attn_module = self._get_sana_attention_module(block)
+                if attn_module is not None:
+                    hook = attn_module.register_forward_hook(
+                        self._create_sana_attn_heads_hook(control, place_in_unet)
+                    )
+                    self.hooks.append(hook)
+            elif control._mode in [DiffusionVectorControlMode.ATTN_KEY, 
+                                 DiffusionVectorControlMode.ATTN_VALUE,
+                                 DiffusionVectorControlMode.ATTN_KEY_VALUE]:
+                # Hook into SANA key/value computation
+                self._register_sana_key_value_hooks(block, control, place_in_unet)
+    
     def _is_flux_attention_block(self, module) -> bool:
         """Check if a module is a FLUX-style attention block"""
         # Check for FLUX-specific attributes
@@ -559,6 +638,19 @@ class HookManager:
         # Try different possible attention module names in FLUX
         # print(block)
         possible_names = ['txt_attn', 'attn']
+        
+        for name in possible_names:
+            if hasattr(block, name):
+                attn_module = getattr(block, name)
+                if attn_module is not None and hasattr(attn_module, 'to_q'):
+                    return attn_module
+        
+        return None
+    
+    def _get_sana_attention_module(self, block):
+        """Get the appropriate attention module from a SANA block"""
+        # Try different possible attention module names in SANA
+        possible_names = ['attn2', 'attention', 'self_attn', 'Attention']
         
         for name in possible_names:
             if hasattr(block, name):
@@ -629,6 +721,27 @@ class HookManager:
             if hasattr(attn_module, 'to_v'):
                 hook = attn_module.to_v.register_forward_hook(
                     self._create_flux_value_hook(control, place_in_unet)
+                )
+                self.hooks.append(hook)
+    
+    def _register_sana_key_value_hooks(self, block, control, place_in_unet: str):
+        """Register key/value hooks for SANA blocks"""
+        attn_module = self._get_sana_attention_module(block)
+        if attn_module is None:
+            return
+            
+        # Hook into SANA key/value projections
+        if control._mode in [DiffusionVectorControlMode.ATTN_KEY, DiffusionVectorControlMode.ATTN_KEY_VALUE]:
+            if hasattr(attn_module, 'to_k'):
+                hook = attn_module.to_k.register_forward_hook(
+                    self._create_sana_key_hook(control, place_in_unet)
+                )
+                self.hooks.append(hook)
+        
+        if control._mode in [DiffusionVectorControlMode.ATTN_VALUE, DiffusionVectorControlMode.ATTN_KEY_VALUE]:
+            if hasattr(attn_module, 'to_v'):
+                hook = attn_module.to_v.register_forward_hook(
+                    self._create_sana_value_hook(control, place_in_unet)
                 )
                 self.hooks.append(hook)
     
@@ -818,6 +931,87 @@ class HookManager:
                 return output
                 
             # Similar to FLUX key hook but for values
+            batch_size, seq_len = output.shape[:2]
+            
+            if len(output.shape) == 3:  # [batch, seq_len, hidden_dim]
+                hidden_dim = output.shape[2]
+                num_heads = getattr(module, 'num_heads', 8)  # Default fallback
+                head_dim = hidden_dim // num_heads if num_heads > 0 else hidden_dim
+                
+                if hidden_dim % head_dim == 0:
+                    output_reshaped = output.view(batch_size, seq_len, num_heads, head_dim)
+                    controlled_output = control(output_reshaped, place_in_unet)
+                    return controlled_output.view(batch_size, seq_len, hidden_dim)
+                    
+            return control(output, place_in_unet)
+        
+        return hook_fn
+    
+    def _create_sana_attn_output_hook(self, control: VectorControlHook, place_in_unet: str):
+        """Create a forward hook for SANA attention output"""
+        def hook_fn(module, input, output):
+            if not control.active:
+                return output
+            
+            # SANA attention outputs are typically straightforward tensors
+            # Apply control to the output
+            output_expanded = output[..., None, :]
+            controlled_output = control(output_expanded, place_in_unet)
+            controlled_output = controlled_output[..., 0, :].to(torch.bfloat16)
+            
+            return controlled_output
+        
+        return hook_fn
+    
+    def _create_sana_attn_heads_hook(self, control: VectorControlHook, place_in_unet: str):
+        """Create a forward hook for SANA attention heads"""
+        def hook_fn(module, input, output):
+            if not control.active:
+                return output
+            
+            # Apply control with proper tensor reshaping for SANA
+            if len(output.shape) == 4:  # [batch, heads, seq_len, head_dim]
+                output_transposed = output.transpose(1, 2)
+                controlled_output = control(output_transposed, place_in_unet)
+                controlled_output = controlled_output.transpose(1, 2)
+            else:
+                controlled_output = control(output, place_in_unet)
+            
+            return controlled_output
+        
+        return hook_fn
+    
+    def _create_sana_key_hook(self, control: VectorControlHook, place_in_unet: str):
+        """Create a forward hook for SANA attention keys"""
+        def hook_fn(module, input, output):
+            if not control.active:
+                return output
+                
+            # SANA keys handling
+            batch_size, seq_len = output.shape[:2]
+            
+            if len(output.shape) == 3:  # [batch, seq_len, hidden_dim]
+                hidden_dim = output.shape[2]
+                # Infer head structure from module attributes if available
+                num_heads = getattr(module, 'num_heads', 8)  # Default fallback
+                head_dim = hidden_dim // num_heads if num_heads > 0 else hidden_dim
+                
+                if hidden_dim % head_dim == 0:
+                    output_reshaped = output.view(batch_size, seq_len, num_heads, head_dim)
+                    controlled_output = control(output_reshaped, place_in_unet)
+                    return controlled_output.view(batch_size, seq_len, hidden_dim)
+                    
+            return control(output, place_in_unet)
+        
+        return hook_fn
+    
+    def _create_sana_value_hook(self, control: VectorControlHook, place_in_unet: str):
+        """Create a forward hook for SANA attention values"""
+        def hook_fn(module, input, output):
+            if not control.active:
+                return output
+                
+            # Similar to SANA key hook but for values
             batch_size, seq_len = output.shape[:2]
             
             if len(output.shape) == 3:  # [batch, seq_len, hidden_dim]

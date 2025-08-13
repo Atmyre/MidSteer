@@ -4,6 +4,29 @@ from diffusers import FluxPipeline
 from diffusers import StableDiffusionPipeline, DiffusionPipeline, AutoPipelineForText2Image
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+try:
+    # Try the official diffusers import first
+    from diffusers import SanaPipeline
+except ImportError:
+    # If not available in diffusers, try the app.sana_pipeline approach
+    try:
+        from diffusers.pipelines.sana import SanaPipeline
+    except ImportError:
+        # Fallback to local SANA installation
+        try:
+            import sys
+            import os
+            # Add potential SANA paths
+            possible_sana_paths = ['./Sana', '../Sana', './sana', '../sana']
+            for path in possible_sana_paths:
+                if os.path.exists(path):
+                    sys.path.insert(0, path)
+                    break
+            from app.sana_pipeline import SanaPipeline
+        except ImportError:
+            SanaPipeline = None
+            print("Warning: SANA is not available. Install SANA or ensure diffusers supports SanaPipeline.")
+
 
 def get_device() -> torch.device:
     if torch.cuda.is_available():
@@ -72,6 +95,28 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
 #             device_map='balanced'
         )
         pipe.enable_model_cpu_offload()
+    elif model == 'sana':
+        if SanaPipeline is None:
+            raise ValueError("SANA is not available. Please install SANA or ensure diffusers supports SanaPipeline.")
+        pipe = SanaPipeline.from_pretrained(
+            "Efficient-Large-Model/SANA1.5_1.6B_1024px_diffusers",
+            torch_dtype=torch.bfloat16,
+            cache_dir='./cache',
+            token='***REMOVED***',
+        )
+        pipe.enable_model_cpu_offload()
+    elif model == 'sana-600m':
+        if SanaPipeline is None:
+            raise ValueError("SANA is not available. Please install SANA or ensure diffusers supports SanaPipeline.")
+        pipe = SanaPipeline.from_pretrained(
+            "Efficient-Large-Model/Sana_600M_512px_BF16_diffusers",
+            torch_dtype=torch.bfloat16,
+            cache_dir='./cache',
+            token='***REMOVED***'
+        )
+        pipe.enable_model_cpu_offload()
+    else:
+        raise ValueError(f'Unknown model: {model}')
     return pipe
 
 
@@ -86,6 +131,8 @@ def get_num_denoising_steps(model: str) -> int:
         return 28  # FLUX.1-dev typically uses 28 steps
     elif model in ('flux-schnell',):
         return 1   # FLUX.1-schnell is optimized for 4 steps
+    elif model in ('sana', 'sana-600m'):
+        return 20  # SANA typically uses 20 inference steps
     else:
         raise ValueError('Unknown model type')
 
@@ -121,6 +168,16 @@ def run_image_model(model_type: str, pipe, prompt: str, seed: int, device: torch
             num_inference_steps=get_num_denoising_steps(model_type),
             max_sequence_length=256,
             generator=torch.Generator('cpu').manual_seed(seed),
+            num_images_per_prompt=num_images,
+        ).images
+    elif model_type in ['sana', 'sana-600m']:
+        images = pipe(
+            prompt=prompt,
+            num_inference_steps=get_num_denoising_steps(model_type),
+            guidance_scale=5.0,
+            height=1024 if model_type == 'sana' else 512,
+            width=1024 if model_type == 'sana' else 512,
+            generator=torch.Generator(device=device).manual_seed(seed),
             num_images_per_prompt=num_images,
         ).images
 

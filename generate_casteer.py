@@ -18,7 +18,7 @@ import argparse
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux', 'flux-schnell'], default="sd14")
+parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux', 'flux-schnell', 'sana', 'sana-600m'], default="sd14")
 parser.add_argument('--control_mode', type=DiffusionVectorControlMode, choices=[str(x) for x in DiffusionVectorControlMode], default='attn_output', help='Vector control mode')
 parser.add_argument('--prompt', type=str, default=None)
 parser.add_argument('--prompt_file', type=str, default=None, help="Path to text file with prompts, one per line.")
@@ -76,10 +76,9 @@ if not args.not_steer:
         beta=args.beta,
         device=device
     )
-    try:
-        hook_manager = register_vector_controls_with_hooks(pipe.unet, controller)
-    except:
-        hook_manager = register_vector_controls_with_hooks(pipe.transformer, controller)
+    # Register hooks on the appropriate model component
+    model_component = getattr(pipe, 'transformer', None) or pipe.unet
+    hook_manager = register_vector_controls_with_hooks(model_component, controller)
 else:
     controller = None
     hook_manager = None
