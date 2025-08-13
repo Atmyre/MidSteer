@@ -283,7 +283,7 @@ def run(args: argparse.Namespace):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux', 'flux-schnell', 'sana', 'sana-600m'], default="sd14")
+    parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux', 'flux-schnell', 'sana', 'sana-sprint'], default="sd14")
     parser.add_argument('--mode', type=str, choices=['concrete', 'human-related', 'style', 'file'], default="style")
     parser.add_argument('--control_mode', type=DiffusionVectorControlMode, choices=[str(x) for x in DiffusionVectorControlMode], default='attn_output', help='Vector control mode')
     parser.add_argument('--prompts_pos_file', type=str, default=None,
