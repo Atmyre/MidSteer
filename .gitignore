@@ -21,3 +21,13 @@ __pycache__/
 /CAA/external_vectors/
 
 /concept_flipping/vectors/
+
+scores.tar.gz
+
+/latex/output
+
+/llm_exp/results/
+/llm_exp/local/
+/llm_exp/logs/
+
+/notebooks/

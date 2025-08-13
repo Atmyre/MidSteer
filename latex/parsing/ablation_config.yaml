@@ -1,6 +1,6 @@
 results_base_path: "llm_exp/results/llama-2-7b-chat-hf"
 templates_path: "latex/templates"
-output_dir: "latex/parsing/output/ablation_section"
+output_dir: "latex/output/ablation"
 section_title: "Ablations"
 
 subsections:
