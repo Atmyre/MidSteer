@@ -378,7 +378,7 @@ class HookManager:
         """Recursively find transformer blocks and register hooks"""
         block_count = 0
         
-        Check if this is a FLUX model
+        #Check if this is a FLUX model
         if self._is_flux_model(model):
             block_count += self._register_flux_model_hooks(model)
         # Check if this is a SANA model
