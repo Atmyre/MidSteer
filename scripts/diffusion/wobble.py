@@ -8,7 +8,8 @@ import torch
 
 from core.pickle import unpickle
 from core.prompts import read_prompt_file
-from core.controller import VectorControl, register_vector_controls
+from core.controller import VectorControl
+from core.diffusion_steering_legacy import register_vector_controls_legacy
 from core.utils import get_device, init_pipeline_for_image_model, run_image_model
 
 
@@ -85,7 +86,7 @@ def run(
         device=device,
     )
     
-    register_vector_controls(pipe.unet, controller)
+    register_vector_controls_legacy(pipe.unet, controller)
 
     for prompt in prompts:
         for seed in seeds:

@@ -11,7 +11,8 @@ from core.pickle import unpickle_pack
 from core.utils import get_device, init_pipeline_for_image_model, run_image_model
 
 # local imports
-from core.controller_hooks import CrossAttentionOutputSteeringHook, ModelToSteer, DiffusionVectorControlMode, register_vector_controls_with_hooks
+from core.controller import CrossAttentionOutputSteering, ModelToSteer, DiffusionVectorControlMode
+from core.diffusion_steering import DiffusionModelType, diffusion_register_vector_controls_with_hooks
 
 # parsing arguments
 import argparse
@@ -60,7 +61,7 @@ device = get_device()
 pipe = init_pipeline_for_image_model(args.model)
 
 if not args.not_steer:
-    controller = CrossAttentionOutputSteeringHook(
+    controller = CrossAttentionOutputSteering(
         model_to_steer=ModelToSteer.UNET,
         mode=args.control_mode,
         mmsteer_vectors=unpickle(args.mmsteer_vectors),
@@ -74,11 +75,16 @@ if not args.not_steer:
         steer_back=args.steer_back,
         alpha=args.alpha,
         beta=args.beta,
-        device=device
+        device=device,
+        renormalize_after_steering=True
     )
     # Register hooks on the appropriate model component
     model_component = getattr(pipe, 'transformer', None) or pipe.unet
-    hook_manager = register_vector_controls_with_hooks(model_component, controller)
+    hook_manager = diffusion_register_vector_controls_with_hooks(
+        model_component,
+        controller,
+        model_type=DiffusionModelType.from_model(args.model),
+    )
 else:
     controller = None
     hook_manager = None

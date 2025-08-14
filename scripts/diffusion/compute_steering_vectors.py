@@ -13,7 +13,8 @@ import torch
 # local imports
 from core.prompts import get_prompts_concrete, get_prompts_style, get_prompts_human_related, read_prompt_file
 # from core.controller import DiffusionVectorControlMode, register_vector_controls
-from core.controller_hooks import register_vector_controls_with_hooks, DiffusionVectorControlMode
+from core.diffusion_steering import DiffusionModelType, diffusion_register_vector_controls_with_hooks
+from core.controller import DiffusionVectorControlMode
 from core.math import fractional_matrix_power_cov_torch
 from core.utils import get_device, init_pipeline_for_image_model, run_image_model
 
@@ -42,7 +43,11 @@ def gather_stats_for_prompts(
     )
     # Register hooks on the appropriate model component
     model_component = getattr(pipe, 'transformer', None) or pipe.unet
-    register_vector_controls_with_hooks(model_component, stats_handler)
+    diffusion_register_vector_controls_with_hooks(
+        model_component,
+        stats_handler,
+        model_type=DiffusionModelType.from_model(model_type),
+    )
 
     print("Gathering statistics for concept prompts...")
     for idx, prompt in tqdm.tqdm(enumerate(prompts), total=len(prompts)):
@@ -89,7 +94,12 @@ def gather_stats_for_prompt_pairs(
     
     # Register hooks on the appropriate model component
     model_component = getattr(pipe, 'transformer', None) or pipe.unet
-    register_vector_controls_with_hooks(model_component, pos_stats_handler, neg_stats_handler)
+    diffusion_register_vector_controls_with_hooks(
+        model_component,
+        pos_stats_handler,
+        neg_stats_handler,
+        model_type=DiffusionModelType.from_model(args.model),
+    )
 
     print("Gathering statistics for concept prompts...")
     for idx, (pos_prompt, neg_prompt) in tqdm.tqdm(
