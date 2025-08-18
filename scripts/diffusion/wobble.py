@@ -10,7 +10,7 @@ from core.pickle import unpickle
 from core.prompts import read_prompt_file
 from core.controller import VectorControl
 from core.diffusion_steering_legacy import register_vector_controls_legacy
-from core.utils import get_device, init_pipeline_for_image_model, run_image_model
+from core.utils import SUPPORTED_DIFFUSION_MODELS, get_device, init_pipeline_for_image_model, run_image_model
 
 
 class Wobbler(VectorControl):
@@ -118,7 +118,7 @@ def run(
 
 def main(): 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo'], default="sdxl")
+    parser.add_argument('--model', type=str, choices=SUPPORTED_DIFFUSION_MODELS, required=True)
     parser.add_argument('--prompt_file', type=str, required=True, help="Path to text file with prompts, one per line.")
     parser.add_argument('--seeds', type=str, default="0", help="Comma-separated list of seeds to use for generation.")
     parser.add_argument('--concept_covariances', type=str, default=None, help='path to covariances of the target concept')

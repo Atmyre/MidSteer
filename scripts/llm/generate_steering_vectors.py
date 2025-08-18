@@ -63,10 +63,10 @@ def compute_vectors(
         ), torch.no_grad():
             _ = model.generate(tokens, generation_config=generation_config)
             vector_control.reset()
-        vector_control.save_stats(
-            means_path=output_path,
-            use_torch_save=True
-        )
+    vector_control.save_stats(
+        means_path=output_path,
+        use_torch_save=True
+    )
 
 
 if __name__ == '__main__':

@@ -3,6 +3,7 @@ import warnings
 import numpy as np
 import torch
 import abc
+import typing as tp
 from collections import defaultdict
 from typing import Optional, Any
 
@@ -71,75 +72,68 @@ class VectorControl(abc.ABC):
             self._diffusion_step += 1
         return vector
 
+# For each diffusion step (or exacly 1 for LLMs),
+# for each place in the network represented as string key,
+# for each layer position, we store steering vector
+SteeringVectors = tp.NewType('SteeringVectors', dict[int, dict[str, list[torch.Tensor]]])
 
 class CrossAttentionOutputSteering(VectorControl):
     def __init__(
         self,
         model_to_steer: ModelToSteer,
         *,
+        source_concepts: list[SteeringVectors],
+        target_concepts: list[SteeringVectors | None],
+        mu_neutral: SteeringVectors | None,
+        sigma_neutral: SteeringVectors | None,
+        strength: float,
+
         mode: DiffusionVectorControlMode = None,
         mmsteer_vectors=None,
-        mu_pos=None,
-        mu_neg=None,
-        mu_neutral=None,
-        cov=None,
         steer_type: str = None,
-        
-        mmsteer_threshold: float=0.1,
+
         steer_only_up=False, 
-        alpha: float = None,
-        beta: float = None,
         steer_back: bool = False,
         device: Any,
         num_layers: int = None,
-        strength: float = None,
-        identity_cov: bool = False, 
-        zero_mu_neutral: bool = False,
-        mm_normalize_centers: bool = False,
         renormalize_after_steering: bool = False,
         intermediate_clipping: bool = True,
     ):
         super().__init__(mode=mode, num_layers=num_layers)
         self.device = device
         
-        self.mmsteer_threshold = mmsteer_threshold
-        
         self.steer_only_up = steer_only_up
         self.steer_back = steer_back
         self.steer_type = steer_type
         self.renormalize_after_steering = renormalize_after_steering
         self.intermediate_clipping = intermediate_clipping
-
-        if steer_type == 'casteer' and steer_back:
-            self.strength = beta
-        else:
-            self.strength = alpha
-
-        if strength is not None:
-            self.strength = strength
-        if self.strength is None:
-            raise ValueError("Steering strength not provided, specify with `strength` parameter")
+        self.strength = strength
         
         if self.strength < 0:
-            mu_pos, mu_neg = mu_neg, mu_pos
-            self.strength = -self.strength
+            raise ValueError('Negative values of strength are not supported')
 
         if steer_type in ('casteer', 'interpret'):
             self.casteer_vectors = []
-            for mu_pos_concept, mu_neg_concept in zip(mu_pos, mu_neg):
+            for source_concept, target_concept in zip(source_concepts, target_concepts):
                 casteer_concept_transforms = defaultdict(lambda: defaultdict(list))
-                for num_steer in mu_pos_concept:
-                    for place_in_unet in mu_pos_concept[num_steer]:
-                        for block_idx in range(len(mu_pos_concept[num_steer][place_in_unet])):
-                            b = mu_pos_concept[num_steer][place_in_unet][block_idx] - mu_neg_concept[num_steer][place_in_unet][block_idx]
-                            if len(b.shape) == 1:
-                                b = b.unsqueeze(0)
-                            b = convert_to_widest_dtype(torch.tensor(b), device=self.device).unsqueeze(-1)
+                for num_steer in source_concept:
+                    for place_in_unet in source_concept[num_steer]:
+                        for block_idx in range(len(source_concept[num_steer][place_in_unet])):
+                            source_vector = source_concept[num_steer][place_in_unet][block_idx]
+                            if target_concept is not None:
+                                target_vector = target_concept[num_steer][place_in_unet][block_idx]
+                            else:
+                                target_vector = torch.zeros_like(source_vector)
+                            steering_vector = source_vector - target_vector
+
+                            if len(steering_vector.shape) == 1:
+                                steering_vector = steering_vector.unsqueeze(0)
+                            steering_vector = convert_to_widest_dtype(steering_vector, device=self.device).unsqueeze(-1)
                             
-                            res = self.strength*(b @ torch.linalg.pinv(b))
-                            P = torch.eye(res.shape[1], dtype=res.dtype).unsqueeze(0).to(self.device) - res
+                            res = self.strength * (steering_vector @ torch.linalg.pinv(steering_vector))
+                            P = torch.eye(res.shape[1], dtype=res.dtype, device=self.device).unsqueeze(0) - res
                             
-                            casteer_concept_transforms[num_steer][place_in_unet].append((b.squeeze(-1), P))
+                            casteer_concept_transforms[num_steer][place_in_unet].append((steering_vector.squeeze(-1), P))
                 self.casteer_vectors.append(casteer_concept_transforms)
         elif steer_type == 'mmsteer':
             self.mmsteer_vectors = defaultdict(lambda: defaultdict(list))
@@ -152,52 +146,45 @@ class CrossAttentionOutputSteering(VectorControl):
                         self.mmsteer_vectors[num_steer][place_in_unet].append((W, b))
         elif steer_type in ('leace', 'mean_matching'):
             self.proj_transforms = []
-            for mu_pos_concept, mu_neg_concept, mu_neutral_concept, cov_concept in zip(mu_pos, mu_neg, mu_neutral, cov):
+            for source_concept, target_concept in zip(source_concepts, target_concepts):
                 concept_transforms = defaultdict(lambda: defaultdict(list))
-                for num_steer in mu_pos_concept:
-                    for place_in_unet in mu_pos_concept[num_steer]:
-                        for block_idx in range(len(mu_pos_concept[num_steer][place_in_unet])):
-                            sigma = convert_to_widest_dtype(
-                                cov_concept[num_steer][place_in_unet][block_idx],
-                                device=self.device, force_double=False)
-                            if identity_cov:
-                                sigma = torch.eye(sigma.shape[1], dtype=sigma.dtype, device=sigma.device).unsqueeze(0)
-                            m_neutral = convert_to_widest_dtype(
-                                mu_neutral_concept[num_steer][place_in_unet][block_idx],
-                                device=self.device, force_double=False)
-                            if zero_mu_neutral:
-                                m_neutral = torch.zeros_like(m_neutral)
-                            m_pos = convert_to_widest_dtype(
-                                mu_pos_concept[num_steer][place_in_unet][block_idx],
-                                device=self.device, force_double=False) - m_neutral
-                            m_neg = convert_to_widest_dtype(
-                                mu_neg_concept[num_steer][place_in_unet][block_idx],
-                                device=self.device, force_double=False) - m_neutral
-                            steering_vector = m_pos - m_neg
+                for num_steer in source_concept:
+                    for place_in_unet in source_concept[num_steer]:
+                        for block_idx in range(len(source_concept[num_steer][place_in_unet])):
+                            source_vector = self._convert_type(source_concept[num_steer][place_in_unet][block_idx])
+                            if target_concept is not None:
+                                target_vector = self._convert_type(target_concept[num_steer][place_in_unet][block_idx])
+                            else:
+                                target_vector = torch.zeros_like(source_vector)
 
-                            sigma_minus_half = fractional_matrix_power_cov_torch(sigma, -0.5)
-                            sigma_plus_half = fractional_matrix_power_cov_torch(sigma, 0.5)
+                            if mu_neutral is not None:
+                                m_neutral = self._convert_type(mu_neutral[num_steer][place_in_unet][block_idx])
+                            else:
+                                m_neutral = torch.zeros_like(source_vector)
+
+                            source_vector -= m_neutral
+                            target_vector -= m_neutral
+
+                            if sigma_neutral is not None:
+                                sigma = self._convert_type(sigma_neutral[num_steer][place_in_unet][block_idx])
+                            else:
+                                sigma = torch.eye(source_vector.shape[1], dtype=source_vector.dtype, device=source_vector.device).unsqueeze(0)
+
+                            sigma_minus_half = fractional_matrix_power_cov_torch(sigma, -0.5)  # [#heads, dim, dim]
+                            source_vector = (sigma_minus_half @ source_vector.unsqueeze(-1))  # [#heads, dim, 1]
+                            target_vector = (sigma_minus_half @ target_vector.unsqueeze(-1))  # [#heads, dim, 1]
+                            steering_vector = source_vector - target_vector  # [#heads, dim, 1]
+                            
+                            sigma_plus_half = fractional_matrix_power_cov_torch(sigma, 0.5)  # [#heads, dim, dim]
+                            proj_left = sigma_plus_half @ steering_vector  # [#heads, dim, 1]
 
                             if steer_type == 'leace':
-                                steering_vector = (sigma_minus_half @ steering_vector.unsqueeze(-1))  # [#heads, dim, 1]
-                                # Store projection components instead of full matrix
-                                # P = I - strength * proj_left @ proj_right
-                                proj_left = sigma_plus_half @ steering_vector  # [#heads, dim, 1]
                                 proj_right = torch.linalg.pinv(steering_vector) @ sigma_minus_half  # [#heads, 1, dim]
                             elif steer_type == 'mean_matching':
-                                if mm_normalize_centers:
-                                    m_pos /= (torch.norm(m_pos, dim=-1, keepdim=True) + EPS)
-                                    m_neg /= (torch.norm(m_neg, dim=-1, keepdim=True) + EPS)
-                                # pinv(x) = x.T / |x|^2
-                                m_pos = (sigma_minus_half @ m_pos.unsqueeze(-1))  # [#heads, dim, 1]
-                                m_neg = (sigma_minus_half @ m_neg.unsqueeze(-1))  # [#heads, dim, 1]
-                                # Store projection components instead of full matrix
-                                # P = I - strength * proj_left @ proj_right (same sign as LEACE)
-                                # Swap m_pos and m_neg to achieve the positive effect of mean_matching
-                                proj_left = sigma_plus_half @ (m_neg - m_pos)  # [#heads, dim, 1]
-                                proj_right = torch.linalg.pinv(m_neg) @ sigma_minus_half  # [#heads, 1, dim]
+                                proj_right = torch.linalg.pinv(source_vector) @ sigma_minus_half  # [#heads, 1, dim]
 
-                            # Store projection components and metadata (always use -1 sign)
+                            # Transpose here because in the steer_transform we will multiply from the right
+                            # (a form of optimisation)
                             concept_transforms[num_steer][place_in_unet].append((proj_left.mT, proj_right.mT, m_neutral))
                 self.proj_transforms.append(concept_transforms)
 
@@ -206,6 +193,9 @@ class CrossAttentionOutputSteering(VectorControl):
 
         self.steering_cache = {}
         self.model_to_steer = model_to_steer
+
+    def _convert_type(self, vector: torch.Tensor):
+        return convert_to_widest_dtype(vector, device=self.device, force_double=False)
 
     def steer_transform(self, vector: torch.Tensor, *steering_tensors: torch.Tensor) -> torch.Tensor:
         assert len(vector.shape) == 4

@@ -12,7 +12,7 @@ from core.pickle import unpickle
 from core.pickle import unpickle_pack
 from transformers import GenerationConfig
 
-from core.controller import CrossAttentionOutputSteering, ModelToSteer
+from core.controller import CrossAttentionOutputSteering, ModelToSteer, SteeringVectors
 from core.llm_steering import llm_register_vector_control
 from core.utils import init_llm_model_and_tokenizer
 from CAA.utils.tokenize import tokenize_llama_base, tokenize_llama_chat
@@ -43,8 +43,8 @@ def main(
         output_dir: str,
 
         max_new_tokens: int,
-        mu_neutral: list[dict],
-        cov_neutral: list[dict],
+        mu_neutral: SteeringVectors,
+        cov_neutral: SteeringVectors,
         steer_type: str | None,
         dataset_type: str,
         num_samples: int | None,
@@ -116,26 +116,19 @@ def main(
         raise ValueError(f"Unknown dataset type: {dataset_type}")
 
     if steer_type is not None:
-        # TODO: proper
-        mu_pos = unpickle(source_concept_path)
-        mu_neg = unpickle(target_concept_path)
-
-        if steer_type == 'mean_matching':
-            mu_pos, mu_neg = mu_neg, mu_pos
+        source_concept = unpickle(source_concept_path)
+        target_concept = unpickle(target_concept_path)
 
         control = CrossAttentionOutputSteering(
             model_to_steer=ModelToSteer.LLAMA,
             steer_type=steer_type,
             steer_back=True,
             device=device,
-            mu_pos=[mu_pos],
-            mu_neg=[mu_neg],
+            source_concepts=[source_concept],
+            target_concepts=[target_concept],
             mu_neutral=mu_neutral,
-            cov=cov_neutral,
+            sigma_neutral=cov_neutral,
             strength=strength,
-            identity_cov=identity_cov,
-            zero_mu_neutral=zero_mu_neutral,
-            mm_normalize_centers=mm_normalize_centers,
             intermediate_clipping=intermediate_clipping,
             renormalize_after_steering=renormalize_after_steering,
         )
@@ -206,6 +199,16 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    if not args.identity_cov:
+        cov_neutral = unpickle(args.cov_neutral)
+    else:
+        cov_neutral = None
+
+    if not args.zero_mu_neutral:
+        mu_neutral = unpickle(args.mu_neutral)
+    else:
+        mu_neutral = None
+
     if args.layers_to_steer is not None:
         layers_to_steer = list(map(int, args.layers_to_steer.split(',')))
     else:
@@ -229,8 +232,8 @@ if __name__ == "__main__":
         strength=args.strength,
         output_dir=args.output_dir,
         max_new_tokens=args.max_new_tokens,
-        mu_neutral=unpickle_pack(args.mu_neutral),
-        cov_neutral=unpickle_pack(args.cov_neutral),
+        mu_neutral=mu_neutral,
+        cov_neutral=cov_neutral,
         identity_cov=args.identity_cov,
         steer_type=args.steer_type,
         dataset_type=args.dataset_type,

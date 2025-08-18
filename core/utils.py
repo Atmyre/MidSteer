@@ -42,6 +42,7 @@ def get_device() -> torch.device:
         return torch.device('mps')
     return torch.device('cpu')
 
+SUPPORTED_DIFFUSION_MODELS = ['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux', 'flux-schnell', 'sana', 'sana-sprint']
 
 def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
     if model == 'sd14':

@@ -175,10 +175,10 @@ def test_steering(
                         strength=multiplier,
                         steer_back=True,
                         device=device,
-                        mu_pos=[load_external_vectors(behavior, settings.external_layer_type, model.model_name_path, 'pos')],
-                        mu_neg=[load_external_vectors(behavior, settings.external_layer_type, model.model_name_path, 'neg')],
-                        mu_neutral=[mu_neutral],
-                        cov=[cov_neutral],
+                        target_concepts=[load_external_vectors(behavior, settings.external_layer_type, model.model_name_path, 'pos')],
+                        source_concepts=[load_external_vectors(behavior, settings.external_layer_type, model.model_name_path, 'neg')],
+                        mu_neutral=mu_neutral,
+                        sigma_neutral=cov_neutral,
                         renormalize_after_steering=renormalize_after_steering,
                     )]
                     model.set_external_controllers(external_controllers)

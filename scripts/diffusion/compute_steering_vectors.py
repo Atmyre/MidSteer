@@ -16,7 +16,7 @@ from core.prompts import get_prompts_concrete, get_prompts_style, get_prompts_hu
 from core.diffusion_steering import DiffusionModelType, diffusion_register_vector_controls_with_hooks
 from core.controller import DiffusionVectorControlMode
 from core.math import fractional_matrix_power_cov_torch
-from core.utils import get_device, init_pipeline_for_image_model, run_image_model
+from core.utils import SUPPORTED_DIFFUSION_MODELS, get_device, init_pipeline_for_image_model, run_image_model
 
 # parsing arguments
 import argparse
@@ -293,7 +293,7 @@ def run(args: argparse.Namespace):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux', 'flux-schnell', 'sana', 'sana-sprint'], default="sd14")
+    parser.add_argument('--model', type=str, choices=SUPPORTED_DIFFUSION_MODELS, required=True)
     parser.add_argument('--mode', type=str, choices=['concrete', 'human-related', 'style', 'file'], default="style")
     parser.add_argument('--control_mode', type=DiffusionVectorControlMode, choices=[str(x) for x in DiffusionVectorControlMode], default='attn_output', help='Vector control mode')
     parser.add_argument('--prompts_pos_file', type=str, default=None,

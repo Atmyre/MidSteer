@@ -6,7 +6,7 @@ from core.pickle import unpickle
 from core.pickle import unpickle_pack
 from transformers import GenerationConfig
 
-from core.controller import CrossAttentionOutputSteering, ModelToSteer
+from core.controller import CrossAttentionOutputSteering, ModelToSteer, SteeringVectors
 from core.llm_steering import llm_register_vector_control
 from core.utils import init_llm_model_and_tokenizer
 from CAA.utils.tokenize import tokenize_llama_base, tokenize_llama_chat
@@ -18,14 +18,13 @@ def main(
         layer_type: str,
         layers_to_steer: list[int] | None,
         prompt: str,
-        alpha: float,
-        beta: float,
+        strength: float,
         steer_back: bool,
         max_new_tokens: int,
-        mu_pos: list[dict],
-        mu_neg: list[dict],
-        mu_neutral: list[dict],
-        cov: list[dict],
+        source_concepts: list[SteeringVectors],
+        target_concepts: list[SteeringVectors | None],
+        mu_neutral: SteeringVectors,
+        cov: SteeringVectors,
         steer_type: str,
 ):
     
@@ -36,14 +35,15 @@ def main(
     control = CrossAttentionOutputSteering(
         model_to_steer=ModelToSteer.LLAMA,
         steer_type=steer_type,
-        alpha=alpha,
-        beta=beta,
+        strength=strength,
         steer_back=steer_back,
         device=device,
-        mu_pos=mu_pos,
-        mu_neg=mu_neg,
+        source_concepts=source_concepts,
+        target_concepts=target_concepts,
         mu_neutral=mu_neutral,
-        cov=cov,
+        sigma_neutral=cov,
+        renormalize_after_steering=True,
+        intermediate_clipping=True,
     )
 
     generation_config = GenerationConfig(max_new_tokens=max_new_tokens)
@@ -74,15 +74,14 @@ if __name__ == "__main__":
     parser.add_argument('--layer_type', choices=['decoder_block', 'self_attn', 'mlp', 'input_layernorm', 'post_attention_layernorm'], required=True)
     parser.add_argument('--layers_to_steer', type=str, help='Comma separated list of layer indices to steer', default=None)
     parser.add_argument('--prompt', type=str, required=True)
-    parser.add_argument('--alpha', type=float, default=0.0)
     parser.add_argument('--steer_back', action='store_true')
-    parser.add_argument('--beta', type=float, default=2)
+    parser.add_argument('--strength', required=True, type=float)
     parser.add_argument('--max_new_tokens', type=int, default=50)
     parser.add_argument('--steer_type', type=str, choices=['casteer', 'mmsteer', 'leace', 'mean_matching'], default=None)
-    parser.add_argument('--mu_pos', type=str, default=None)  # path to mu_pos file
-    parser.add_argument('--mu_neg', type=str, default=None)  # path to mu_neg file
+    parser.add_argument('--source_concepts', type=str, required=True)  # path to mu_pos file
+    parser.add_argument('--target_concepts', type=str, default=None)  # path to mu_neg file
     parser.add_argument('--mu_neutral', type=str, default=None)  # path to mu_neutral file
-    parser.add_argument('--cov', type=str, default=None)  # path to mu_neutral file
+    parser.add_argument('--cov', type=str, default=None)  # path to sigma_neural file
 
     args = parser.parse_args()
 
@@ -96,13 +95,12 @@ if __name__ == "__main__":
         layer_type=args.layer_type,
         layers_to_steer=layers_to_steer,
         prompt=args.prompt,
-        alpha=args.alpha,
-        beta=args.beta,
+        strength=args.strength,
         steer_back=args.steer_back,
         max_new_tokens=args.max_new_tokens,
-        mu_pos=unpickle_pack(args.mu_pos),
-        mu_neg=unpickle_pack(args.mu_neg),
-        mu_neutral=unpickle_pack(args.mu_neutral),
-        cov=unpickle_pack(args.cov),
+        source_concepts=unpickle_pack(args.source_concepts),
+        target_concepts=unpickle_pack(args.target_concepts),
+        mu_neutral=unpickle(args.mu_neutral),
+        cov=unpickle(args.cov),
         steer_type=args.steer_type,
     )

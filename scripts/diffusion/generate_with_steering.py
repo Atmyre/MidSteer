@@ -8,7 +8,7 @@ import time
 from diffusers import StableDiffusionPipeline, DiffusionPipeline, AutoPipelineForText2Image
 from core.pickle import unpickle
 from core.pickle import unpickle_pack
-from core.utils import get_device, init_pipeline_for_image_model, run_image_model
+from core.utils import SUPPORTED_DIFFUSION_MODELS, get_device, init_pipeline_for_image_model, run_image_model
 
 # local imports
 from core.controller import CrossAttentionOutputSteering, ModelToSteer, DiffusionVectorControlMode
@@ -19,22 +19,20 @@ import argparse
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--model', type=str, choices=['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux', 'flux-schnell', 'sana', 'sana-sprint'], default="sd14")
+parser.add_argument('--model', type=str, choices=SUPPORTED_DIFFUSION_MODELS, required=True)
 parser.add_argument('--control_mode', type=DiffusionVectorControlMode, choices=[str(x) for x in DiffusionVectorControlMode], default='attn_output', help='Vector control mode')
 parser.add_argument('--prompt', type=str, default=None)
 parser.add_argument('--prompt_file', type=str, default=None, help="Path to text file with prompts, one per line.")
 parser.add_argument('--seed', type=str, default="0", help="Comma-separated list of seeds to use for generation.")
 parser.add_argument('--mmsteer_vectors', type=str, default=None) # path to mmsteer steering vectors file
-parser.add_argument('--mu_pos', type=str, default=None)  # path to mu_pos file
-parser.add_argument('--mu_neg', type=str, default=None)  # path to mu_neg file
+parser.add_argument('--target_concepts', type=str, default=None)  # path to target concept steering vectors (comma delimited)
+parser.add_argument('--source_concepts', type=str, required=True)  # path to source concept steering vectors (comma delimited)
 parser.add_argument('--mu_neutral', type=str, default=None)  # path to mu_neutral file
 parser.add_argument('--cov', type=str, default=None)  # path to cov file
 parser.add_argument('--not_steer', action='store_true')
 parser.add_argument('--steer_only_up', action='store_true')
 parser.add_argument('--steer_back', action='store_true')
-parser.add_argument('--mmsteer_thr', type=float, default=0)
-parser.add_argument('--alpha', type=float, default=10)
-parser.add_argument('--beta', type=float, default=2)
+parser.add_argument('--strength', type=float, required=True)
 parser.add_argument(
     '--output',
     type=str,
@@ -65,18 +63,17 @@ if not args.not_steer:
         model_to_steer=ModelToSteer.UNET,
         mode=args.control_mode,
         mmsteer_vectors=unpickle(args.mmsteer_vectors),
-        mu_pos=unpickle_pack(args.mu_pos),
-        mu_neg=unpickle_pack(args.mu_neg),
-        mu_neutral=unpickle_pack(args.mu_neutral),
-        cov=unpickle_pack(args.cov),
+        source_concepts=unpickle_pack(args.source_concepts),
+        target_concepts=unpickle_pack(args.target_concepts),
+        mu_neutral=unpickle(args.mu_neutral),
+        sigma_neutral=unpickle(args.cov),
         steer_type=args.steer_type,
-        mmsteer_threshold=args.mmsteer_thr,
         steer_only_up=args.steer_only_up,
         steer_back=args.steer_back,
-        alpha=args.alpha,
-        beta=args.beta,
+        strength=args.strength,
         device=device,
-        renormalize_after_steering=True
+        renormalize_after_steering=True,
+        intermediate_clipping=True,
     )
     # Register hooks on the appropriate model component
     model_component = getattr(pipe, 'transformer', None) or pipe.unet
@@ -98,9 +95,9 @@ if args.num_images_per_prompt == 1:
                 if args.not_steer:
                     file = 'orig.png'
                 elif args.steer_back and args.steer_type == 'casteer':
-                    file = f'casteer_{args.beta:g}.png'
+                    file = f'casteer_{args.strength:g}.png'
                 else:
-                    file = f'{args.steer_type}_{args.alpha:g}.png'
+                    file = f'{args.steer_type}_{args.strength:g}.png'
                 path = f'{args.output}/{prompt}/{seed}/{file}'
             if os.path.exists(path):
                 print(f'{path} already exists, skipping!')
@@ -123,9 +120,9 @@ else:
             if args.not_steer:
                 file = 'orig.png'
             elif args.steer_back and args.steer_type == 'casteer':
-                file = f'casteer_{args.beta:g}.png'
+                file = f'casteer_{args.strength:g}.png'
             else:
-                file = f'{args.steer_type}_{args.alpha:g}.png'
+                file = f'{args.steer_type}_{args.strength:g}.png'
             path = f'{args.output}/{prompt}/{{seed}}/{file}'
             if os.path.exists(path.format(seed=0)):
                 print(f'{path} already exists, skipping!')
