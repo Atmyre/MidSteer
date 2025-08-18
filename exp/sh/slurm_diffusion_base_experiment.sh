@@ -126,18 +126,18 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
     
     # Sanitize concept_to_steer for directory name (replace spaces and apostrophes with underscores)
     sanitized_concept=$(echo "$concept_to_steer" | sed 's/[[:space:]'\''"]/_/g')
-    results_subdir="$results_dir/${source_concept}_to_${target_concept}__${sanitized_concept}"
+    results_subdir="$results_dir/concept_translation/${source_concept}_to_${target_concept}__${sanitized_concept}"
     mkdir -p "$results_subdir"
 
     $run_cmd $python scripts/diffusion/run_with_steering.py \
         --generate_concept "$concept_to_steer" \
-        --output_dir "$results_subdir/eval/orig" \
+        --output_dir "$results_subdir/orig" \
         $additional_steering_params &
 
     for strength in $strengths; do
         $run_cmd $python scripts/diffusion/run_with_steering.py \
             --generate_concept "$concept_to_steer" \
-            --output_dir "$results_subdir/eval/casteer-$strength" \
+            --output_dir "$results_subdir/casteer-$strength" \
             --steering_method casteer \
             --steering_strength $strength \
             translate \
@@ -149,7 +149,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
     for strength in $strengths; do
         $run_cmd $python scripts/diffusion/run_with_steering.py \
             --generate_concept "$concept_to_steer" \
-            --output_dir "$results_subdir/eval/leace-$strength" \
+            --output_dir "$results_subdir/leace-$strength" \
             --steering_method leace \
             --steering_strength $strength \
             translate \
@@ -161,7 +161,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
     for strength in $strengths; do
         $run_cmd $python scripts/diffusion/run_with_steering.py \
             --generate_concept "$concept_to_steer" \
-            --output_dir "$results_subdir/eval/mean_matching-$strength" \
+            --output_dir "$results_subdir/mean_matching-$strength" \
             --steering_method mean_matching \
             --steering_strength $strength \
             translate \
@@ -173,10 +173,83 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
     wait
 
 
-    # --------> We are here <---------
-
     $run_cmd $python scripts/diffusion/produce_scores.py \
         --concept "$source_concept" "$target_concept" "$concept_to_steer" \
-        --dir "$results_subdir/eval"
+        --dir "$results_subdir"
+
+done
+
+
+
+
+declare -a concepts_to_remove_pairs=(
+    "snoopy:snoopy"
+    "snoopy:mickey"
+    "snoopy:spongebob"
+    "snoopy:pikachu"
+    "snoopy:dog"
+    "snoopy:legislator"
+    "mickey:snoopy"
+    "mickey:mickey"
+    "mickey:spongebob"
+    "mickey:pikachu"
+    "mickey:dog"
+    "mickey:legislator"
+)
+
+
+
+
+for pair in "${concepts_to_remove_pairs[@]}"; do
+    IFS=':' read -r concept_to_remove concept_to_generate <<< "$pair"
+    
+    results_subdir="$results_dir/concept_erasure/${concept_to_remove}_${concept_to_generate}"
+    mkdir -p "$results_subdir"
+
+
+    $run_cmd $python scripts/diffusion/run_with_steering.py \
+        --generate_concept "$concept_to_generate" \
+        --output_dir "$results_subdir/orig" \
+        $additional_steering_params &
+
+    for strength in $strengths; do
+        $run_cmd $python scripts/diffusion/run_with_steering.py \
+            --generate_concept "$concept_to_generate" \
+            --output_dir "$results_subdir/casteer-$strength" \
+            --steering_method casteer \
+            --steering_strength $strength \
+            erase \
+            --concept_path $steering_vectors_dir/$concept_to_remove.pt \
+            $additional_steering_params &
+    done
+
+    for strength in $strengths; do
+        $run_cmd $python scripts/diffusion/run_with_steering.py \
+            --generate_concept "$concept_to_generate" \
+            --output_dir "$results_subdir/leace-$strength" \
+            --steering_method leace \
+            --steering_strength $strength \
+            erase \
+            --concept_path $steering_vectors_dir/$concept_to_remove.pt \
+            $additional_steering_params &
+    done
+
+    for strength in $strengths; do
+        $run_cmd $python scripts/diffusion/run_with_steering.py \
+            --generate_concept "$concept_to_generate" \
+            --output_dir "$results_subdir/mean_matching-$strength" \
+            --steering_method mean_matching \
+            --steering_strength $strength \
+            erase \
+            --concept_path $steering_vectors_dir/$concept_to_remove.pt \
+            $additional_steering_params &
+    done
+
+    wait
+
+
+    $run_cmd $python scripts/diffusion/produce_scores.py \
+        --concept "$concept_to_remove" "$concept_to_generate" \
+        --dir "$results_subdir"
 
 done
