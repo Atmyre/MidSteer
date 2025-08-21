@@ -1,7 +1,7 @@
 import torch
 from diffusers import FluxPipeline
 
-from diffusers import StableDiffusionPipeline, DiffusionPipeline, AutoPipelineForText2Image
+from diffusers import StableDiffusionPipeline, DiffusionPipeline, AutoPipelineForText2Image, Transformer2DModel, LCMScheduler
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 try:
@@ -34,6 +34,13 @@ except ImportError:
     SanaSprintPipeline = None
     print("Warning: SANA-Sprint is not available. Install the latest diffusers or ensure SanaSprintPipeline is available.")
 
+# Try to import PixArt pipeline
+try:
+    from diffusers import PixArtAlphaPipeline
+except ImportError:
+    PixArtAlphaPipeline = None
+    print("Warning: PixArt is not available. Install the latest diffusers or ensure PixArtAlphaPipeline is available.")
+
 
 def get_device() -> torch.device:
     if torch.cuda.is_available():
@@ -42,7 +49,7 @@ def get_device() -> torch.device:
         return torch.device('mps')
     return torch.device('cpu')
 
-SUPPORTED_DIFFUSION_MODELS = ['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux', 'flux-schnell', 'sana', 'sana-sprint']
+SUPPORTED_DIFFUSION_MODELS = ['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux', 'flux-schnell', 'sana', 'sana-sprint', 'pixart', 'pixart-alpha', 'flash-pixart']
 
 def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
     if model == 'sd14':
@@ -123,6 +130,53 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             token='***REMOVED***',
         )
         pipe.enable_model_cpu_offload()
+    elif model in ['pixart', 'pixart-alpha']:
+        if PixArtAlphaPipeline is None:
+            raise ValueError("PixArt is not available. Please install the latest diffusers or ensure PixArtAlphaPipeline is available.")
+        pipe = PixArtAlphaPipeline.from_pretrained(
+            "PixArt-alpha/PixArt-XL-2-1024-MS",
+            torch_dtype=torch.float16,
+            cache_dir='./cache',
+            token='***REMOVED***',
+        )
+        pipe.enable_model_cpu_offload()
+    elif model == 'flash-pixart':
+        if PixArtAlphaPipeline is None:
+            raise ValueError("PixArt is not available. Please install the latest diffusers or ensure PixArtAlphaPipeline is available.")
+        # Flash-PixArt is typically PixArt with LoRA adaptations
+        # For now, we'll use the base PixArt model - users can add LoRA loading if needed
+        transformer = Transformer2DModel.from_pretrained(
+            "PixArt-alpha/PixArt-XL-2-1024-MS",
+            subfolder="transformer",
+            torch_dtype=torch.float16,
+            cache_dir='./cache',
+            token='***REMOVED***',
+        )
+        transformer = PeftModel.from_pretrained(
+            transformer,
+            "jasperai/flash-pixart",
+            cache_dir='./cache',
+            token='***REMOVED***',
+        )
+
+        # Pipeline
+        pipe = PixArtAlphaPipeline.from_pretrained(
+            "PixArt-alpha/PixArt-XL-2-1024-MS",
+            transformer=transformer,
+            torch_dtype=torch.float16,
+            cache_dir='./cache',
+            token='***REMOVED***',
+        )
+
+        # Scheduler
+        pipe.scheduler = LCMScheduler.from_pretrained(
+            "PixArt-alpha/PixArt-XL-2-1024-MS",
+            subfolder="scheduler",
+            timestep_spacing="trailing",
+            cache_dir='./cache',
+            token='***REMOVED***',
+        )
+        pipe.enable_model_cpu_offload()
     else:
         raise ValueError(f'Unknown model: {model}')
     return pipe
@@ -137,12 +191,12 @@ def get_num_denoising_steps(model: str) -> int:
         return 30
     elif model in ('flux',):
         return 28  # FLUX.1-dev typically uses 28 steps
-    elif model in ('flux-schnell',):
-        return 1   # FLUX.1-schnell is optimized for 4 steps
     elif model in ('sana',):
         return 20  # SANA typically uses 20 inference steps
-    elif model in ('sana-sprint',):
+    elif model in ('flux-schnell', 'sana-sprint', 'flash-pixart'):
         return 1   # SANA-Sprint is optimized for 1-4 steps, using 1 as default for quality/speed balance
+    elif model in ('pixart', 'pixart-alpha'):
+        return 20  # PixArt typically uses 20 inference steps for good quality
     else:
         raise ValueError('Unknown model type')
 
@@ -196,6 +250,26 @@ def run_image_model(model_type: str, pipe, prompt: str, seed: int, device: torch
             num_inference_steps=get_num_denoising_steps(model_type),
             guidance_scale=5.0,  # Default guidance scale for SANA-Sprint
             height=1024,  # SANA-Sprint is optimized for 1024px images
+            width=1024,
+            generator=torch.Generator(device=device).manual_seed(seed),
+            num_images_per_prompt=num_images,
+        ).images
+    elif model_type in ['pixart', 'pixart-alpha']:
+        images = pipe(
+            prompt=prompt,
+            num_inference_steps=get_num_denoising_steps(model_type),
+            guidance_scale=4.5,  # Default guidance scale for PixArt
+            height=1024,  # PixArt is optimized for 1024px images
+            width=1024,
+            generator=torch.Generator(device=device).manual_seed(seed),
+            num_images_per_prompt=num_images,
+        ).images
+    elif model_type in ['flash-pixart']:
+        images = pipe(
+            prompt=prompt,
+            num_inference_steps=get_num_denoising_steps(model_type),
+            guidance_scale=0,  # Default guidance scale for flash-PixArt
+            height=1024,  # PixArt is optimized for 1024px images
             width=1024,
             generator=torch.Generator(device=device).manual_seed(seed),
             num_images_per_prompt=num_images,

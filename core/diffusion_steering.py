@@ -25,6 +25,7 @@ class DiffusionModelType(enum.StrEnum):
     FLUX = 'flux'
     SANA = 'sana'
     SD = 'sd'
+    PIXART = 'pixart'
 
     @staticmethod
     def from_model(model: str) -> 'DiffusionModelType':
@@ -37,6 +38,8 @@ class DiffusionModelType(enum.StrEnum):
             return DiffusionModelType.SANA
         elif model in ['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo']:
             return DiffusionModelType.SD
+        elif model in ['pixart', 'pixart-alpha', 'pixart-xl', 'flash-pixart']:
+            return DiffusionModelType.PIXART
         else:
             raise ValueError(f"Unknown model type: {model}. Supported types: {list(DiffusionModelType)}")
 
@@ -76,6 +79,9 @@ class HookManager:
         # Check if this is a SANA model
         elif self.model_type == DiffusionModelType.SANA:
             block_count += self._register_sana_model_hooks(model)
+        # Check if this is a PixArt model
+        elif self.model_type == DiffusionModelType.PIXART:
+            block_count += self._register_pixart_model_hooks(model)
         elif self.model_type == DiffusionModelType.SD:
             # Traditional SD UNet structure
             for name, module in model.named_children():
@@ -114,6 +120,34 @@ class HookManager:
                 # print(class_name)
                 if any(sana_name in class_name for sana_name in ['SanaTransformerBlock']):
                     self._register_hooks_for_sana_block(module, "sana")
+                    block_count += 1
+        
+        return block_count
+    
+    def _register_pixart_model_hooks(self, model) -> int:
+        """Register hooks for PixArt model architecture"""
+        block_count = 0
+        
+        # PixArt models have a transformer structure with blocks
+        # Look for transformer blocks
+        if hasattr(model, 'blocks'):
+            for block in model.blocks:
+                self._register_hooks_for_pixart_block(block, "pixart")
+                block_count += 1
+        
+        # Also check transformer submodule
+        if hasattr(model, 'transformer') and hasattr(model.transformer, 'blocks'):
+            for block in model.transformer.blocks:
+                self._register_hooks_for_pixart_block(block, "pixart")
+                block_count += 1
+        
+        # Fallback: search recursively for any PixArt blocks
+        if block_count == 0:
+            for name, module in model.named_modules():
+                class_name = module.__class__.__name__
+                # print(class_name)
+                if any(pixart_name in class_name for pixart_name in ['PixArtTransformerBlock', 'Transformer2DModelBlock', 'BasicTransformerBlock']):
+                    self._register_hooks_for_pixart_block(module, "pixart")
                     block_count += 1
         
         return block_count
@@ -181,6 +215,10 @@ class HookManager:
             elif any(sana_name in class_name for sana_name in ['SanaTransformerBlock']):
                 # SANA transformer blocks
                 self._register_hooks_for_sana_block(submodule, place_in_unet)
+                block_count += 1
+            elif any(pixart_name in class_name for pixart_name in ['PixArtTransformerBlock', 'Transformer2DModelBlock']):
+                # PixArt transformer blocks
+                self._register_hooks_for_pixart_block(submodule, place_in_unet)
                 block_count += 1
             elif hasattr(submodule, 'attn') and hasattr(submodule.attn, 'to_q'):
                 # Generic transformer block detection for FLUX variants
@@ -286,6 +324,36 @@ class HookManager:
                 # Hook into SANA key/value computation
                 self._register_sana_key_value_hooks(block, control, place_in_unet)
     
+    def _register_hooks_for_pixart_block(self, block, place_in_unet: str):
+        """Register hooks for PixArt transformer blocks"""
+        # Store module info for the hook callbacks
+        self.module_info[id(block)] = place_in_unet
+        
+        # Register hooks based on control modes for PixArt architecture
+        for control in self.controls:
+            if control._mode == DiffusionVectorControlMode.ATTN_OUTPUT:
+                # PixArt blocks may have different attention module names
+                attn_module = self._get_pixart_attention_module(block)
+                # print(block)
+                # print(attn_module)
+                if attn_module is not None:
+                    hook = attn_module.register_forward_hook(
+                        self._create_pixart_attn_output_hook(control, place_in_unet)
+                    )
+                    self.hooks.append(hook)
+            elif control._mode == DiffusionVectorControlMode.ATTN_HEADS:
+                attn_module = self._get_pixart_attention_module(block)
+                if attn_module is not None:
+                    hook = attn_module.register_forward_hook(
+                        self._create_pixart_attn_heads_hook(control, place_in_unet)
+                    )
+                    self.hooks.append(hook)
+            elif control._mode in [DiffusionVectorControlMode.ATTN_KEY, 
+                                 DiffusionVectorControlMode.ATTN_VALUE,
+                                 DiffusionVectorControlMode.ATTN_KEY_VALUE]:
+                # Hook into PixArt key/value computation
+                self._register_pixart_key_value_hooks(block, control, place_in_unet)
+    
     def _is_flux_attention_block(self, module) -> bool:
         """Check if a module is a FLUX-style attention block"""
         # Check for FLUX-specific attributes
@@ -318,6 +386,19 @@ class HookManager:
         """Get the appropriate attention module from a SANA block"""
         # Try different possible attention module names in SANA
         possible_names = ['attn2', 'attention', 'self_attn', 'Attention']
+        
+        for name in possible_names:
+            if hasattr(block, name):
+                attn_module = getattr(block, name)
+                if attn_module is not None and hasattr(attn_module, 'to_q'):
+                    return attn_module
+        
+        return None
+    
+    def _get_pixart_attention_module(self, block):
+        """Get the appropriate attention module from a PixArt block"""
+        # Try different possible attention module names in PixArt
+        possible_names = ['attn1', 'attn2', 'attention', 'self_attn', 'cross_attn']
         
         for name in possible_names:
             if hasattr(block, name):
@@ -409,6 +490,27 @@ class HookManager:
             if hasattr(attn_module, 'to_v'):
                 hook = attn_module.to_v.register_forward_hook(
                     self._create_sana_value_hook(control, place_in_unet)
+                )
+                self.hooks.append(hook)
+    
+    def _register_pixart_key_value_hooks(self, block, control, place_in_unet: str):
+        """Register key/value hooks for PixArt blocks"""
+        attn_module = self._get_pixart_attention_module(block)
+        if attn_module is None:
+            return
+            
+        # Hook into PixArt key/value projections
+        if control._mode in [DiffusionVectorControlMode.ATTN_KEY, DiffusionVectorControlMode.ATTN_KEY_VALUE]:
+            if hasattr(attn_module, 'to_k'):
+                hook = attn_module.to_k.register_forward_hook(
+                    self._create_pixart_key_hook(control, place_in_unet)
+                )
+                self.hooks.append(hook)
+        
+        if control._mode in [DiffusionVectorControlMode.ATTN_VALUE, DiffusionVectorControlMode.ATTN_KEY_VALUE]:
+            if hasattr(attn_module, 'to_v'):
+                hook = attn_module.to_v.register_forward_hook(
+                    self._create_pixart_value_hook(control, place_in_unet)
                 )
                 self.hooks.append(hook)
     
@@ -679,6 +781,87 @@ class HookManager:
                 return output
                 
             # Similar to SANA key hook but for values
+            batch_size, seq_len = output.shape[:2]
+            
+            if len(output.shape) == 3:  # [batch, seq_len, hidden_dim]
+                hidden_dim = output.shape[2]
+                num_heads = getattr(module, 'num_heads', 8)  # Default fallback
+                head_dim = hidden_dim // num_heads if num_heads > 0 else hidden_dim
+                
+                if hidden_dim % head_dim == 0:
+                    output_reshaped = output.view(batch_size, seq_len, num_heads, head_dim)
+                    controlled_output = control(output_reshaped, place_in_unet)
+                    return controlled_output.view(batch_size, seq_len, hidden_dim)
+                    
+            return control(output, place_in_unet)
+        
+        return hook_fn
+    
+    def _create_pixart_attn_output_hook(self, control: VectorControl, place_in_unet: str):
+        """Create a forward hook for PixArt attention output"""
+        def hook_fn(module, input, output):
+            if not control.active:
+                return output
+            
+            # PixArt attention outputs are typically straightforward tensors
+            # Apply control to the output
+            output_expanded = output[..., None, :]
+            controlled_output = control(output_expanded, place_in_unet)
+            controlled_output = controlled_output[..., 0, :].to(torch.bfloat16)
+            
+            return controlled_output
+        
+        return hook_fn
+    
+    def _create_pixart_attn_heads_hook(self, control: VectorControl, place_in_unet: str):
+        """Create a forward hook for PixArt attention heads"""
+        def hook_fn(module, input, output):
+            if not control.active:
+                return output
+            
+            # Apply control with proper tensor reshaping for PixArt
+            if len(output.shape) == 4:  # [batch, heads, seq_len, head_dim]
+                output_transposed = output.transpose(1, 2)
+                controlled_output = control(output_transposed, place_in_unet)
+                controlled_output = controlled_output.transpose(1, 2)
+            else:
+                controlled_output = control(output, place_in_unet)
+            
+            return controlled_output
+        
+        return hook_fn
+    
+    def _create_pixart_key_hook(self, control: VectorControl, place_in_unet: str):
+        """Create a forward hook for PixArt attention keys"""
+        def hook_fn(module, input, output):
+            if not control.active:
+                return output
+                
+            # PixArt keys handling
+            batch_size, seq_len = output.shape[:2]
+            
+            if len(output.shape) == 3:  # [batch, seq_len, hidden_dim]
+                hidden_dim = output.shape[2]
+                # Infer head structure from module attributes if available
+                num_heads = getattr(module, 'num_heads', 8)  # Default fallback
+                head_dim = hidden_dim // num_heads if num_heads > 0 else hidden_dim
+                
+                if hidden_dim % head_dim == 0:
+                    output_reshaped = output.view(batch_size, seq_len, num_heads, head_dim)
+                    controlled_output = control(output_reshaped, place_in_unet)
+                    return controlled_output.view(batch_size, seq_len, hidden_dim)
+                    
+            return control(output, place_in_unet)
+        
+        return hook_fn
+    
+    def _create_pixart_value_hook(self, control: VectorControl, place_in_unet: str):
+        """Create a forward hook for PixArt attention values"""
+        def hook_fn(module, input, output):
+            if not control.active:
+                return output
+                
+            # Similar to PixArt key hook but for values
             batch_size, seq_len = output.shape[:2]
             
             if len(output.shape) == 3:  # [batch, seq_len, hidden_dim]
