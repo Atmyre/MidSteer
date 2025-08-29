@@ -98,6 +98,7 @@ class CrossAttentionOutputSteering(VectorControl):
         num_layers: int = None,
         renormalize_after_steering: bool = False,
         intermediate_clipping: bool = True,
+        use_first_diffusion_step: bool = False
     ):
         super().__init__(mode=mode, num_layers=num_layers)
         self.device = device
@@ -108,6 +109,7 @@ class CrossAttentionOutputSteering(VectorControl):
         self.renormalize_after_steering = renormalize_after_steering
         self.intermediate_clipping = intermediate_clipping
         self.strength = strength
+        self.use_first_diffusion_step = use_first_diffusion_step
         
         if self.strength < 0:
             raise ValueError('Negative values of strength are not supported')
@@ -312,7 +314,7 @@ class CrossAttentionOutputSteering(VectorControl):
             # if steering vectors are from full version, then there's a key in self.steering_vectors
             # for each of the generation steps 
             # TODO: general way to handle this
-            num_steer = diffusion_step
+            num_steer = 0 if self.use_first_diffusion_step else diffusion_step
 
             norm = torch.norm(vector, dim=-1, keepdim=True)
             if self.steer_type == 'casteer':

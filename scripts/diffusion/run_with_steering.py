@@ -44,6 +44,7 @@ def hook_model(pipeline: DiffusionPipeline, device: tp.Any, args: argparse.Names
         device=device,
         intermediate_clipping=args.intermediate_clipping,
         renormalize_after_steering=args.renormalize_after_steering,
+        use_first_diffusion_step=True,
     )
 
     # Register hooks on the appropriate model component

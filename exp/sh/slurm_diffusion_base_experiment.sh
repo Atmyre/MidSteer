@@ -71,12 +71,20 @@ python=../miniconda3/bin/python
 
 covariances_dir=$base_dir/covariances
 
-topics="horses motorcycles cats dogs"
+topics="horse motorcycle snoopy mickey chichuachua muffin"
 steering_vectors_dir=$base_dir/steering_vectors
+estimate_model_name=$model_name
+
+if [[ $model_name == "sdxl" ]]; then
+    estimate_model_name="sdxl-turbo"
+elif [[ $model_name == "sana" ]]; then
+    estimate_model_name="sana-sprint"
+fi
+
 
 if [ $num_covariances -gt 0 ]; then
     $run_cmd $python scripts/diffusion/estimate_covariances.py \
-        --model_name $model_name \
+        --model_name $estimate_model_name \
         --control_mode $control_mode \
         --aggregation_mode $aggregation_mode \
         --num_samples $num_covariances \
@@ -87,7 +95,7 @@ fi
 
 
 $run_cmd $python scripts/diffusion/estimate_steering_vectors.py \
-    --model_name $model_name \
+    --model_name $estimate_model_name \
     --control_mode $control_mode \
     --topics $topics \
     --aggregation_mode average \
@@ -102,20 +110,29 @@ results_dir=$base_dir/evaluation/
 # Iterate over concept pairs
 declare -A concept_pairs=(
     ["horse"]="motorcycle"
-    ["dog"]="cat"
+    ["snoopy"]="mickey"
+    ["chihuahua"]="muffin"
 )
 
 declare -a concepts_to_steer_pairs=(
     "horse:horse"
-    "horse:cow"
     "horse:motorcycle"
+    "horse:cow"
+    "horse:pig"
     "horse:dog"
     "horse:legislator"
-    "dog:dog"
-    "dog:wolf"
-    "dog:cat"
-    "dog:horse"
-    "dog:legislator"
+    "snoopy:snoopy"
+    "snoopy:mickey"
+    "snoopy:Pikachu"
+    "snoopy:Spongebob"
+    "snoopy:dog"
+    "snoopy:legislator"
+    "chihuahua:chihuahua"
+    "chihuahua:muffin"
+    "chihuahua:wolf"
+    "chihuahua:cat"
+    "chihuahua:dog"
+    "chihuahua:legislator"
 )
 
 
@@ -195,6 +212,12 @@ declare -a concepts_to_remove_pairs=(
     "mickey:pikachu"
     "mickey:dog"
     "mickey:legislator"
+    "chihuahua:chihuahua"
+    "chihuahua:muffin"
+    "chihuahua:wolf"
+    "chihuahua:cat"
+    "chihuahua:dog"
+    "chihuahua:legislator"
 )
 
 
