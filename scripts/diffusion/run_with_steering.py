@@ -14,7 +14,7 @@ from core.utils import SUPPORTED_DIFFUSION_MODELS, get_device, init_pipeline_for
 
 def hook_model(pipeline: DiffusionPipeline, device: tp.Any, args: argparse.Namespace) -> VectorControl:
     if args.command is None:
-        return
+        return None
     
     if args.covariances_dir is not None:
         mu_neutral=unpickle(os.path.join(args.covariances_dir, "means.pt"))
@@ -90,7 +90,8 @@ def main(args: argparse.Namespace):
                 seed=seed,
                 device=device,
             )[0]
-            vector_control.reset()
+            if vector_control is not None:
+                vector_control.reset()
             image.save(f'{args.output_dir}/{prompt}/{seed}.png')
 
 
