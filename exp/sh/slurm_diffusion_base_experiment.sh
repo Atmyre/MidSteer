@@ -157,10 +157,10 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
             --output_dir "$results_subdir/casteer-$strength" \
             --steering_method casteer \
             --steering_strength $strength \
+            $additional_steering_params \
             translate \
             --source_concept_path $steering_vectors_dir/$source_concept.pt \
-            --target_concept_path $steering_vectors_dir/$target_concept.pt \
-            $additional_steering_params &
+            --target_concept_path $steering_vectors_dir/$target_concept.pt &
     done
 
     for strength in $strengths; do
@@ -169,10 +169,10 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
             --output_dir "$results_subdir/leace-$strength" \
             --steering_method leace \
             --steering_strength $strength \
+            $additional_steering_params \
             translate \
             --source_concept_path $steering_vectors_dir/$source_concept.pt \
-            --target_concept_path $steering_vectors_dir/$target_concept.pt \
-            $additional_steering_params &
+            --target_concept_path $steering_vectors_dir/$target_concept.pt &
     done
 
     for strength in $strengths; do
@@ -181,10 +181,10 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
             --output_dir "$results_subdir/mean_matching-$strength" \
             --steering_method mean_matching \
             --steering_strength $strength \
+            $additional_steering_params \
             translate \
             --source_concept_path $steering_vectors_dir/$source_concept.pt \
-            --target_concept_path $steering_vectors_dir/$target_concept.pt \
-            $additional_steering_params &
+            --target_concept_path $steering_vectors_dir/$target_concept.pt &
     done
 
     wait
@@ -241,9 +241,9 @@ for pair in "${concepts_to_remove_pairs[@]}"; do
             --output_dir "$results_subdir/casteer-$strength" \
             --steering_method casteer \
             --steering_strength $strength \
+            $additional_steering_params \
             erase \
-            --concept_path $steering_vectors_dir/$concept_to_remove.pt \
-            $additional_steering_params &
+            --concept_path $steering_vectors_dir/$concept_to_remove.pt &
     done
 
     for strength in $strengths; do
@@ -252,9 +252,9 @@ for pair in "${concepts_to_remove_pairs[@]}"; do
             --output_dir "$results_subdir/leace-$strength" \
             --steering_method leace \
             --steering_strength $strength \
+            $additional_steering_params \
             erase \
-            --concept_path $steering_vectors_dir/$concept_to_remove.pt \
-            $additional_steering_params &
+            --concept_path $steering_vectors_dir/$concept_to_remove.pt &
     done
 
     for strength in $strengths; do
@@ -263,9 +263,9 @@ for pair in "${concepts_to_remove_pairs[@]}"; do
             --output_dir "$results_subdir/mean_matching-$strength" \
             --steering_method mean_matching \
             --steering_strength $strength \
+            $additional_steering_params \
             erase \
-            --concept_path $steering_vectors_dir/$concept_to_remove.pt \
-            $additional_steering_params &
+            --concept_path $steering_vectors_dir/$concept_to_remove.pt &
     done
 
     wait
