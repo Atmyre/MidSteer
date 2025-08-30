@@ -217,6 +217,7 @@ class RelaionDataset(QuestionsDataset):
                 cache_dir='./cache',
                 data_files=data_files,
                 columns=['caption'],  # Only load caption column
+                token='***REMOVED***',
             )
 
             pattern = re.compile(f'(^|[\\s.,-:;]){re.escape(concept.lower().strip())}($|[\\s.,-:;])', flags=re.IGNORECASE) if concept is not None else None
