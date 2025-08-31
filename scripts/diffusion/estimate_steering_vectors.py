@@ -29,7 +29,7 @@ def main(
         return
     os.makedirs(output_dir, exist_ok=True)
 
-    device = get_device
+    device = get_device()
 
     dataset = RelaionDataset(
         concept=topic,
