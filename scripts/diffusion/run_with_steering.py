@@ -92,6 +92,7 @@ def main(args: argparse.Namespace):
             )[0]
             if vector_control is not None:
                 vector_control.reset()
+            os.makedirs(f'{args.output_dir}/{prompt}', exist_ok=True)
             image.save(f'{args.output_dir}/{prompt}/{seed}.png')
 
 
