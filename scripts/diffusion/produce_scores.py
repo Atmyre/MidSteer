@@ -26,6 +26,7 @@ def main(
 
     clip_scores = []
     for subdir in os.listdir(dir):
+        subdir_path = os.path.join(dir, subdir)
         for concept in concepts:
             clip_score, clip_accuracy = compute_clip(subdir_path, '*.png', concept)
             clip_scores.append({

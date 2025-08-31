@@ -224,7 +224,12 @@ class RelaionDataset(QuestionsDataset):
             
 
             for caption in ds['train']['caption']:
-                if pattern is None or pattern.search(caption) is not None:
+                if caption is None:
+                    continue
+                if pattern is None:
+                    yield caption
+                    continue
+                if pattern.search(caption) is not None:
                     yield caption
 
         data = itertools.islice(generator(), max_samples)
