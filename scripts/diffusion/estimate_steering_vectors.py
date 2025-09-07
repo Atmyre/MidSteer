@@ -15,7 +15,7 @@ from core.vector_dump import CrossAttentionOutputStatsCollector, TokenAggregatio
 def main(
         pipeline: DiffusionPipeline,
         model_name: str,
-        topic: str,
+        topic: str | None,
         control_mode: DiffusionVectorControlMode,
         aggregation_mode : TokenAggregationMode,
         normalize_vectors: bool,
@@ -23,7 +23,7 @@ def main(
         num_samples: int, 
         output_dir: str,
 ):
-    output_path = os.path.join(output_dir, f"{topic}.pt")
+    output_path = os.path.join(output_dir, f"{topic}.pt") if topic is not None else os.path.join(output_dir, f"all.pt")
     if os.path.exists(output_path):
         print(f"File {output_path} already exists. Skipping generation.")
         return
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, choices=SUPPORTED_DIFFUSION_MODELS, required=True,
                         help='Diffusion model name to use for generating representation means')
-    parser.add_argument('--topics', type=str, nargs='+', required=True, help='List of topics to generate steering vectors for')
+    parser.add_argument('--topics', type=str, nargs='+', required=False, help='List of topics to generate steering vectors for')
     parser.add_argument('--control_mode', type=DiffusionVectorControlMode, choices=[str(x) for x in DiffusionVectorControlMode],
                         default='attn_output', help='Vector control mode for diffusion model')
     parser.add_argument('--aggregation_mode', type=TokenAggregationMode, choices=[str(x) for x in TokenAggregationMode],
@@ -89,6 +89,10 @@ if __name__ == "__main__":
     pipeline = init_pipeline_for_image_model(model=args.model_name)
     pipeline.set_progress_bar_config(disable=True)
 
+    if args.topics is None:
+        topics = [None]
+    else:
+        topics = args.topics
 
     for topic in args.topics:
         main(
