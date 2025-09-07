@@ -11,12 +11,14 @@ def main(
         concepts: list[str],
 ):
     orig_path = os.path.join(dir, "orig")
+    method_dirs = os.listdir(dir)
     
     fids = []
-    for subdir in os.listdir(dir):
+    for subdir in method_dirs:
         if subdir == "orig":
             continue
         subdir_path = os.path.join(dir, subdir)
+        print(f'Computing FID for {subdir_path}')
         fid_score = compute_fid(subdir_path, '*.png', orig_path, '*.png')
         fids.append({
             'method': subdir,
@@ -25,9 +27,10 @@ def main(
     pd.DataFrame(fids).to_csv(f'{dir}/fid.tsv', index=False, sep='\t', encoding='utf-8')
 
     clip_scores = []
-    for subdir in os.listdir(dir):
+    for subdir in method_dirs:
         subdir_path = os.path.join(dir, subdir)
         for concept in concepts:
+            print(f'Computing CLIP for {subdir_path} and concept {concept}')
             clip_score, clip_accuracy = compute_clip(subdir_path, '*.png', concept)
             clip_scores.append({
                 'method': subdir,
