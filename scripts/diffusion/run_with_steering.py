@@ -83,6 +83,11 @@ def main(args: argparse.Namespace):
 
     for prompt in tqdm.tqdm(dataset, desc="Processing dataset"):
         for seed in range(args.seed, args.seed + args.num_images_per_prompt):
+            output_path = f'{args.output_dir}/{prompt}/{seed}.png'
+            if os.path.exists(output_path):
+                print(f'{output_path} already exists, skipping!')
+                continue
+            print(f'Generating for prompt={prompt}, seed={seed}')
             image = run_image_model(
                 model_type=args.model_name,
                 pipe=pipeline,
@@ -92,8 +97,8 @@ def main(args: argparse.Namespace):
             )[0]
             if vector_control is not None:
                 vector_control.reset()
-            os.makedirs(f'{args.output_dir}/{prompt}', exist_ok=True)
-            image.save(f'{args.output_dir}/{prompt}/{seed}.png')
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            image.save(output_path)
 
 
 if __name__ == "__main__":

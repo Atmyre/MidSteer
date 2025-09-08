@@ -11,7 +11,7 @@ def main(
         concepts: list[str],
 ):
     orig_path = os.path.join(dir, "orig")
-    method_dirs = os.listdir(dir)
+    method_dirs = [x for x in os.listdir(dir) if os.path.isdir(os.path.join(dir, x))]
     
     fids = []
     for subdir in method_dirs:
