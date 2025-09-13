@@ -3,8 +3,8 @@ import os
 
 import pandas as pd
 
-from core.eval.fid import compute_fid
 from core.eval.clip import compute_clip
+from cleanfid import fid
 
 def main(
         dir: list,
@@ -19,7 +19,7 @@ def main(
             continue
         subdir_path = os.path.join(dir, subdir)
         print(f'Computing FID for {subdir_path}')
-        fid_score = compute_fid(subdir_path, '*.png', orig_path, '*.png')
+        fid_score = fid.compute_fid(subdir_path, orig_path)
         fids.append({
             'method': subdir,
             'fid': fid_score,
