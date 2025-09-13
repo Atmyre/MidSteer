@@ -61,7 +61,6 @@ class HookManager:
         
         # Find all attention modules and register hooks
         block_count = self._register_hooks_recursive(model)
-        print("BLOCK COUNT", block_count)
         
         # Set the number of attention layers for all controls
         for control in self.controls:

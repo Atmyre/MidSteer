@@ -9,6 +9,8 @@ from cleanfid import fid
 def main(
         dir: list,
         concepts: list[str],
+        num_workers: int,
+        batch_size: int,
 ):
     orig_path = os.path.join(dir, "orig")
     method_dirs = [x for x in os.listdir(dir) if os.path.isdir(os.path.join(dir, x))]
@@ -19,7 +21,13 @@ def main(
             continue
         subdir_path = os.path.join(dir, subdir)
         print(f'Computing FID for {subdir_path}')
-        fid_score = fid.compute_fid(subdir_path, orig_path)
+        fid_score = fid.compute_fid(
+            subdir_path,
+            orig_path,
+            verbose=False,
+            num_workers=num_workers,
+            batch_size=batch_size,
+        )
         fids.append({
             'method': subdir,
             'fid': fid_score,
@@ -48,10 +56,14 @@ if __name__ == "__main__":
 
     parser.add_argument('--dir', type=str, help='Subdirectory to process')
     parser.add_argument('--concept', type=str, nargs='+', help='Concept to score against')
+    parser.add_argument('--num_workers', type=int, default=24, help='Number of workers to use for FID and CLIP')
+    parser.add_argument('--batch_size', type=int, default=72, help='Batch size to use for FID and CLIP')
 
     args = parser.parse_args()
 
     main(
         dir=args.dir,
         concepts=list(set(args.concept)),
+        num_workers=args.num_workers,
+        batch_size=args.batch_size,
     )
