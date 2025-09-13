@@ -27,6 +27,7 @@ def main(
             verbose=False,
             num_workers=num_workers,
             batch_size=batch_size,
+            mode='legacy_tensorflow',
         )
         fids.append({
             'method': subdir,
