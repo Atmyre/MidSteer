@@ -3,7 +3,6 @@ import os
 import typing as tp
 
 from diffusers import DiffusionPipeline
-import tqdm
 
 from core.controller import CrossAttentionOutputSteering, DiffusionVectorControlMode, ModelToSteer, VectorControl
 from core.dataset import TemplateDataset
@@ -81,13 +80,16 @@ def main(args: argparse.Namespace):
         concept=args.generate_concept,
     )
 
-    for prompt in tqdm.tqdm(dataset, desc="Processing dataset"):
+    skipped = generated = 0
+
+    print(f'Generating images for concept {args.generate_concept} and method {args.steering_method} with strength {args.steering_strength}')
+    for prompt in dataset:
         for seed in range(args.seed, args.seed + args.num_images_per_prompt):
             output_path = f'{args.output_dir}/{prompt}/{seed}.png'
             if os.path.exists(output_path):
-                print(f'{output_path} already exists, skipping!')
+                skipped += 1
                 continue
-            print(f'Generating for prompt={prompt}, seed={seed}')
+            generated += 1
             image = run_image_model(
                 model_type=args.model_name,
                 pipe=pipeline,
@@ -99,6 +101,8 @@ def main(args: argparse.Namespace):
                 vector_control.reset()
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
             image.save(output_path)
+
+    print(f'Skipped {skipped} images, generated {generated} images')
 
 
 if __name__ == "__main__":
