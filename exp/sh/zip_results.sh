@@ -26,7 +26,7 @@ show_usage() {
 # If no arguments provided, archive everything
 if [ $# -eq 0 ]; then
     echo "No arguments provided. Archiving all scores.tsv files..."
-    find exp/results -name "scores.tsv" -type f | tar -czf scores.tar.gz -T -
+    find exp/results -name "*.tsv" -type f | tar -czf scores.tar.gz -T -
 else
     # Process each argument as experiment name or pattern
     temp_file_list=$(mktemp)
@@ -36,7 +36,7 @@ else
         
         # Find matching directories and then look for scores.tsv files in them
         find exp/results -maxdepth 2 -type d -name "*${pattern}*" | while read -r dir; do
-            find "$dir" -name "scores.tsv" -type f >> "$temp_file_list"
+            find "$dir" -name "*.tsv" -type f >> "$temp_file_list"
         done
     done
     

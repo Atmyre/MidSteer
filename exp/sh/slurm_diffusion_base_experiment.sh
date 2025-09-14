@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 #SBATCH --partition=camera-xlong
 #SBATCH --gpus=4
-#SBATCH --time=48:00:00
+#SBATCH --time=120:00:00
 #SBATCH --output=./exp/logs/slurm-%x-%j.out
 #SBATCH --error=./exp/logs/slurm-%x-%j.err
  
