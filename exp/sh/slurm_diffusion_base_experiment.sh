@@ -71,7 +71,7 @@ python=../miniconda3/bin/python
 
 covariances_dir=$base_dir/covariances
 
-topics="horse motorcycle snoopy mickey chichuachua muffin"
+topics="horse motorcycle snoopy mickey chihuahua muffin"
 steering_vectors_dir=$base_dir/steering_vectors
 estimate_model_name=$model_name
 
