@@ -1,6 +1,6 @@
 #! /usr/bin/env bash
 #SBATCH --partition=camera-xlong
-#SBATCH --gpus=4
+#SBATCH --gpus=8
 #SBATCH --time=120:00:00
 #SBATCH --output=./exp/logs/slurm-%x-%j.out
 #SBATCH --error=./exp/logs/slurm-%x-%j.err
@@ -216,12 +216,12 @@ declare -a concepts_to_remove_pairs=(
     "snoopy:pikachu"
     "snoopy:dog"
     "snoopy:legislator"
-    "mickey:snoopy"
-    "mickey:mickey"
-    "mickey:spongebob"
-    "mickey:pikachu"
-    "mickey:dog"
-    "mickey:legislator"
+    "horse:horse"
+    "horse:motorcycle"
+    "horse:cow"
+    "horse:pig"
+    "horse:dog"
+    "horse:legislator"
     "chihuahua:chihuahua"
     "chihuahua:muffin"
     "chihuahua:wolf"
