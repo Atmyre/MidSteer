@@ -4,6 +4,16 @@
 #SBATCH --time=120:00:00
 #SBATCH --output=./exp/logs/slurm-%x-%j.out
 #SBATCH --error=./exp/logs/slurm-%x-%j.err
+#$ -cwd
+#$ -j y
+#$ -pe smp 32
+#$ -l h_rt=120:00:00
+#$ -l h_vmem=7.5G
+#$ -l gpu=4
+#$ -l cluster=apocrita
+
+NUM_GPUS_FOR_LOCAL_SCHEDULER=4
+OUTPUT_PREFIX=/data/scratch/$USER/mmsteer/
  
 
 set -eoux pipefail
@@ -53,17 +63,25 @@ for arg in "${@:$start_idx}"; do
     esac
 done
 
-# Define run_cmd based on NO_SLURM environment variable
-if [ -n "${NO_SLURM:-}" ]; then
-    run_cmd=""
-    export CUDA_VISIBLE_DEVICES=0
+
+if [ -n "${LOCAL_SCHEDULER:-}" ]; then
+    export LOCK_FILE="./exp/locks/gpu_pool-${SLURM_JOB_NAME}-${SLURM_JOB_ID}.lock"
+    rm -rf $LOCK_FILE
+
+    source ./exp/sh/local_scheduler.sh
+
+    for i in {0..$(($NUM_GPUS_FOR_LOCAL_SCHEDULER-1))}; do
+        release_gpu $i
+    done
+
+    run_cmd="run_command_with_params_on_gpu"
 else
     run_cmd="srun --gpus=1 -N1 --exclusive"
 fi
 
 
 additional_steering_params="--model_name $model_name --control_mode $control_mode $intermediate_clipping $renormalize_after_steering --num_images_per_prompt $num_images_per_prompt --seed $seed"
-base_dir=./exp/results/$model_name/$SLURM_JOB_NAME
+base_dir=$OUTPUT_PREFIX/exp/results/$model_name/$SLURM_JOB_NAME
 
 export PYTHONPATH=.
 
