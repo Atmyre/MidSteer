@@ -107,6 +107,7 @@ from single_experiment_table_generator import SingleExperimentTableGenerator
 from implicit_concept_table_generator import ImplicitConceptTableGenerator
 from pareto_frontier_chart_generator import ParetoFrontierChartGenerator
 from covariance_comparison_chart_generator import CovarianceComparisonChartGenerator
+from diffusion_pareto_frontier_chart_generator import DiffusionParetoFrontierChartGenerator
 
 # Registry for artifact generators
 GENERATOR_REGISTRY: Dict[str, type] = {
@@ -114,6 +115,7 @@ GENERATOR_REGISTRY: Dict[str, type] = {
     'single_experiment_table': SingleExperimentTableGenerator,
     'implicit_concept_table': ImplicitConceptTableGenerator,
     'pareto_frontier_chart': ParetoFrontierChartGenerator,
+    'diffusion_pareto_frontier_chart': DiffusionParetoFrontierChartGenerator,
     'covariance_comparison_chart': CovarianceComparisonChartGenerator,
     'table': TableGenerator,
     'chart': ChartGenerator,

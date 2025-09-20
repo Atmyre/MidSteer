@@ -170,3 +170,92 @@ subsections:
             midsteer_experiment: "exp/results/llama-2-7b-chat-hf/midsteer_sa_fix_50k_last_no_renorm_no_clip_all_strengths"
             enable_highlighting: true
             selected_betas: [2.0, 3.0, 4.0]
+
+  - config:
+      name: "Diffusion experiments"
+      template_file: "subsection_diffusion_experiments.tex"
+      skip: false
+      artifacts:
+        # Baseline experiment (no renorm, no clip)
+        # chihuahua_muffin_baseline:
+        #   latex_type: "fig"
+        #   caption: "Diffusion Pareto Efficiency Frontier for Chihuahua $\\to$ Muffin steering (Baseline - No Renorm, No Clip)"
+        #   diffusion_pareto_frontier_chart:
+        #     width: "0.9"
+        #     enable_highlighting: true
+        #     experiment_path: "exp/results/sdxl/midsteer_diffusion_sdxl_50k_all_strengths"
+        # horse_motorcycle_baseline:
+        #   latex_type: "fig"
+        #   caption: "Diffusion Pareto Efficiency Frontier for Horse $\\to$ Motorcycle steering (Baseline - No Renorm, No Clip)"
+        #   diffusion_pareto_frontier_chart:
+        #     width: "0.9"
+        #     enable_highlighting: true
+        #     experiment_path: "exp/results/sdxl/midsteer_diffusion_sdxl_50k_all_strengths"
+        all_strengths:
+          latex_type: "fig"
+          caption: "Diffusion Pareto Efficiency Frontier for X $\\to$ Y steering (Baseline - No Renorm, No Clip)"
+          diffusion_pareto_frontier_chart:
+            width: "0.9"
+            enable_highlighting: true
+            experiment_path: "exp/results/sdxl/midsteer_diffusion_sdxl_50k_all_strengths"
+
+
+        # all_strengths_renorm:
+        #   latex_type: "fig"
+        #   caption: "Diffusion Pareto Efficiency Frontier (With Renormalization, No Clipping)"
+        #   diffusion_pareto_frontier_chart:
+        #     width: "0.9"
+        #     enable_highlighting: true
+        #     experiment_path: "exp/results/sdxl/midsteer_diffusion_sdxl_50k_all_strengths_renorm"
+
+
+        # all_strengths_clip:
+        #   latex_type: "fig"
+        #   caption: "Diffusion Pareto Efficiency Frontier (With Clipping, No Renormalization)"
+        #   diffusion_pareto_frontier_chart:
+        #     width: "0.9"
+        #     enable_highlighting: true
+        #     experiment_path: "exp/results/sdxl/midsteer_diffusion_sdxl_50k_all_strengths_clip"
+
+
+        # # Clipping only experiment
+        # chihuahua_muffin_clip:
+        #   latex_type: "fig"
+        #   caption: "Diffusion Pareto Efficiency Frontier for Chihuahua $\\to$ Muffin steering (With Clipping)"
+        #   diffusion_pareto_frontier_chart:
+        #     width: "0.9"
+        #     enable_highlighting: true
+        #     experiment_path: "exp/results/sdxl/midsteer_diffusion_sdxl_50k_all_strengths_clip"
+        # horse_motorcycle_clip:
+        #   latex_type: "fig"
+        #   caption: "Diffusion Pareto Efficiency Frontier for Horse $\\to$ Motorcycle steering (With Clipping)"
+        #   diffusion_pareto_frontier_chart:
+        #     width: "0.9"
+        #     enable_highlighting: true
+        #     experiment_path: "exp/results/sdxl/midsteer_diffusion_sdxl_50k_all_strengths_clip"
+        # snoopy_mickey_clip:
+        #   latex_type: "fig"
+        #   caption: "Diffusion Pareto Efficiency Frontier for Snoopy $\\to$ Mickey steering (With Clipping)"
+        #   diffusion_pareto_frontier_chart:
+        #     width: "0.9"
+        #     enable_highlighting: true
+        #     experiment_path: "exp/results/sdxl/midsteer_diffusion_sdxl_50k_all_strengths_clip"
+        
+        # # Note: Renormalization-only experiment has insufficient data, skipping
+        
+        # # Clipping + Renormalization experiment (only chihuahua_to_muffin and horse_to_motorcycle available)
+        # chihuahua_muffin_clip_renorm:
+        #   latex_type: "fig"
+        #   caption: "Diffusion Pareto Efficiency Frontier for Chihuahua $\\to$ Muffin steering (With Clipping + Renormalization)"
+        #   diffusion_pareto_frontier_chart:
+        #     width: "0.9"
+        #     enable_highlighting: true
+        #     experiment_path: "exp/results/sdxl/midsteer_diffusion_sdxl_50k_all_strengths_clip_renorm"
+        # horse_motorcycle_clip_renorm:
+        #   latex_type: "fig"
+        #   caption: "Diffusion Pareto Efficiency Frontier for Horse $\\to$ Motorcycle steering (With Clipping + Renormalization)"
+        #   diffusion_pareto_frontier_chart:
+        #     width: "0.9"
+        #     enable_highlighting: true
+        #     experiment_path: "exp/results/sdxl/midsteer_diffusion_sdxl_50k_all_strengths_clip_renorm"
+        # # Note: snoopy_to_mickey not available in clip_renorm experiment

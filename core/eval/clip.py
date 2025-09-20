@@ -1,4 +1,6 @@
 import glob
+import operator
+from functools import reduce
 import torch
 import clip
 import numpy as np
@@ -9,6 +11,7 @@ from tqdm import tqdm
 
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
 
+EXTENSIONS = ["png", "jpg"]
 
 
 def get_clip_preprocess(n_px=224):
@@ -182,9 +185,12 @@ def clip_eval_by_image(
 
 def compute_clip(
     path: str,
-    fname: str,
     concept: str,
+    fname: str = None,
 ):
-    images = glob.glob(f'{path}/**/*/{fname}', recursive=True)
+    if fname is not None:
+        images = glob.glob(f'{path}/**/{fname}', recursive=True)
+    else:
+        images = reduce(operator.add, [glob.glob(f'{path}/**/*.{ext}', recursive=True) for ext in EXTENSIONS])
     score, accuracy = clip_eval_by_image(images, concept)
     return score, accuracy

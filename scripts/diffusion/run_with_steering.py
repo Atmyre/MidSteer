@@ -10,6 +10,18 @@ from core.diffusion_steering import DiffusionModelType, diffusion_register_vecto
 from core.pickle import unpickle
 from core.utils import SUPPORTED_DIFFUSION_MODELS, get_device, init_pipeline_for_image_model, run_image_model
 
+SAVE_OPTIONS = {
+    'PNG': {},
+    'JPEG': {
+        'subsampling': '4:4:4',
+        'quality': 95,
+    },
+}
+
+EXTENSIONS = {
+    'PNG': 'png',
+    'JPEG': 'jpg',
+}
 
 def hook_model(pipeline: DiffusionPipeline, device: tp.Any, args: argparse.Namespace) -> VectorControl:
     if args.command is None:
@@ -85,7 +97,7 @@ def main(args: argparse.Namespace):
     print(f'Generating images for concept {args.generate_concept} and method {args.steering_method} with strength {args.steering_strength}')
     for prompt in dataset:
         for seed in range(args.seed, args.seed + args.num_images_per_prompt):
-            output_path = f'{args.output_dir}/{prompt}/{seed}.png'
+            output_path = f'{args.output_dir}/{prompt}/{seed}.{EXTENSIONS[args.file_format]}'
             if os.path.exists(output_path):
                 skipped += 1
                 continue
@@ -100,7 +112,7 @@ def main(args: argparse.Namespace):
             if vector_control is not None:
                 vector_control.reset()
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            image.save(output_path)
+            image.save(output_path, format=args.file_format, **SAVE_OPTIONS[args.file_format])
 
     print(f'Skipped {skipped} images, generated {generated} images')
 
@@ -117,6 +129,7 @@ if __name__ == "__main__":
     main_parser.add_argument('--output_dir', type=str, required=True, help='Directory where generated images should be written')
     main_parser.add_argument('--num_images_per_prompt', type=int, default=10, help='Number of images to generate for each prompt')
     main_parser.add_argument('--seed', type=int, default=42, help='Starting seed for each prompt')
+    main_parser.add_argument('--file_format', type=str, choices=['PNG', 'JPEG'], default='PNG', help='File format for generated images')
 
     # Steering params
     main_parser.add_argument('--steering_method', type=str, choices=['casteer', 'leace', 'mean_matching'], default=None)

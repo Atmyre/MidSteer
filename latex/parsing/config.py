@@ -88,6 +88,14 @@ class ImplicitConceptResultConfig(BaseModel):
     selected_betas: Optional[List[float]] = Field(None, description="List of beta values to include (None for all)")
 
 
+class DiffusionParetoFrontierChartConfig(BaseModel):
+    """Configuration for diffusion Pareto frontier charts."""
+    
+    width: str = Field("0.9", description="LaTeX figure width (e.g., '0.9' for 0.9\\linewidth)")
+    enable_highlighting: bool = Field(True, description="Enable Pareto frontier highlighting")
+    experiment_path: str = Field(..., description="Path to diffusion experiment directory")
+
+
 class ArtifactConfig(BaseModel):
     """Configuration for any generated artifact with oneof-style type specification."""
     
@@ -98,6 +106,7 @@ class ArtifactConfig(BaseModel):
     # Oneof-style configuration - exactly one must be set
     renorm_clip_comparison_table: Optional[RenormClipTableConfig] = Field(None, description="Renorm/clip table configuration")
     pareto_frontier_chart: Optional[ParetoFrontierChartConfig] = Field(None, description="Pareto frontier chart configuration")
+    diffusion_pareto_frontier_chart: Optional[DiffusionParetoFrontierChartConfig] = Field(None, description="Diffusion Pareto frontier chart configuration")
     covariance_comparison_chart: Optional[CovarianceComparisonChartConfig] = Field(None, description="Covariance comparison chart configuration")
     single_experiment_result: Optional[SingleExperimentResultConfig] = Field(None, description="Single experiment result table configuration")
     implicit_concept_result: Optional[ImplicitConceptResultConfig] = Field(None, description="Implicit concept result table configuration")
@@ -105,7 +114,7 @@ class ArtifactConfig(BaseModel):
     def model_post_init(self, __context) -> None:
         """Validate that exactly one type-specific config is set."""
         # Get all the oneof fields
-        oneof_fields = ['renorm_clip_comparison_table', 'pareto_frontier_chart', 'covariance_comparison_chart', 'single_experiment_result', 'implicit_concept_result']
+        oneof_fields = ['renorm_clip_comparison_table', 'pareto_frontier_chart', 'diffusion_pareto_frontier_chart', 'covariance_comparison_chart', 'single_experiment_result', 'implicit_concept_result']
         
         # Count how many are set
         set_fields = []
@@ -125,6 +134,8 @@ class ArtifactConfig(BaseModel):
             return "renorm_clip_table"
         elif self.pareto_frontier_chart is not None:
             return "pareto_frontier_chart"
+        elif self.diffusion_pareto_frontier_chart is not None:
+            return "diffusion_pareto_frontier_chart"
         elif self.covariance_comparison_chart is not None:
             return "covariance_comparison_chart"
         elif self.single_experiment_result is not None:
@@ -135,12 +146,14 @@ class ArtifactConfig(BaseModel):
             raise ValueError("No artifact type configuration is set")
     
     @property
-    def type_config(self) -> Union[RenormClipTableConfig, ParetoFrontierChartConfig, CovarianceComparisonChartConfig, SingleExperimentResultConfig, ImplicitConceptResultConfig]:
+    def type_config(self) -> Union[RenormClipTableConfig, ParetoFrontierChartConfig, DiffusionParetoFrontierChartConfig, CovarianceComparisonChartConfig, SingleExperimentResultConfig, ImplicitConceptResultConfig]:
         """Get the active type-specific configuration."""
         if self.renorm_clip_comparison_table is not None:
             return self.renorm_clip_comparison_table
         elif self.pareto_frontier_chart is not None:
             return self.pareto_frontier_chart
+        elif self.diffusion_pareto_frontier_chart is not None:
+            return self.diffusion_pareto_frontier_chart
         elif self.covariance_comparison_chart is not None:
             return self.covariance_comparison_chart
         elif self.single_experiment_result is not None:
