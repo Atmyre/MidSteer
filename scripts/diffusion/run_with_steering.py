@@ -49,7 +49,7 @@ def hook_model(pipeline: DiffusionPipeline, device: tp.Any, args: argparse.Names
         target_concepts=[target_concept],
         source_concepts=[source_concept],
         mu_neutral=mu_neutral,
-        sigma_neutral=sigma_neutral,
+        sigma_neutral=sigma_neutral if not args.id_cov else None,
         steer_only_up=False,
         steer_back=True,
         strength=args.steering_strength,
@@ -147,7 +147,7 @@ if __name__ == "__main__":
     main_parser.add_argument('--intermediate_clipping', action='store_true', help='Apply intermediate clipping like CASteer for leace and mean_matching')
     main_parser.add_argument('--renormalize_after_steering', action='store_true', help='Renormalize vectors after steering for leace and mean_matching')
     main_parser.add_argument('--covariances_dir', type=str, help='Covariances directory for leace / mean_matching, or for negative concept in erasure')
-
+    main_parser.add_argument('--id_cov', action='store_true', help='Use the identity covariance matrix for leace and mean_matching')
 
     subparsers = parser.add_subparsers(dest='command')
 
