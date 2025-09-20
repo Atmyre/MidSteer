@@ -65,12 +65,12 @@ done
 
 
 if [ -n "${LOCAL_SCHEDULER:-}" ]; then
-    export LOCK_FILE="./exp/locks/gpu_pool-${SLURM_JOB_NAME}-${SLURM_JOB_ID}.lock"
+    export LOCK_FILE="./exp/locks/gpu_pool-1.lock"
     rm -rf $LOCK_FILE
 
     source ./exp/sh/local_scheduler.sh
 
-    for i in {0..$(($NUM_GPUS_FOR_LOCAL_SCHEDULER-1))}; do
+    for i in $(seq 0 $(($NUM_GPUS_FOR_LOCAL_SCHEDULER-1)) ); do
         release_gpu $i
     done
 
@@ -81,7 +81,7 @@ fi
 
 
 additional_steering_params="--model_name $model_name --control_mode $control_mode $intermediate_clipping $renormalize_after_steering --num_images_per_prompt $num_images_per_prompt --seed $seed"
-base_dir=$OUTPUT_PREFIX/exp/results/$model_name/$SLURM_JOB_NAME
+base_dir=$OUTPUT_PREFIX/exp/results/$model_name/midsteer/
 
 export PYTHONPATH=.
 
