@@ -17,7 +17,7 @@ set -eoux pipefail
 
 # Check if required arguments are provided
 if [ $# -lt 4 ]; then
-    echo "Usage: $0 <model_name> <control_mode> <num_covariances> <aggregation_mode> [strengths] [--intermediate_clipping] [--renormalize_after_steering]"
+    echo "Usage: $0 <model_name> <control_mode> <num_covariances> <aggregation_mode> <dataset_type> [strengths] [--intermediate_clipping] [--renormalize_after_steering]"
     echo "Example: $0 sdxl attn_output 20000 all" 
     echo "Example with strengths: $0 sdxl attn_output 20000 all '1.0 2.0 3.0'"
     echo "Example with optional flags: $0 sdxl attn_output 20000 all '1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0' --intermediate_clipping"
@@ -29,9 +29,9 @@ model_name=$1
 control_mode=$2
 num_covariances=$3
 aggregation_mode=$4
+dataset_type=$5
 num_images_per_prompt=10
 seed=0
-dataset_type="imagenet"  # TODO: change to param in the future
 
 # Set default strengths
 default_strengths="1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0"

@@ -41,7 +41,7 @@ def main(
     elif dataset_type == 'imagenet':
         dataset = ImageNetDataset(
             concept=topic,
-            max_samples=num_samples,
+            max_samples=50,
             seed=seed,
         )
     else:
