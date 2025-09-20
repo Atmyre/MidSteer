@@ -1,5 +1,6 @@
 import argparse
 import os
+import math
 import typing as tp
 
 from diffusers import DiffusionPipeline
@@ -96,23 +97,29 @@ def main(args: argparse.Namespace):
 
     print(f'Generating images for concept {args.generate_concept} and method {args.steering_method} with strength {args.steering_strength}')
     for prompt in dataset:
-        for seed in range(args.seed, args.seed + args.num_images_per_prompt):
-            output_path = f'{args.output_dir}/{prompt}/{seed}.{EXTENSIONS[args.file_format]}'
-            if os.path.exists(output_path):
-                skipped += 1
+        num_batches = math.ceil(args.num_images_per_prompt / args.batch_size)
+        for batch_id in range(0, num_batches):
+            seed = args.seed + batch_id
+            num_images = min(args.batch_size, args.num_images_per_prompt - batch_id * args.batch_size)
+
+            output_paths = [f'{args.output_dir}/{prompt}/{seed}-{idx}.{EXTENSIONS[args.file_format]}' for idx in range(num_images)]
+            if all(os.path.exists(path) for path in output_paths):
+                skipped += num_images
                 continue
-            generated += 1
-            image = run_image_model(
+            generated += num_images
+            images = run_image_model(
                 model_type=args.model_name,
                 pipe=pipeline,
                 prompt=prompt,
                 seed=seed,
                 device=device,
-            )[0]
+                num_images=num_images,
+            )
             if vector_control is not None:
                 vector_control.reset()
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            image.save(output_path, format=args.file_format, **SAVE_OPTIONS[args.file_format])
+            os.makedirs(os.path.dirname(output_paths[0]), exist_ok=True)
+            for path, image in zip(output_paths, images):
+                image.save(path, format=args.file_format, **SAVE_OPTIONS[args.file_format])
 
     print(f'Skipped {skipped} images, generated {generated} images')
 
@@ -128,7 +135,8 @@ if __name__ == "__main__":
     main_parser.add_argument('--generate_concept', type=str, required=True, help='Concept for which to generate images')
     main_parser.add_argument('--output_dir', type=str, required=True, help='Directory where generated images should be written')
     main_parser.add_argument('--num_images_per_prompt', type=int, default=10, help='Number of images to generate for each prompt')
-    main_parser.add_argument('--seed', type=int, default=42, help='Starting seed for each prompt')
+    main_parser.add_argument('--batch_size', type=int, default=1, help='Batch size used for image generation')
+    main_parser.add_argument('--seed', type=int, default=0, help='Starting seed for each prompt')
     main_parser.add_argument('--file_format', type=str, choices=['PNG', 'JPEG'], default='PNG', help='File format for generated images')
 
     # Steering params

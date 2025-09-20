@@ -298,10 +298,12 @@ class CrossAttentionOutputSteering(VectorControl):
     # [batch_size, sequence_length, num_heads, head_dim]
     def forward(self, vector: torch.Tensor, diffusion_step: int, place_in_unet: str, block_index: int, min_token_index: int = None):
         batch_size = vector.shape[0]
+        if diffusion_step == 0:
+            print(vector.shape)
         if batch_size > 1 and self.model_to_steer == ModelToSteer.UNET:
             # TODO: fix it properly sometime later
             # Steer only the prompt part of SDXL classifier-free guidance method
-            batch_slice = slice(1, None)
+            batch_slice = slice(batch_size // 2, None)
             warnings.warn('Steering only the prompt part of SDXL classifier-free guidance (assumed the batch_idx=0 is not conditioned on the prompt)')
         else:
             batch_slice = slice(None, None)
