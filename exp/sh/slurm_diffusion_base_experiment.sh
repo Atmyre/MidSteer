@@ -12,9 +12,6 @@
 #$ -l gpu=4
 #$ -l cluster=apocrita
 
-NUM_GPUS_FOR_LOCAL_SCHEDULER=4
-OUTPUT_PREFIX=/data/scratch/$USER/mmsteer/
- 
 
 set -eoux pipefail
 
@@ -64,8 +61,29 @@ for arg in "${@:$start_idx}"; do
 done
 
 
+
+if [ -n "${SGE_ROOT:-}" ]; then
+    export LOCAL_SCHEDULER=1
+    export OUTPUT_PREFIX=/data/scratch/$USER/mmsteer/
+    
+    if [ -n "${SGE_HGR_gpu:-}" ]; then
+        export NUM_GPUS_FOR_LOCAL_SCHEDULER=$(echo $SGE_HGR_gpu | wc -w)
+    else
+        export NUM_GPUS_FOR_LOCAL_SCHEDULER=1
+    fi
+elif [ -n "${SLURM_JOB_NAME:-}" ]; then
+    export JOB_NAME=$SLURM_JOB_NAME
+    export JOB_ID=$SLURM_JOB_ID
+    export OUTPUT_PREFIX=.
+else
+    echo "Error: No job manager found"
+    exit 1
+fi
+
+
+
 if [ -n "${LOCAL_SCHEDULER:-}" ]; then
-    export LOCK_FILE="./exp/locks/gpu_pool-1.lock"
+    export LOCK_FILE="./exp/locks/gpu_pool-${JOB_NAME}-${JOB_ID}.lock"
     rm -rf $LOCK_FILE
 
     source ./exp/sh/local_scheduler.sh
@@ -81,7 +99,7 @@ fi
 
 
 additional_steering_params="--model_name $model_name --control_mode $control_mode $intermediate_clipping $renormalize_after_steering --num_images_per_prompt $num_images_per_prompt --seed $seed"
-base_dir=$OUTPUT_PREFIX/exp/results/$model_name/midsteer/
+base_dir=$OUTPUT_PREFIX/exp/results/$model_name/$JOB_NAME/
 
 export PYTHONPATH=.
 

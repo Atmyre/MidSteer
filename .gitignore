@@ -29,5 +29,6 @@ scores.tar.gz
 /exp/results/
 /exp/local/
 /exp/logs/
+/exp/locks/
 
 /notebooks/
