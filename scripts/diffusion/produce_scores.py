@@ -32,6 +32,7 @@ def main(
             'method': subdir,
             'fid': fid_score,
         })
+        print(f'{subdir_path}, {fid_score}')
     pd.DataFrame(fids).to_csv(f'{dir}/fid.tsv', index=False, sep='\t', encoding='utf-8')
 
     clip_scores = []
@@ -46,6 +47,7 @@ def main(
                 'clip_accuracy': clip_accuracy,
                 'concept': concept,
             })
+            print(f'{subdir_path}, {clip_score}')
 
 
     pd.DataFrame(clip_scores).to_csv(f'{dir}/clip_score.tsv', index=False, sep='\t', encoding='utf-8')

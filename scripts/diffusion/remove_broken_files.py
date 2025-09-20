@@ -1,8 +1,9 @@
 import argparse
+import numpy as np
 import os
 
 from PIL import Image
-
+from tqdm import tqdm
 import glob
 
 
@@ -14,12 +15,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     removed = 0
-    for file in glob.glob(f'{args.dir}/**/*.png', recursive=True):
+    total = 0
+    for file in tqdm(glob.glob(f'{args.dir}/**/*.png', recursive=True)):
+        total += 1
         try:
-            Image.open(file)
+            image_np = Image.open(file).convert('RGB')
+            image_np = np.array(image_np)
         except OSError:
             print(f'Removing {file} because it is broken')
             removed += 1
+            print('Removed:', removed)
             os.remove(file)
 
-    print(f'Removed {removed} broken files in {args.dir}')
+    print(f'Removed {removed} broken files out of {total} in {args.dir}')

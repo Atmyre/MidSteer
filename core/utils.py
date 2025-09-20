@@ -251,6 +251,7 @@ def run_image_model(model_type: str, pipe, prompt: str, seed: int, device: torch
             guidance_scale=5.0,  # Default guidance scale for SANA-Sprint
             height=1024,  # SANA-Sprint is optimized for 1024px images
             width=1024,
+            intermediate_timesteps=None,
             generator=torch.Generator(device=device).manual_seed(seed),
             num_images_per_prompt=num_images,
         ).images

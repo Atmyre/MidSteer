@@ -94,7 +94,7 @@ if __name__ == "__main__":
     else:
         topics = args.topics
 
-    for topic in args.topics:
+    for topic in topics:
         main(
             pipeline=pipeline,
             model_name=args.model_name,
