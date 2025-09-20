@@ -56,7 +56,7 @@ def hook_model(pipeline: DiffusionPipeline, device: tp.Any, args: argparse.Names
         device=device,
         intermediate_clipping=args.intermediate_clipping,
         renormalize_after_steering=args.renormalize_after_steering,
-        use_first_diffusion_step=True,
+        use_first_diffusion_step=not args.use_all_diffusion_steps,
     )
 
     # Register hooks on the appropriate model component
@@ -148,6 +148,7 @@ if __name__ == "__main__":
     main_parser.add_argument('--renormalize_after_steering', action='store_true', help='Renormalize vectors after steering for leace and mean_matching')
     main_parser.add_argument('--covariances_dir', type=str, help='Covariances directory for leace / mean_matching, or for negative concept in erasure')
     main_parser.add_argument('--id_cov', action='store_true', help='Use the identity covariance matrix for leace and mean_matching')
+    main_parser.add_argument('--use_all_diffusion_steps', action='store_true', help='Use all diffusion steps for leace and mean_matching')
 
     subparsers = parser.add_subparsers(dest='command')
 
