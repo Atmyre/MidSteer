@@ -5,7 +5,7 @@ from diffusers import DiffusionPipeline
 import tqdm
 
 from core.controller import DiffusionVectorControlMode
-from core.dataset import RelaionDataset
+from core.dataset import ImageNetDataset, RelaionDataset
 from core.utils import get_device
 from core.diffusion_steering import DiffusionModelType, diffusion_register_vector_controls_with_hooks
 from core.utils import SUPPORTED_DIFFUSION_MODELS, init_pipeline_for_image_model, run_image_model
@@ -22,6 +22,7 @@ def main(
         seed: int,
         num_samples: int, 
         output_dir: str,
+        dataset_type: str,
 ):
     output_path = os.path.join(output_dir, f"{topic}.pt") if topic is not None else os.path.join(output_dir, f"all.pt")
     if os.path.exists(output_path):
@@ -31,11 +32,20 @@ def main(
 
     device = get_device()
 
-    dataset = RelaionDataset(
-        concept=topic,
-        max_samples=num_samples,
-        seed=seed,
-    )
+    if dataset_type == 'relaion':
+        dataset = RelaionDataset(
+            concept=topic,
+            max_samples=num_samples,
+            seed=seed,
+        )
+    elif dataset_type == 'imagenet':
+        dataset = ImageNetDataset(
+            concept=topic,
+            max_samples=num_samples,
+            seed=seed,
+        )
+    else:
+        raise ValueError(f"Unknown dataset type: {dataset_type}")
 
     stats_handler = CrossAttentionOutputStatsCollector(
         mode=control_mode,
@@ -82,6 +92,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=42, help='Seed for dataset shuffling')
     parser.add_argument('--num_samples', type=int, default=1_000, help='Number of samples used to compute statistics')
     parser.add_argument('--output_dir', type=str, required=True, help='Output directory used to write computed statistics')
+    parser.add_argument('--dataset_type', type=str, choices=['relaion', 'imagenet'], default='relaion', help='Dataset type to use for generating steering vectors')
 
     args = parser.parse_args()
 
@@ -105,4 +116,5 @@ if __name__ == "__main__":
             seed=args.seed,
             num_samples=args.num_samples,
             output_dir=args.output_dir,
+            dataset_type=args.dataset_type,
         )

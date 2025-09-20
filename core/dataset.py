@@ -243,3 +243,32 @@ class RelaionDataset(QuestionsDataset):
             dataset_slice=dataset_slice,
             seed=seed,
         )
+
+class ImageNetDataset(QuestionsDataset):
+    """Dataset that loads ImageNet classes and adds ', with {concept}' to the end."""
+
+    def __init__(self,
+                 *,
+                 concept: str | None = None,
+                 max_samples: int | None = None,
+                 tokenizer: AutoTokenizer | None = None,
+                 use_chat: bool = False,
+                 device: tp.Any = None,
+                 instruction: str | None = None,
+                 dataset_slice: slice | None = None,
+                 seed: int | None = None):
+        
+        with open('imagenet_classes.txt', 'r') as f:
+            data = [f'{line.strip()}, with {concept}' for line in f.readlines()]
+
+        data = itertools.islice(data, max_samples)
+
+        super().__init__(
+            data=data,
+            tokenizer=tokenizer,
+            use_chat=use_chat,
+            device=device,
+            instruction=instruction,
+            dataset_slice=dataset_slice,
+            seed=seed,
+        )
