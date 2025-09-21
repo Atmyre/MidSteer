@@ -29,8 +29,6 @@ def tokenize_with_chat_template(
         system_prompt: str | None = None,
         model_output: str | None = None,
 ) -> torch.Tensor:
-    if model_output is not None:
-        raise ValueError("Model output is not supported for chat template tokenizer function")
     conversation = []
     if system_prompt is not None:
         conversation.append({
@@ -41,9 +39,13 @@ def tokenize_with_chat_template(
         "role": "user",
         "content": user_input
     })
+    conversation.append({
+        "role": "assistant",
+        "content": model_output if model_output is not None else ""
+    })
     return tokenizer.apply_chat_template(
         conversation=conversation,
-        add_generation_prompt=True,
+        continue_final_message=True,
         return_tensors='pt',
     )
 
