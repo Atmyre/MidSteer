@@ -16,6 +16,7 @@ release_gpu() {
 }
 
 run_command_with_params_on_gpu() {
+    set +x
     if [ $# -eq 0 ]; then
         echo "Error: No command provided to run_command_with_params_on_gpu"
         return 1
@@ -35,6 +36,7 @@ run_command_with_params_on_gpu() {
     # Release the GPU after command completion
     release_gpu $gpu_id
     echo "Released GPU $gpu_id"
-    
+    set -x
+
     return $exit_code
 }
