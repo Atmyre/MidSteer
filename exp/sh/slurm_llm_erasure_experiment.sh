@@ -236,16 +236,22 @@ for concept_to_delete in "${!concept_pairs[@]}"; do
         done
 
     done
-    wait
+done
 
+wait
+
+for concept_to_delete in "${!concept_pairs[@]}"; do
+    results_subdir="$results_dir/${concept_to_delete}"
 
     $run_cmd $python scripts/llm/consistency_scoring.py \
-        --dir "$results_subdir/alpaca"
+        --dir "$results_subdir/alpaca" &
 
     $run_cmd $python scripts/llm/consistency_scoring.py \
-        --dir "$results_subdir/mmlu"
+        --dir "$results_subdir/mmlu" &
 
 done
+
+wait
 
 
 
@@ -324,11 +330,22 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
             $additional_steering_params \
             "${concept_params[@]}" &
     done
+done
 
-    wait
+wait
+
+
+for pair in "${concepts_to_steer_pairs[@]}"; do
+    IFS=':' read -r concept_to_delete concept_to_steer <<< "$pair"
+    
+    # Sanitize concept_to_steer for directory name (replace spaces and apostrophes with underscores)
+    sanitized_concept=$(echo "$concept_to_steer" | sed 's/[[:space:]'\''"]/_/g')
+    results_subdir="$results_dir/${concept_to_delete}_${sanitized_concept}"
 
     $run_cmd $python scripts/llm/concept_scoring.py \
         --concept "$concept_to_delete" "$concept_to_steer" \
-        --dir "$results_subdir/eval"
+        --dir "$results_subdir/eval" &
 
 done
+
+wait

@@ -249,14 +249,26 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
             $additional_steering_params \
             "${concept_params[@]}" &
     done
+done
 
-    wait
+wait
+
+
+for pair in "${concepts_to_steer_pairs[@]}"; do
+    IFS=':' read -r source_concept concept_to_steer <<< "$pair"
+    target_concept="${concept_pairs[$source_concept]}"
+    
+    # Sanitize concept_to_steer for directory name (replace spaces and apostrophes with underscores)
+    sanitized_concept=$(echo "$concept_to_steer" | sed 's/[[:space:]'\''"]/_/g')
+    results_subdir="$results_dir/${source_concept}_to_${target_concept}__${sanitized_concept}"
 
     $run_cmd $python scripts/llm/concept_scoring.py \
         --concept "$source_concept" "$target_concept" "$concept_to_steer" \
-        --dir "$results_subdir/eval"
+        --dir "$results_subdir/eval" &
 
 done
+
+wait
 
 
 for source_concept in "${!concept_pairs[@]}"; do
@@ -327,12 +339,21 @@ for source_concept in "${!concept_pairs[@]}"; do
 
     done
 
-    wait
+done
+
+wait
+
+for source_concept in "${!concept_pairs[@]}"; do
+    target_concept="${concept_pairs[$source_concept]}"
+    
+    results_subdir="$results_dir/${source_concept}_to_${target_concept}"
 
     $run_cmd $python scripts/llm/consistency_scoring.py \
-        --dir "$results_subdir/alpaca"
+        --dir "$results_subdir/alpaca" &
 
     $run_cmd $python scripts/llm/consistency_scoring.py \
-        --dir "$results_subdir/mmlu"
+        --dir "$results_subdir/mmlu" &
 
 done
+
+wait
