@@ -118,6 +118,7 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             torch_dtype=torch.bfloat16,
             cache_dir='./cache',
             token='***REMOVED***',
+            device_map='balanced',
         )
     elif model == 'sana-sprint':
         if SanaSprintPipeline is None:
@@ -127,6 +128,7 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             torch_dtype=torch.bfloat16,
             cache_dir='./cache',
             token='***REMOVED***',
+            device_map='balanced',
         )
     elif model in ['pixart', 'pixart-alpha']:
         if PixArtAlphaPipeline is None:
