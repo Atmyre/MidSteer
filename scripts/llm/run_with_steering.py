@@ -3,6 +3,7 @@ import json
 import os
 from pprint import pprint
 from contextlib import contextmanager
+import sys
 
 import torch
 import tqdm
@@ -56,10 +57,6 @@ def main(
         intermediate_clipping: bool,
         renormalize_after_steering: bool,
 ):
-    output_path = os.path.join(output_dir, f'{steer_type}_{strength:.1f}.json')
-    if os.path.exists(output_path):
-        print(f"File {output_path} already exists. Skipping generation.")
-        return
     os.makedirs(output_dir, exist_ok=True)
 
     # Create dataset_slice based on num_samples
@@ -197,6 +194,12 @@ if __name__ == "__main__":
     parser.add_argument('--system_prompt', type=str, choices=['alpaca', 'mmlu'], default=None, help='System prompt type (default: auto-detect based on dataset type)')
 
     args = parser.parse_args()
+
+
+    output_path = os.path.join(args.output_dir, f'{args.steer_type}_{args.strength:.1f}.json')
+    if os.path.exists(output_path):
+        print(f"File {output_path} already exists. Skipping generation.")
+        sys.exit(0)
 
     if not args.identity_cov:
         cov_neutral = unpickle(args.cov_neutral)
