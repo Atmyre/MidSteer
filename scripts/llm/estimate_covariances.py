@@ -8,7 +8,7 @@ from core.llm_steering import llm_register_vector_control
 from core.utils import init_llm_model_and_tokenizer
 from core.utils import get_device
 from core.vector_dump import CrossAttentionOutputStatsCollector, TokenAggregationMode
-from core.dataset import ALPACA_DEFAULT_INSTRUCTION, AlpacaDataset
+from core.dataset import ALPACA_DEFAULT_INSTRUCTION, AlpacaDataset, resolve_tokenizer_for_model
 from transformers import GenerationConfig
 import tqdm
 
@@ -21,7 +21,6 @@ def main(
         last_token_offset: int,
         output_dir: str,
         num_samples: int | None = None,
-        use_chat: bool = False,
         max_new_tokens: int = 1,
         do_not_use_alpaca_system_prompt: bool = False,
 ):
@@ -34,7 +33,7 @@ def main(
     dataset = AlpacaDataset(
         data_path=f'exp/datasets/eval/alpaca_instruct/alpaca_data.json',
         tokenizer=tokenizer,
-        use_chat=use_chat,
+        tokenizer_fn=resolve_tokenizer_for_model(model_name),
         device=device,
         dataset_slice=slice(-num_samples, None),  # Estimate covariance on last num_samples examples to avoid bias
         include_model_output=True,
@@ -81,8 +80,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    use_chat = 'chat' in args.model_name
-
     main(
         model_name=args.model_name,
         layer_type=args.layer_type,
@@ -90,7 +87,6 @@ if __name__ == '__main__':
         normalize_vectors=args.normalize_vectors,
         last_token_offset=args.last_token_offset,
         num_samples=args.num_samples,
-        use_chat=use_chat,
         max_new_tokens=args.max_new_tokens,
         output_dir=args.output_dir,
         do_not_use_alpaca_system_prompt=args.do_not_use_alpaca_system_prompt,

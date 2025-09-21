@@ -7,7 +7,7 @@ from contextlib import contextmanager
 import torch
 import tqdm
 
-from core.dataset import ALPACA_DEFAULT_INSTRUCTION, MMLU_SYSTEM_PROMPT, QuestionsDataset, AlpacaDataset, TemplateDataset, MMLUDataset
+from core.dataset import ALPACA_DEFAULT_INSTRUCTION, MMLU_SYSTEM_PROMPT, QuestionsDataset, AlpacaDataset, TemplateDataset, MMLUDataset, resolve_tokenizer_for_model
 from core.pickle import unpickle
 from core.pickle import unpickle_pack
 from transformers import GenerationConfig
@@ -33,7 +33,6 @@ def main(
         model: AutoModelForCausalLM,
         tokenizer: AutoTokenizer,
         device: torch.device,
-        use_chat: bool,
         layer_type: list[str],
         layers_to_steer: list[int] | None,
         source_concept: str,
@@ -88,7 +87,7 @@ def main(
         dataset = AlpacaDataset(
             data_path=f'exp/datasets/eval/alpaca_instruct/alpaca_data.json',
             tokenizer=tokenizer,
-            use_chat=use_chat,
+            tokenizer_fn=resolve_tokenizer_for_model(model_name),
             device=device,
             instruction=instruction,
             dataset_slice=dataset_slice,
@@ -98,7 +97,7 @@ def main(
             template_path=f'exp/datasets/eval/concepts/template.json',
             concept=source_concept,
             tokenizer=tokenizer,
-            use_chat=use_chat,
+            tokenizer_fn=resolve_tokenizer_for_model(model_name),
             device=device,
             instruction=instruction,
             dataset_slice=dataset_slice,
@@ -107,7 +106,7 @@ def main(
         dataset = MMLUDataset(
             data_path=f'exp/datasets/eval/mmlu/mmlu_full.json',
             tokenizer=tokenizer,
-            use_chat=use_chat,
+            tokenizer_fn=resolve_tokenizer_for_model(model_name),
             device=device,
             instruction=instruction,
             dataset_slice=dataset_slice,
@@ -215,7 +214,6 @@ if __name__ == "__main__":
         layers_to_steer = None
 
     model, tokenizer = init_llm_model_and_tokenizer(model_name=args.model_name)
-    use_chat = 'chat' in args.model_name
     device = get_device()
 
     main(
@@ -223,7 +221,6 @@ if __name__ == "__main__":
         model=model,
         tokenizer=tokenizer,
         device=device,
-        use_chat=use_chat,
         layer_type=args.layer_type,
         layers_to_steer=layers_to_steer,
         source_concept=args.source_concept,

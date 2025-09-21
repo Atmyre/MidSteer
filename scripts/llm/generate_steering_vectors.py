@@ -2,7 +2,7 @@ import argparse
 import os
 import torch
 
-from core.dataset import ALPACA_DEFAULT_INSTRUCTION, QuestionsDataset
+from core.dataset import ALPACA_DEFAULT_INSTRUCTION, QuestionsDataset, resolve_tokenizer_for_model
 
 from core.llm_steering import llm_register_vector_control
 from core.utils import init_llm_model_and_tokenizer
@@ -17,9 +17,9 @@ from transformers import GenerationConfig
 
 def compute_vectors(
         model: AutoModelForCausalLM,
+        model_name: str,
         tokenizer: AutoTokenizer,
         device: torch.device,
-        use_chat: bool,
         layer_type: str,
         topic: str,
         token_aggregation_mode: TokenAggregationMode,
@@ -39,7 +39,7 @@ def compute_vectors(
     dataset = QuestionsDataset(
         data_path=f'exp/datasets/train/{topic}_questions_batch_*.json',
         tokenizer=tokenizer,
-        use_chat=use_chat,
+        tokenizer_fn=resolve_tokenizer_for_model(model_name),
         device=device,
         dataset_slice=slice(0, num_samples),
         instruction=ALPACA_DEFAULT_INSTRUCTION if use_alpaca_system_prompt else None,
@@ -85,15 +85,14 @@ if __name__ == '__main__':
 
 
     model, tokenizer = init_llm_model_and_tokenizer(model_name=args.model_name)
-    use_chat = 'chat' in args.model_name
     device = get_device()
 
     for topic in args.topics:
         compute_vectors(
             model=model,
+            model_name=args.model_name,
             tokenizer=tokenizer,
             device=device,
-            use_chat=use_chat,
             layer_type=args.layer_type,
             topic=topic,
             token_aggregation_mode=args.token_aggregation_mode,

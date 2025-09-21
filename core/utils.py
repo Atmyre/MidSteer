@@ -278,26 +278,31 @@ def run_image_model(model_type: str, pipe, prompt: str, seed: int, device: torch
 
 
 def init_llm_model_and_tokenizer(model_name: str, cache_dir: str | None = './cache') -> tuple[AutoModelForCausalLM, AutoTokenizer]:
-    if '3.1' in model_name:
-        torch_dtype = torch.bfloat16
-    else:
-        torch_dtype = torch.float16
-    # ***REMOVED***
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        cache_dir=cache_dir,
-        torch_dtype=torch_dtype,
-        device_map='balanced',
-        token='***REMOVED***'
-    )
+    if 'llama' in model_name:
+        torch_dtype = torch.bfloat16 if '3.1' in model_name else torch.float16
+        # ***REMOVED***
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            cache_dir=cache_dir,
+            torch_dtype=torch_dtype,
+            device_map='balanced',
+            token='***REMOVED***'
+        )
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_name,
-        cache_dir=cache_dir,
-        torch_dtype=torch_dtype,
-        device_map='balanced',
-        token='***REMOVED***'
-    )
-    return model, tokenizer
-
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            cache_dir=cache_dir,
+            torch_dtype=torch_dtype,
+            device_map='balanced',
+            token='***REMOVED***'
+        )
+        return model, tokenizer
+    elif 'qwen' in model_name:
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype="auto",
+            device_map="auto"
+        )
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        return model, tokenizer
 

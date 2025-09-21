@@ -10,14 +10,27 @@ from torch.utils.data import Dataset
 from transformers import AutoTokenizer
 from datasets import load_dataset
 
-from CAA.utils.tokenize import tokenize_llama_chat, tokenize_llama_base
+from CAA.utils.tokenize import tokenize_llama_chat
+
+
+def dumb_tokenizer_fn(
+        tokenizer: AutoTokenizer | None,
+        user_input: str,
+        system_prompt: str | None = None,
+        model_output: str | None = None,
+) -> str:
+    parts = [p for p in [system_prompt, user_input, model_output] if p is not None]
+    return " ".join(parts)
 
 
 def tokenize_with_chat_template(
         tokenizer: AutoTokenizer,
         user_input: str,
         system_prompt: str | None = None,
+        model_output: str | None = None,
 ) -> torch.Tensor:
+    if model_output is not None:
+        raise ValueError("Model output is not supported for chat template tokenizer function")
     conversation = []
     if system_prompt is not None:
         conversation.append({
@@ -34,13 +47,19 @@ def tokenize_with_chat_template(
         return_tensors='pt',
     )
 
+def resolve_tokenizer_for_model(model_name: str) -> tp.Callable:
+    if 'llama' in model_name and 'chat' in model_name:
+        return tokenize_llama_chat  # This is needed to obtain correct steering vectors for LLAMA
+    else:
+        return tokenize_with_chat_template
+
 class QuestionsDataset(Dataset):
     def __init__(self,
                  *,
                  data_path: str | None = None,
                  data: tp.Iterable[tp.Any] | None = None,
                  tokenizer: AutoTokenizer | None = None,
-                 use_chat: bool = False,
+                 tokenizer_fn: tp.Callable = tokenize_llama_chat,
                  device: tp.Any = None,
                  instruction: str | None = None,
                  dataset_slice: slice | None = None,
@@ -69,27 +88,20 @@ class QuestionsDataset(Dataset):
             self.data = self.data[dataset_slice]
                     
         self.tokenizer = tokenizer
+        self.tokenizer_fn = tokenizer_fn
         if self.tokenizer is not None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.use_chat = use_chat
         self.device = device
         self.instruction = instruction
 
     def prompt_to_tokens(self, system_prompt: str | None, user_input: str | None, model_output: str | None = None):
-        if self.tokenizer is None:
-            parts = [p for p in [system_prompt, user_input, model_output] if p is not None]
-            return " ".join(parts)
-        else:
-            if self.use_chat:
-                tokens = tokenize_llama_chat(
-                    self.tokenizer,
-                    system_prompt=system_prompt,
-                    user_input=user_input,
-                    model_output=model_output,
-                )
-            else:
-                raise ValueError("Not supported")
-            return torch.tensor(tokens, device=self.device).unsqueeze(0)
+        tokens = self.tokenizer_fn(
+            tokenizer=self.tokenizer,
+            system_prompt=system_prompt,
+            user_input=user_input,
+            model_output=model_output,
+        )
+        return torch.tensor(tokens, device=self.device).unsqueeze(0)
 
     def __len__(self):
         return len(self.data)
@@ -105,7 +117,7 @@ class AlpacaDataset(QuestionsDataset):
                  data_path: str,
                  *,
                  tokenizer: AutoTokenizer | None = None,
-                 use_chat: bool = False,
+                 tokenizer_fn: tp.Callable = tokenize_llama_chat,
                  device: tp.Any = None,
                  instruction: str | None = ALPACA_DEFAULT_INSTRUCTION,
                  dataset_slice: slice | None = None,
@@ -114,7 +126,7 @@ class AlpacaDataset(QuestionsDataset):
         super().__init__(
             data_path=data_path,
             tokenizer=tokenizer,
-            use_chat=use_chat,
+            tokenizer_fn=tokenizer_fn,
             device=device,
             instruction=instruction,
             dataset_slice=dataset_slice,
@@ -141,7 +153,7 @@ class TemplateDataset(QuestionsDataset):
                  concept: str,
                  *,
                  tokenizer: AutoTokenizer | None = None,
-                 use_chat: bool = False,
+                 tokenizer_fn: tp.Callable = tokenize_llama_chat,
                  device: tp.Any = None,
                  instruction: str | None = None,
                  dataset_slice: slice | None = None,
@@ -149,7 +161,7 @@ class TemplateDataset(QuestionsDataset):
         super().__init__(
             data_path=template_path,
             tokenizer=tokenizer,
-            use_chat=use_chat,
+            tokenizer_fn=tokenizer_fn,
             device=device,
             instruction=instruction,
             dataset_slice=dataset_slice,
@@ -168,7 +180,7 @@ class MMLUDataset(QuestionsDataset):
                  data_path: str,
                  *,
                  tokenizer: AutoTokenizer | None = None,
-                 use_chat: bool = False,
+                 tokenizer_fn: tp.Callable = tokenize_llama_chat,
                  device: tp.Any = None,
                  instruction: str | None = None,
                  dataset_slice: slice | None = None,
@@ -176,7 +188,7 @@ class MMLUDataset(QuestionsDataset):
         super().__init__(
             data_path=data_path,
             tokenizer=tokenizer,
-            use_chat=use_chat,
+            tokenizer_fn=tokenizer_fn,
             device=device,
             instruction=instruction,
             dataset_slice=dataset_slice,
@@ -197,7 +209,7 @@ class RelaionDataset(QuestionsDataset):
                  concept: str | None = None,
                  max_samples: int | None = None,
                  tokenizer: AutoTokenizer | None = None,
-                 use_chat: bool = False,
+                 tokenizer_fn: tp.Callable = dumb_tokenizer_fn,
                  device: tp.Any = None,
                  instruction: str | None = None,
                  dataset_slice: slice | None = None,
@@ -237,7 +249,7 @@ class RelaionDataset(QuestionsDataset):
         super().__init__(
             data=data,
             tokenizer=tokenizer,
-            use_chat=use_chat,
+            tokenizer_fn=tokenizer_fn,
             device=device,
             instruction=instruction,
             dataset_slice=dataset_slice,
@@ -252,7 +264,7 @@ class ImageNetDataset(QuestionsDataset):
                  concept: str | None = None,
                  max_samples: int | None = None,
                  tokenizer: AutoTokenizer | None = None,
-                 use_chat: bool = False,
+                 tokenizer_fn: tp.Callable = dumb_tokenizer_fn,
                  device: tp.Any = None,
                  instruction: str | None = None,
                  dataset_slice: slice | None = None,
@@ -266,7 +278,7 @@ class ImageNetDataset(QuestionsDataset):
         super().__init__(
             data=data,
             tokenizer=tokenizer,
-            use_chat=use_chat,
+            tokenizer_fn=tokenizer_fn,
             device=device,
             instruction=instruction,
             dataset_slice=dataset_slice,
