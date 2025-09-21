@@ -3,7 +3,7 @@
 acquire_gpu() {
     while true; do
         gpu_id=$(
-            flock 99;
+            flock 99
             line=$(head -n 1 $LOCK_FILE)
             if [ -n "$line" ]; then
                 if [ "$(uname)" == "Darwin" ]; then
@@ -24,8 +24,8 @@ acquire_gpu() {
 
 release_gpu() {
     (
-        flock 99;
-        echo $1 >> $LOCK_FILE;
+        flock 99
+        echo $1 >> $LOCK_FILE
     ) 99> $LOCK_FILE
 }
 
