@@ -17,30 +17,31 @@ set -eoux pipefail
 
 
 # Check if required arguments are provided
-if [ $# -lt 4 ]; then
-    echo "Usage: $0 <layer_type> <num_covariances> <token_aggregation_mode> <max_new_tokens> [strengths] [--mm_normalize_centers] [--intermediate_clipping] [--renormalize_after_steering] [--zero_mu_neutral]"
-    echo "Example: $0 self_attn 20000 all 100" 
-    echo "Example with strengths: $0 self_attn 20000 all 100 '1.0 2.0 3.0'"
-    echo "Example with optional flags: $0 self_attn 20000 all 100 '1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0' --mm_normalize_centers --intermediate_clipping"
+if [ $# -lt 5 ]; then
+    echo "Usage: $0 <model_name> <layer_type> <num_covariances> <token_aggregation_mode> <max_new_tokens> [strengths] [--mm_normalize_centers] [--intermediate_clipping] [--renormalize_after_steering] [--zero_mu_neutral]"
+    echo "Example: $0 meta-llama/Llama-2-7b-chat-hf self_attn 20000 all 100" 
+    echo "Example with strengths: $0 meta-llama/Llama-2-7b-chat-hf self_attn 20000 all 100 '1.0 2.0 3.0'"
+    echo "Example with optional flags: $0 meta-llama/Llama-2-7b-chat-hf self_attn 20000 all 100 '1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0' --mm_normalize_centers --intermediate_clipping"
     exit 1
 fi
 
 # Parse arguments
-layer_type=$1
-num_covariances=$2
-token_aggregation_mode=$3
-max_new_tokens=$4
+model_name=$1
+layer_type=$2
+num_covariances=$3
+token_aggregation_mode=$4
+max_new_tokens=$5
 
 # Set default strengths
 default_strengths="1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0"
 
-# Check if 5th argument is provided and doesn't start with --
-if [ $# -gt 4 ] && [[ "$5" != --* ]]; then
-    strengths="$5"
-    start_idx=6
+# Check if 6th argument is provided and doesn't start with --
+if [ $# -gt 5 ] && [[ "$6" != --* ]]; then
+    strengths="$6"
+    start_idx=7
 else
     strengths="$default_strengths"
-    start_idx=5
+    start_idx=6
 fi
 
 mm_normalize_centers=""
@@ -104,13 +105,15 @@ fi
 
 
 additional_steering_params="$mm_normalize_centers $intermediate_clipping $renormalize_after_steering $zero_mu_neutral"
-base_dir=$OUTPUT_PREFIX/exp/results/llama-2-7b-chat-hf/$JOB_NAME
+
+# Extract model name for directory (replace / with -)
+model_dir_name=$(echo "$model_name" | sed 's/\//-/g')
+base_dir=$OUTPUT_PREFIX/exp/results/$model_dir_name/$JOB_NAME
 
 export PYTHONPATH=.
 
 python=../miniconda3/bin/python
 
-model_name=meta-llama/Llama-2-7b-chat-hf
 covariances_dir=$base_dir/covariances
 
 topics="horses motorcycles cats dogs"

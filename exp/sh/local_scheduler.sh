@@ -6,6 +6,7 @@ LOCK_GUARD="${LOCK_FILE}.lock"   # separate file only for locking
 
 acquire_gpu() {
   while true; do
+    local gpu_id
     gpu_id="$(
       # Take an exclusive lock, then read first line and delete it with sed
       flock -x "$LOCK_GUARD" bash -c '
@@ -50,9 +51,8 @@ run_command_with_params_on_gpu() {
   gpu_id="$(acquire_gpu)" || return 1
   echo "Acquired GPU $gpu_id"
 
-  export CUDA_VISIBLE_DEVICES="$gpu_id"
   echo "Running command on GPU $gpu_id: $*"
-  "$@"
+  CUDA_VISIBLE_DEVICES=$gpu_id "$@"
   local exit_code=$?
 
   release_gpu "$gpu_id"
