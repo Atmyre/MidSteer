@@ -119,7 +119,6 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             cache_dir='./cache',
             token='***REMOVED***',
         )
-        pipe.enable_model_cpu_offload()
     elif model == 'sana-sprint':
         if SanaSprintPipeline is None:
             raise ValueError("SANA-Sprint is not available. Please install the latest diffusers or ensure SanaSprintPipeline is available.")
@@ -129,7 +128,6 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             cache_dir='./cache',
             token='***REMOVED***',
         )
-        pipe.enable_model_cpu_offload()
     elif model in ['pixart', 'pixart-alpha']:
         if PixArtAlphaPipeline is None:
             raise ValueError("PixArt is not available. Please install the latest diffusers or ensure PixArtAlphaPipeline is available.")
@@ -139,7 +137,6 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             cache_dir='./cache',
             token='***REMOVED***',
         )
-        pipe.enable_model_cpu_offload()
     elif model == 'flash-pixart':
         if PixArtAlphaPipeline is None:
             raise ValueError("PixArt is not available. Please install the latest diffusers or ensure PixArtAlphaPipeline is available.")
@@ -176,7 +173,6 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             cache_dir='./cache',
             token='***REMOVED***',
         )
-        pipe.enable_model_cpu_offload()
     else:
         raise ValueError(f'Unknown model: {model}')
     return pipe
