@@ -55,7 +55,9 @@ def tokenize_with_chat_template(
             add_generation_prompt=True,
             return_tensors='pt',
         )
-    print(tokenizer.convert_ids_to_tokens(ids))
+    print(ids.shape)
+    print(ids)
+    print(tokenizer.convert_ids_to_tokens(ids[0]))
     return ids
 
 
