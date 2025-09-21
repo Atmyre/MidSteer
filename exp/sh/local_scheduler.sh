@@ -7,9 +7,9 @@ acquire_gpu() {
             line=$(head -n 1 $LOCK_FILE)
             if [ -n "$line" ]; then
                 if [ "$(uname)" == "Darwin" ]; then
-                    sed -i '' '1d' $1
+                    sed -i '' '1d' $LOCK_FILE
                 else
-                    sed -i '1d' $1
+                    sed -i '1d' $LOCK_FILE
                 fi
             fi
             echo $line
