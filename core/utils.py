@@ -278,7 +278,7 @@ def run_image_model(model_type: str, pipe, prompt: str, seed: int, device: torch
 
 
 def init_llm_model_and_tokenizer(model_name: str, cache_dir: str | None = './cache') -> tuple[AutoModelForCausalLM, AutoTokenizer]:
-    if 'llama' in model_name:
+    if 'llama' in model_name.lower():
         torch_dtype = torch.bfloat16 if '3.1' in model_name else torch.float16
         # ***REMOVED***
         model = AutoModelForCausalLM.from_pretrained(
@@ -297,7 +297,7 @@ def init_llm_model_and_tokenizer(model_name: str, cache_dir: str | None = './cac
             token='***REMOVED***'
         )
         return model, tokenizer
-    elif 'qwen' in model_name:
+    elif 'qwen' in model_name.lower():
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype="auto",

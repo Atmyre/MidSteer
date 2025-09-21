@@ -48,7 +48,7 @@ def tokenize_with_chat_template(
     )
 
 def resolve_tokenizer_for_model(model_name: str) -> tp.Callable:
-    if 'llama' in model_name and 'chat' in model_name:
+    if 'llama' in model_name.lower() and 'chat' in model_name.lower():
         return tokenize_llama_chat  # This is needed to obtain correct steering vectors for LLAMA
     else:
         return tokenize_with_chat_template
