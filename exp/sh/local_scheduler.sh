@@ -2,7 +2,18 @@
 
 acquire_gpu() {
     while true; do
-        gpu_id=$(flock $LOCK_FILE ./exp/sh/get_line_from_file_and_remove.sh $LOCK_FILE)
+        gpu_id=$(
+            flock 99;
+            line=$(head -n 1 $LOCK_FILE)
+            if [ -n "$line" ]; then
+                if [ "$(uname)" == "Darwin" ]; then
+                    sed -i '' '1d' $1
+                else
+                    sed -i '1d' $1
+                fi
+            fi
+            echo $line
+        ) 99> $LOCK_FILE
         if [ -n "$gpu_id" ]; then
             break
         fi
@@ -12,7 +23,10 @@ acquire_gpu() {
 }
 
 release_gpu() {
-    flock $LOCK_FILE ./exp/sh/add_line_to_file.sh $1 $LOCK_FILE
+    (
+        flock 99;
+        echo $1 >> $LOCK_FILE;
+    ) 99> $LOCK_FILE
 }
 
 run_command_with_params_on_gpu() {
