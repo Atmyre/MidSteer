@@ -89,7 +89,7 @@ fi
 
 
 if [ -n "${LOCAL_SCHEDULER:-}" ]; then
-    export LOCK_FILE="/var/lock/mmsteer-gpu-${JOB_NAME}-${JOB_ID}.lock"
+    export LOCK_FILE="/tmp/mmsteer-gpu-${JOB_NAME}-${JOB_ID}.lock"
     rm -rf $LOCK_FILE
 
     source ./exp/sh/local_scheduler.sh
