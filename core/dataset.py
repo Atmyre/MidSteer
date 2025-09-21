@@ -39,22 +39,25 @@ def tokenize_with_chat_template(
         "role": "user",
         "content": user_input
     })
-    conversation.append({
-        "role": "assistant",
-        "content": model_output if model_output is not None else ""
-    })
-
-    ids = tokenizer.apply_chat_template(
-        conversation=conversation,
-        continue_final_message=True,
-    )
+    if model_output is not None:
+        conversation.append({
+            "role": "assistant",
+            "content": model_output
+        })
+        ids = tokenizer.apply_chat_template(
+            conversation=conversation,
+            continue_final_message=True,
+            return_tensors='pt',
+        )
+    else:
+        ids = tokenizer.apply_chat_template(
+            conversation=conversation,
+            add_generation_prompt=True,
+            return_tensors='pt',
+        )
     print(tokenizer.convert_ids_to_tokens(ids))
+    return ids
 
-    return tokenizer.apply_chat_template(
-        conversation=conversation,
-        continue_final_message=True,
-        return_tensors='pt',
-    )
 
 def resolve_tokenizer_for_model(model_name: str) -> tp.Callable:
     if 'llama' in model_name.lower() and 'chat' in model_name.lower():
