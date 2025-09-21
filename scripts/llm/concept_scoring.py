@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from core.dataset import ALPACA_DEFAULT_INSTRUCTION, tokenize_with_chat_template
+from core.dataset import ALPACA_DEFAULT_INSTRUCTION, chat_template_tokenizer_fn
 from core.utils import init_llm_model_and_tokenizer
 
 class Response(BaseModel):
@@ -35,7 +35,7 @@ def score_text(model: AutoModelForCausalLM, tokenizer: AutoTokenizer, text: str,
 
 
         with torch.no_grad():
-            inputs = tokenize_with_chat_template(
+            inputs = chat_template_tokenizer_fn(
                 tokenizer,
                 system_prompt=ALPACA_DEFAULT_INSTRUCTION,
                 user_input=prompt,

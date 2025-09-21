@@ -23,7 +23,22 @@ def dumb_tokenizer_fn(
     return " ".join(parts)
 
 
-def tokenize_with_chat_template(
+def llama_chat_tokenizer_fn(
+        tokenizer: AutoTokenizer,
+        user_input: str,
+        system_prompt: str | None = None,
+        model_output: str | None = None,
+) -> torch.Tensor:
+    ids = tokenize_llama_chat(
+        tokenizer=tokenizer,
+        user_input=user_input,
+        system_prompt=system_prompt,
+        model_output=model_output
+    )
+    return torch.tensor(ids).unsqueeze(0)
+
+
+def chat_template_tokenizer_fn(
         tokenizer: AutoTokenizer,
         user_input: str,
         system_prompt: str | None = None,
@@ -55,17 +70,14 @@ def tokenize_with_chat_template(
             add_generation_prompt=True,
             return_tensors='pt',
         )
-    print(ids.shape)
-    print(ids)
-    print(tokenizer.convert_ids_to_tokens(ids[0]))
     return ids
 
 
 def resolve_tokenizer_for_model(model_name: str) -> tp.Callable:
     if 'llama' in model_name.lower() and 'chat' in model_name.lower():
-        return tokenize_llama_chat  # This is needed to obtain correct steering vectors for LLAMA
+        return llama_chat_tokenizer_fn  # This is needed to obtain correct steering vectors for LLAMA
     else:
-        return tokenize_with_chat_template
+        return chat_template_tokenizer_fn
 
 class QuestionsDataset(Dataset):
     def __init__(self,
@@ -73,7 +85,7 @@ class QuestionsDataset(Dataset):
                  data_path: str | None = None,
                  data: tp.Iterable[tp.Any] | None = None,
                  tokenizer: AutoTokenizer | None = None,
-                 tokenizer_fn: tp.Callable = tokenize_llama_chat,
+                 tokenizer_fn: tp.Callable = llama_chat_tokenizer_fn,
                  device: tp.Any = None,
                  instruction: str | None = None,
                  dataset_slice: slice | None = None,
@@ -115,7 +127,10 @@ class QuestionsDataset(Dataset):
             user_input=user_input,
             model_output=model_output,
         )
-        return torch.tensor(tokens, device=self.device).unsqueeze(0)
+        if isinstance(tokens, torch.Tensor):
+            return tokens.to(self.device)
+        else:
+            return tokens
 
     def __len__(self):
         return len(self.data)
@@ -131,7 +146,7 @@ class AlpacaDataset(QuestionsDataset):
                  data_path: str,
                  *,
                  tokenizer: AutoTokenizer | None = None,
-                 tokenizer_fn: tp.Callable = tokenize_llama_chat,
+                 tokenizer_fn: tp.Callable = llama_chat_tokenizer_fn,
                  device: tp.Any = None,
                  instruction: str | None = ALPACA_DEFAULT_INSTRUCTION,
                  dataset_slice: slice | None = None,
@@ -167,7 +182,7 @@ class TemplateDataset(QuestionsDataset):
                  concept: str,
                  *,
                  tokenizer: AutoTokenizer | None = None,
-                 tokenizer_fn: tp.Callable = tokenize_llama_chat,
+                 tokenizer_fn: tp.Callable = llama_chat_tokenizer_fn,
                  device: tp.Any = None,
                  instruction: str | None = None,
                  dataset_slice: slice | None = None,
@@ -194,7 +209,7 @@ class MMLUDataset(QuestionsDataset):
                  data_path: str,
                  *,
                  tokenizer: AutoTokenizer | None = None,
-                 tokenizer_fn: tp.Callable = tokenize_llama_chat,
+                 tokenizer_fn: tp.Callable = llama_chat_tokenizer_fn,
                  device: tp.Any = None,
                  instruction: str | None = None,
                  dataset_slice: slice | None = None,
