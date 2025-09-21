@@ -38,12 +38,12 @@ seed=0
 default_strengths="1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0"
 
 # Check if 5th argument is provided and doesn't start with --
-if [ $# -gt 4 ] && [[ "$5" != --* ]]; then
-    strengths="$5"
-    start_idx=6
+if [ $# -gt 5 ] && [[ "$6" != --* ]]; then
+    strengths="$6"
+    start_idx=7
 else
     strengths="$default_strengths"
-    start_idx=5
+    start_idx=6
 fi
 
 intermediate_clipping=""
