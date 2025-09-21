@@ -47,10 +47,9 @@ def tokenize_with_chat_template(
     ids = tokenizer.apply_chat_template(
         conversation=conversation,
         continue_final_message=True,
-        tokenize=False,
     )
     print(tokenizer.convert_ids_to_tokens(ids))
-    
+
     return tokenizer.apply_chat_template(
         conversation=conversation,
         continue_final_message=True,
