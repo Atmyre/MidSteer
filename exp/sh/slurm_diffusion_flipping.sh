@@ -14,6 +14,7 @@
 
 set -eoux pipefail
 
+nvidia-smi
 
 # Check if required arguments are provided
 if [ $# -lt 4 ]; then
