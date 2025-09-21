@@ -235,8 +235,8 @@ for concept_to_delete in "${!concept_pairs[@]}"; do
                 $params &
         done
 
-        wait
     done
+    wait
 
 
     $run_cmd $python scripts/llm/consistency_scoring.py \

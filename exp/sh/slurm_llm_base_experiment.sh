@@ -325,13 +325,9 @@ for source_concept in "${!concept_pairs[@]}"; do
                 $params &
         done
 
-        wait
     done
 
-
-    $run_cmd $python scripts/llm/concept_scoring.py \
-        --concept $source_concept $target_concept \
-        --dir "$results_subdir/eval"
+    wait
 
     $run_cmd $python scripts/llm/consistency_scoring.py \
         --dir "$results_subdir/alpaca"
