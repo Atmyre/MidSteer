@@ -117,6 +117,14 @@ elif [[ $model_name == "sana" ]]; then
     estimate_model_name="sana-sprint"
 fi
 
+# Set num_steering_samples based on dataset type
+if [[ $dataset_type == "imagenet" ]]; then
+    num_steering_samples=50
+else
+    num_steering_samples=1000
+fi
+
+
 
 if [ $num_covariances -gt 0 ]; then
     $run_cmd $python scripts/diffusion/estimate_covariances.py \
@@ -138,7 +146,7 @@ $run_cmd $python scripts/diffusion/estimate_steering_vectors.py \
     --topics $topics \
     --normalize_vectors \
     --aggregation_mode average \
-    --num_samples 1000 \
+    --num_samples $num_steering_samples \
     --output_dir $steering_vectors_dir &
 
 wait
