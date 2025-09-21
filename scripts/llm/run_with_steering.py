@@ -116,16 +116,16 @@ def main(
         raise ValueError(f"Unknown dataset type: {dataset_type}")
 
     if steer_type is not None:
-        source_concept = unpickle(source_concept_path)
-        target_concept = unpickle(target_concept_path)
+        source_concept_vec = unpickle(source_concept_path)
+        target_concept_vec = unpickle(target_concept_path)
 
         control = CrossAttentionOutputSteering(
             model_to_steer=ModelToSteer.LLAMA,
             steer_type=steer_type,
             steer_back=True,
             device=device,
-            source_concepts=[source_concept],
-            target_concepts=[target_concept],
+            source_concepts=[source_concept_vec],
+            target_concepts=[target_concept_vec],
             mu_neutral=mu_neutral,
             sigma_neutral=cov_neutral,
             strength=strength,
