@@ -1,5 +1,6 @@
+import warnings
 from core.pickle import pickle_stats
-from core.controller import EPS, VectorControl, DiffusionVectorControlMode
+from core.controller import EPS, ModelToSteer, VectorControl, DiffusionVectorControlMode
 from collections import defaultdict
 import torch
 import numpy as np
@@ -92,13 +93,22 @@ class CrossAttentionOutputStatsCollector(VectorControl):
     # [batch_size, sequence_length, num_heads, head_dim]
     def forward(self, vector: torch.Tensor, diffusion_step, place_in_unet, block_index, min_token_index: int = None):
         batch_size = vector.shape[0]
+        if batch_size > 1 and self.model_to_steer == ModelToSteer.UNET:
+            # TODO: fix it properly sometime later
+            # Steer only the prompt part of SDXL classifier-free guidance method
+            batch_slice = slice(batch_size // 2, None)
+            warnings.warn('Collecting stats only for the prompt part of SDXL classifier-free guidance (assumed the batch_idx=0 is not conditioned on the prompt)')
+        else:
+            batch_slice = slice(None, None)
+        
+        
         num_heads = vector.shape[-2]
         hidden_size = vector.shape[-1]
 
         if min_token_index is not None and vector.shape[1] > 1:
-            vector_slices = vector[:, min_token_index:, :, :]
+            vector_slices = vector[batch_slice, min_token_index:, :, :]
         else:
-            vector_slices = vector
+            vector_slices = vector[batch_slice, ...]
 
 
         vector_permuted = vector_slices.permute(2, 0, 1, 3)  # [num_heads, batch_size, sequence_length, head_dim]

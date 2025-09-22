@@ -236,7 +236,6 @@ def run_image_model(model_type: str, pipe, prompt: str, seed: int, device: torch
         images = pipe(
             prompt=prompt,
             num_inference_steps=get_num_denoising_steps(model_type),
-            guidance_scale=5.0,
             height=1024,
             width=1024,
             generator=torch.Generator(device=device).manual_seed(seed),
@@ -246,7 +245,6 @@ def run_image_model(model_type: str, pipe, prompt: str, seed: int, device: torch
         images = pipe(
             prompt=prompt,
             num_inference_steps=get_num_denoising_steps(model_type),
-            guidance_scale=5.0,  # Default guidance scale for SANA-Sprint
             height=1024,  # SANA-Sprint is optimized for 1024px images
             width=1024,
             intermediate_timesteps=None,
