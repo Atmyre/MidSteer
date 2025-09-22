@@ -6,7 +6,7 @@ import typing as tp
 from diffusers import DiffusionPipeline
 
 from core.controller import CrossAttentionOutputSteering, DiffusionVectorControlMode, ModelToSteer, VectorControl
-from core.dataset import CocoDataset, TemplateDataset
+from core.dataset import CocoDataset, TemplateDataset, dumb_tokenizer_fn
 from core.diffusion_steering import DiffusionModelType, diffusion_register_vector_controls_with_hooks
 from core.pickle import unpickle
 from core.utils import SUPPORTED_DIFFUSION_MODELS, get_device, init_pipeline_for_image_model, run_image_model
@@ -92,6 +92,7 @@ def main(args: argparse.Namespace):
         dataset = TemplateDataset(
             template_path='exp/datasets/eval/imagenet/template.json',
             concept=args.generate_concept,
+            tokenizer_fn=dumb_tokenizer_fn,
         )
     else:
         dataset = CocoDataset(
