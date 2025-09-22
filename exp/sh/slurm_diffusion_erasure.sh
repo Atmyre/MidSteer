@@ -226,14 +226,14 @@ done
 
 wait
 
-#for pair in "${concepts_to_remove_pairs[@]}"; do
-#    IFS=':' read -r concept_to_remove concept_to_generate <<< "$pair"
-#    
-#    results_subdir="$results_dir/concept_erasure/${concept_to_remove}_${concept_to_generate}"
-#
-#    $run_cmd $python scripts/diffusion/produce_scores.py \
-#        --concept "$concept_to_remove" "$concept_to_generate" \
-#        --dir "$results_subdir" &
-#done
+for pair in "${concepts_to_remove_pairs[@]}"; do
+   IFS=':' read -r concept_to_remove concept_to_generate <<< "$pair"
+   
+   results_subdir="$results_dir/concept_erasure/${concept_to_remove}_${concept_to_generate}"
 
-#wait
+   $run_cmd $python scripts/diffusion/produce_scores.py \
+       --concept "$concept_to_remove" "$concept_to_generate" \
+       --dir "$results_subdir" &
+done
+
+wait

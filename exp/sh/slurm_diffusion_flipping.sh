@@ -239,20 +239,20 @@ done
 wait
 
 
-#for pair in "${concepts_to_steer_pairs[@]}"; do
-#    IFS=':' read -r source_concept concept_to_steer <<< "$pair"
-#    target_concept="${concept_pairs[$source_concept]}"
-#    
-#    # Sanitize concept_to_steer for directory name (replace spaces and apostrophes with underscores)
-#    sanitized_concept=$(echo "$concept_to_steer" | sed 's/[[:space:]'\''"]/_/g')
-#    results_subdir="$results_dir/concept_translation/${source_concept}_to_${target_concept}__${sanitized_concept}"
-#
-#    $run_cmd $python scripts/diffusion/produce_scores.py \
-#        --concept "$source_concept" "$target_concept" "$concept_to_steer" \
-#        --dir "$results_subdir" &
-#done
+for pair in "${concepts_to_steer_pairs[@]}"; do
+   IFS=':' read -r source_concept concept_to_steer <<< "$pair"
+   target_concept="${concept_pairs[$source_concept]}"
+   
+   # Sanitize concept_to_steer for directory name (replace spaces and apostrophes with underscores)
+   sanitized_concept=$(echo "$concept_to_steer" | sed 's/[[:space:]'\''"]/_/g')
+   results_subdir="$results_dir/concept_translation/${source_concept}_to_${target_concept}__${sanitized_concept}"
 
-#wait
+   $run_cmd $python scripts/diffusion/produce_scores.py \
+       --concept "$source_concept" "$target_concept" "$concept_to_steer" \
+       --dir "$results_subdir" &
+done
+
+wait
 
 
 
