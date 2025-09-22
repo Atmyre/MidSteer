@@ -57,7 +57,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--dir', type=str, help='Subdirectory to process')
-    parser.add_argument('--concept', type=str, nargs='+', help='Concept to score against')
+    parser.add_argument('--concept', type=str, nargs='*', help='Concept to score against')
     parser.add_argument('--num_workers', type=int, default=24, help='Number of workers to use for FID and CLIP')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size to use for FID and CLIP')
 

@@ -6,7 +6,7 @@ import typing as tp
 from diffusers import DiffusionPipeline
 
 from core.controller import CrossAttentionOutputSteering, DiffusionVectorControlMode, ModelToSteer, VectorControl
-from core.dataset import TemplateDataset
+from core.dataset import CocoDataset, TemplateDataset
 from core.diffusion_steering import DiffusionModelType, diffusion_register_vector_controls_with_hooks
 from core.pickle import unpickle
 from core.utils import SUPPORTED_DIFFUSION_MODELS, get_device, init_pipeline_for_image_model, run_image_model
@@ -88,10 +88,16 @@ def main(args: argparse.Namespace):
 
     vector_control = hook_model(pipeline, device, args)
 
-    dataset = TemplateDataset(
-        template_path='exp/datasets/eval/imagenet/template.json',
-        concept=args.generate_concept,
-    )
+    if args.generate_concept != 'coco':
+        dataset = TemplateDataset(
+            template_path='exp/datasets/eval/imagenet/template.json',
+            concept=args.generate_concept,
+        )
+    else:
+        dataset = CocoDataset(
+            coco_path='exp/datasets/eval/coco/coco_30k.csv',
+            max_samples=args.max_samples,
+        )
 
     skipped = generated = 0
 
@@ -138,6 +144,7 @@ if __name__ == "__main__":
     main_parser.add_argument('--batch_size', type=int, default=1, help='Batch size used for image generation')
     main_parser.add_argument('--seed', type=int, default=0, help='Starting seed for each prompt')
     main_parser.add_argument('--file_format', type=str, choices=['PNG', 'JPEG'], default='PNG', help='File format for generated images')
+    main_parser.add_argument('--max_samples', type=int, default=None, help='Maximum number of samples to use from the dataset')
 
     # Steering params
     main_parser.add_argument('--steering_method', type=str, choices=['casteer', 'leace', 'mean_matching'], default=None)

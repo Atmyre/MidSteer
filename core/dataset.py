@@ -2,6 +2,7 @@ import json
 import typing as tp
 import glob
 import random
+import pandas as pd
 import torch
 import re
 import itertools
@@ -301,6 +302,35 @@ class ImageNetDataset(QuestionsDataset):
         
         with open('imagenet_classes.txt', 'r') as f:
             data = [f'{line.strip()}, with {concept}' for line in f.readlines()]
+
+        data = itertools.islice(data, max_samples)
+
+        super().__init__(
+            data=data,
+            tokenizer=tokenizer,
+            tokenizer_fn=tokenizer_fn,
+            device=device,
+            instruction=instruction,
+            dataset_slice=dataset_slice,
+            seed=seed,
+        )
+
+class CocoDataset(QuestionsDataset):
+    """Dataset that loads COCO captions."""
+
+    def __init__(self,
+                 *,
+                 coco_path: str,
+                 max_samples: int | None = None,
+                 tokenizer: AutoTokenizer | None = None,
+                 tokenizer_fn: tp.Callable = dumb_tokenizer_fn,
+                 device: tp.Any = None,
+                 instruction: str | None = None,
+                 dataset_slice: slice | None = None,
+                 seed: int | None = None):
+
+        df = pd.read_csv(coco_path)
+        data = [prompt for prompt in df['prompt'] if 'horse' not in prompt.lower()]
 
         data = itertools.islice(data, max_samples)
 
