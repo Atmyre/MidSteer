@@ -99,7 +99,7 @@ else
 fi
 
 
-additional_steering_params="--model_name $model_name --control_mode $control_mode $intermediate_clipping $renormalize_after_steering --num_images_per_prompt $num_images_per_prompt --seed $seed --file_format JPEG --batch_size 10"
+additional_steering_params="--model_name $model_name --control_mode $control_mode $intermediate_clipping $renormalize_after_steering --num_images_per_prompt $num_images_per_prompt --seed $seed --file_format JPEG --batch_size 10 --max_samples 1000"
 base_dir=$OUTPUT_PREFIX/exp/results/$model_name/$JOB_NAME
 
 export PYTHONPATH=.
@@ -116,6 +116,8 @@ if [[ $model_name == "sdxl" ]]; then
     estimate_model_name="sdxl-turbo"
 elif [[ $model_name == "sana" ]]; then
     estimate_model_name="sana-sprint"
+elif [[ $model_name == "sana-06" ]]; then
+    estimate_model_name="sana-sprint-06"
 fi
 
 # Set num_steering_samples based on dataset type
@@ -131,7 +133,7 @@ if [ $num_covariances -gt 0 ]; then
         --model_name $estimate_model_name \
         --control_mode $control_mode \
         --aggregation_mode $aggregation_mode \
-	--normalize_vectors \
+        --normalize_vectors \
         --num_samples $num_covariances \
         --output_dir $covariances_dir &
 
@@ -169,18 +171,21 @@ declare -a concepts_to_steer_pairs=(
     "horse:pig"
     "horse:dog"
     "horse:legislator"
+    "horse:coco"
     "snoopy:snoopy"
     "snoopy:mickey"
     "snoopy:Pikachu"
     "snoopy:Spongebob"
     "snoopy:dog"
     "snoopy:legislator"
+    "snoopy:coco"
     "chihuahua:chihuahua"
     "chihuahua:muffin"
     "chihuahua:wolf"
     "chihuahua:cat"
     "chihuahua:dog"
     "chihuahua:legislator"
+    "chihuahua:coco"
     "horse:knight's riding mammal"
     "horse:large equine"
     "mickey:mouse from a Disneyland"

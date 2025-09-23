@@ -2,15 +2,15 @@
 
 
 
-#sbatch --gpus=8 --job-name=erasure_sana_50k_06 ./exp/sh/slurm_diffusion_erasure.sh sana-06 attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0' 
-#sbatch --gpus=8 --job-name=flipping_sana_50k_06 ./exp/sh/slurm_diffusion_flipping.sh sana-06 attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0' 
-#sbatch --gpus=8 --job-name=erasure_sana_50k_clip_06 ./exp/sh/slurm_diffusion_erasure.sh sana-06 attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0'  --intermediate_clipping
-#sbatch --gpus=8 --job-name=flipping_sana_50k_clip_06 ./exp/sh/slurm_diffusion_flipping.sh sana-06 attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0' --intermediate_clipping
+# sbatch --gpus=8 --job-name=erasure_sana_50k_06 ./exp/sh/slurm_diffusion_erasure.sh sana-06 attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0' 
+# sbatch --gpus=8 --job-name=flipping_sana_50k_06 ./exp/sh/slurm_diffusion_flipping.sh sana-06 attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0' 
+# sbatch --gpus=8 --job-name=erasure_sana_50k_clip_06 ./exp/sh/slurm_diffusion_erasure.sh sana-06 attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0'  --intermediate_clipping
+# sbatch --gpus=8 --job-name=flipping_sana_50k_clip_06 ./exp/sh/slurm_diffusion_flipping.sh sana-06 attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0' --intermediate_clipping
 
-sbatch --gpus=8 --job-name=erasure_sana_50k ./exp/sh/slurm_diffusion_erasure.sh sana attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0'
-sbatch --gpus=8 --job-name=flipping_sana_50k ./exp/sh/slurm_diffusion_flipping.sh sana attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0'
-sbatch --gpus=8 --job-name=erasure_sana_50k_clip ./exp/sh/slurm_diffusion_erasure.sh sana attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0'  --intermediate_clipping
-sbatch --gpus=8 --job-name=flipping_sana_50k_clip ./exp/sh/slurm_diffusion_flipping.sh sana attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0' --intermediate_clipping
+# sbatch --gpus=8 --job-name=erasure_sana_50k ./exp/sh/slurm_diffusion_erasure.sh sana attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0'
+# sbatch --gpus=8 --job-name=flipping_sana_50k ./exp/sh/slurm_diffusion_flipping.sh sana attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0'
+# sbatch --gpus=8 --job-name=erasure_sana_50k_clip ./exp/sh/slurm_diffusion_erasure.sh sana attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0'  --intermediate_clipping
+# sbatch --gpus=8 --job-name=flipping_sana_50k_clip ./exp/sh/slurm_diffusion_flipping.sh sana attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0' --intermediate_clipping
 
 # sbatch --gpus=4 --job-name=inet_erasure_midsteer_diffusion_sana_50k ./exp/sh/slurm_diffusion_erasure.sh sana attn_output 50000 all imagenet '1.0 2.0 3.0 4.0 5.0' 
 # sbatch --gpus=8 --job-name=inet_flipping_midsteer_diffusion_sana_50k ./exp/sh/slurm_diffusion_flipping.sh sana attn_output 50000 all imagenet '1.0 2.0 3.0 4.0 5.0' 
@@ -19,8 +19,13 @@ sbatch --gpus=8 --job-name=flipping_sana_50k_clip ./exp/sh/slurm_diffusion_flipp
 
 
 
-# sbatch --gpus=8 --job-name=coco_erasure_sdxl_50k ./exp/sh/slurm_diffusion_erasure_coco.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0' 
-# sbatch --gpus=8 --job-name=coco_flipping_sdxl_50k ./exp/sh/slurm_diffusion_flipping_coco.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0' 
+sbatch --gpus=8 --job-name=coco_erasure_sdxl_50k ./exp/sh/slurm_diffusion_erasure_coco.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0' 
+sbatch --gpus=8 --job-name=coco_flipping_sdxl_50k ./exp/sh/slurm_diffusion_flipping_coco.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0' 
+
+sbatch --gpus=8 --job-name=coco_erasure_sdxl_50k_clip ./exp/sh/slurm_diffusion_erasure_coco.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0' --intermediate_clipping
+sbatch --gpus=8 --job-name=coco_flipping_sdxl_50k_clip ./exp/sh/slurm_diffusion_flipping_coco.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0' --intermediate_clipping
+
+
 # sbatch --gpus=4 --job-name=erasure_midsteer_diffusion_sdxl_50k_clip ./exp/sh/slurm_diffusion_erasure.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0'   --intermediate_clipping
 # sbatch --gpus=8 --job-name=flipping_midsteer_diffusion_sdxl_50k_clip ./exp/sh/slurm_diffusion_flipping.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0'  --intermediate_clipping
 

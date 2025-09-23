@@ -124,7 +124,6 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             raise ValueError("SANA is not available. Please install SANA or ensure diffusers supports SanaPipeline.")
         pipe = SanaPipeline.from_pretrained(
             "Efficient-Large-Model/Sana_Sprint_1.6B_1024px_teacher_diffusers",
-            #"Efficient-Large-Model/Sana_1600M_1024px_diffusers",
             torch_dtype=torch.bfloat16,
             cache_dir='./cache',
             token='***REMOVED***',
@@ -134,8 +133,7 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
         if SanaPipeline is None:
             raise ValueError("SANA is not available. Please install SANA or ensure diffusers supports SanaPipeline.")
         pipe = SanaPipeline.from_pretrained(
-            "Efficient-Large-Model/Sana_600M_1024px_diffusers",
-            #"Efficient-Large-Model/Sana_Sprint_0.6B_1024px_teacher_diffusers",
+            "Efficient-Large-Model/Sana_Sprint_0.6B_1024px_teacher_diffusers",
             torch_dtype=torch.bfloat16,
             cache_dir='./cache',
             token='***REMOVED***',

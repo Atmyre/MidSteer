@@ -99,7 +99,7 @@ else
 fi
 
 
-additional_steering_params="--model_name $model_name --control_mode $control_mode $intermediate_clipping $renormalize_after_steering --num_images_per_prompt $num_images_per_prompt --seed $seed --file_format JPEG --batch_size 10 --max_samples 5000"
+additional_steering_params="--model_name $model_name --control_mode $control_mode $intermediate_clipping $renormalize_after_steering --num_images_per_prompt $num_images_per_prompt --seed $seed --file_format JPEG --batch_size 10 --max_samples 1000"
 base_dir=$OUTPUT_PREFIX/exp/results/$model_name/$JOB_NAME
 
 export PYTHONPATH=.
@@ -116,6 +116,8 @@ if [[ $model_name == "sdxl" ]]; then
     estimate_model_name="sdxl-turbo"
 elif [[ $model_name == "sana" ]]; then
     estimate_model_name="sana-sprint"
+elif [[ $model_name == "sana-06" ]]; then
+    estimate_model_name="sana-sprint-06"
 fi
 
 # Set num_steering_samples based on dataset type
@@ -236,9 +238,9 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
     results_subdir="$results_dir/concept_translation/${source_concept}_to_${target_concept}__${sanitized_concept}"
  
     if [ "$concept_to_steer" != "coco" ]; then
-     $run_cmd $python scripts/diffusion/produce_scores.py \
-             --concept "$source_concept" "$target_concept" "$concept_to_steer" \
-             --dir "$results_subdir" &
+        $run_cmd $python scripts/diffusion/produce_scores.py \
+                --concept "$source_concept" "$target_concept" "$concept_to_steer" \
+                --dir "$results_subdir" &
     else
         $run_cmd $python scripts/diffusion/produce_scores.py \
             --dir "$results_subdir" &

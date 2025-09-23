@@ -63,9 +63,14 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    if args.concept is None:
+        concepts = []
+    else:
+        concepts = list(set(args.concept))
+
     main(
         dir=args.dir,
-        concepts=list(set(args.concept)),
+        concepts=concepts,
         num_workers=args.num_workers,
         batch_size=args.batch_size,
     )

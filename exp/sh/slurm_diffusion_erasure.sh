@@ -99,7 +99,7 @@ else
 fi
 
 
-additional_steering_params="--model_name $model_name --control_mode $control_mode $intermediate_clipping $renormalize_after_steering --num_images_per_prompt $num_images_per_prompt --seed $seed --file_format JPEG --batch_size 10"
+additional_steering_params="--model_name $model_name --control_mode $control_mode $intermediate_clipping $renormalize_after_steering --num_images_per_prompt $num_images_per_prompt --seed $seed --file_format JPEG --batch_size 10 --max_samples 1000"
 base_dir=$OUTPUT_PREFIX/exp/results/$model_name/$JOB_NAME
 
 export PYTHONPATH=.
@@ -133,7 +133,7 @@ if [ $num_covariances -gt 0 ]; then
     $run_cmd $python scripts/diffusion/estimate_covariances.py \
         --model_name $estimate_model_name \
         --control_mode $control_mode \
-	--normalize_vectors \
+        --normalize_vectors \
         --aggregation_mode $aggregation_mode \
         --num_samples $num_covariances \
         --output_dir $covariances_dir &
@@ -157,12 +157,6 @@ wait
 
 results_dir=$base_dir/evaluation/
 
-# Iterate over concept pairs
-declare -A concept_pairs=(
-    ["horse"]="motorcycle"
-    ["snoopy"]="mickey"
-    ["chihuahua"]="muffin"
-)
 
 
 declare -a concepts_to_remove_pairs=(
@@ -172,18 +166,21 @@ declare -a concepts_to_remove_pairs=(
     "snoopy:pikachu"
     "snoopy:dog"
     "snoopy:legislator"
+    "snoopy:coco"
     "horse:horse"
     "horse:motorcycle"
     "horse:cow"
     "horse:pig"
     "horse:dog"
     "horse:legislator"
+    "horse:coco"
     "chihuahua:chihuahua"
     "chihuahua:muffin"
     "chihuahua:wolf"
     "chihuahua:cat"
     "chihuahua:dog"
     "chihuahua:legislator"
+    "chihuahua:coco"
     "horse:knight's riding mammal"
     "horse:large equine"
     "mickey:mouse from a Disneyland"

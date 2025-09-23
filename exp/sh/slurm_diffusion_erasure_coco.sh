@@ -116,6 +116,8 @@ if [[ $model_name == "sdxl" ]]; then
     estimate_model_name="sdxl-turbo"
 elif [[ $model_name == "sana" ]]; then
     estimate_model_name="sana-sprint"
+elif [[ $model_name == "sana-06" ]]; then
+    estimate_model_name="sana-sprint-06"
 fi
 
 # Set num_steering_samples based on dataset type
@@ -219,12 +221,12 @@ for pair in "${concepts_to_remove_pairs[@]}"; do
 
 
    if [ "$concept_to_generate" != "coco" ]; then
-       $run_cmd $python scripts/diffusion/produce_scores.py \
-           --concept "$concept_to_remove" "$concept_to_generate" \
-           --dir "$results_subdir" &
+        $run_cmd $python scripts/diffusion/produce_scores.py \
+            --concept "$concept_to_remove" "$concept_to_generate" \
+            --dir "$results_subdir" &
    else
-       $run_cmd $python scripts/diffusion/produce_scores.py \
-           --dir "$results_subdir" &
+        $run_cmd $python scripts/diffusion/produce_scores.py \
+            --dir "$results_subdir" &
    fi
 
 done
