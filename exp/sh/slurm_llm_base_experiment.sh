@@ -179,11 +179,17 @@ declare -a concepts_to_steer_pairs=(
     "horses:motorcycles"
     "horses:knight's riding mammal"
     "horses:large equine"
+    "horses:pigs"
+    "horses:dogs"
+    "horses:legislators"
     "dogs:dogs"
     "dogs:wolves"
     "dogs:cats"
     "dogs:man's best friend"
     "dogs:domesticated canine"
+    "dogs:pigs"
+    "dogs:cows"
+    "dogs:legislators"
 )
 
 for pair in "${concepts_to_steer_pairs[@]}"; do
