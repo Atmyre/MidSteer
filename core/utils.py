@@ -49,8 +49,7 @@ def get_device() -> torch.device:
         return torch.device('mps')
     return torch.device('cpu')
 
-SUPPORTED_DIFFUSION_MODELS = ['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux', 'flux-schnell', 'sana', 'sana-sprint', 'pixart', 'pixart-alpha', 'flash-pixart']
-
+SUPPORTED_DIFFUSION_MODELS = ['sd14', 'sd21', 'sd21-turbo', 'sdxl', 'sdxl-turbo', 'flux', 'flux-schnell', 'sana', 'sana15', 'sana-sprint', 'pixart', 'pixart-alpha', 'flash-pixart', 'sana-06', 'sana-sprint-06']
 def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
     if model == 'sd14':
         pipe = StableDiffusionPipeline.from_pretrained(
@@ -110,11 +109,33 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
 #             device_map='balanced'
         )
         pipe.enable_model_cpu_offload()
-    elif model == 'sana':
+    elif model == 'sana15':
         if SanaPipeline is None:
             raise ValueError("SANA is not available. Please install SANA or ensure diffusers supports SanaPipeline.")
         pipe = SanaPipeline.from_pretrained(
             "Efficient-Large-Model/SANA1.5_1.6B_1024px_diffusers",
+            torch_dtype=torch.bfloat16,
+            cache_dir='./cache',
+            token='***REMOVED***',
+            device_map='balanced',
+        )
+    elif model == 'sana':
+        if SanaPipeline is None:
+            raise ValueError("SANA is not available. Please install SANA or ensure diffusers supports SanaPipeline.")
+        pipe = SanaPipeline.from_pretrained(
+            "Efficient-Large-Model/Sana_Sprint_1.6B_1024px_teacher_diffusers",
+            #"Efficient-Large-Model/Sana_1600M_1024px_diffusers",
+            torch_dtype=torch.bfloat16,
+            cache_dir='./cache',
+            token='***REMOVED***',
+            device_map='balanced',
+        )
+    elif model == 'sana-06':
+        if SanaPipeline is None:
+            raise ValueError("SANA is not available. Please install SANA or ensure diffusers supports SanaPipeline.")
+        pipe = SanaPipeline.from_pretrained(
+            "Efficient-Large-Model/Sana_600M_1024px_diffusers",
+            #"Efficient-Large-Model/Sana_Sprint_0.6B_1024px_teacher_diffusers",
             torch_dtype=torch.bfloat16,
             cache_dir='./cache',
             token='***REMOVED***',
@@ -125,6 +146,16 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             raise ValueError("SANA-Sprint is not available. Please install the latest diffusers or ensure SanaSprintPipeline is available.")
         pipe = SanaSprintPipeline.from_pretrained(
             "Efficient-Large-Model/Sana_Sprint_1.6B_1024px_diffusers",
+            torch_dtype=torch.bfloat16,
+            cache_dir='./cache',
+            token='***REMOVED***',
+            device_map='balanced',
+        )
+    elif model == 'sana-sprint-06':
+        if SanaSprintPipeline is None:
+            raise ValueError("SANA-Sprint is not available. Please install the latest diffusers or ensure SanaSprintPipeline is available.")
+        pipe = SanaSprintPipeline.from_pretrained(
+            "Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers",
             torch_dtype=torch.bfloat16,
             cache_dir='./cache',
             token='***REMOVED***',
@@ -189,9 +220,9 @@ def get_num_denoising_steps(model: str) -> int:
         return 30
     elif model in ('flux',):
         return 28  # FLUX.1-dev typically uses 28 steps
-    elif model in ('sana',):
+    elif model in ('sana', 'sana-06', 'sana15'):
         return 20  # SANA typically uses 20 inference steps
-    elif model in ('flux-schnell', 'sana-sprint', 'flash-pixart'):
+    elif model in ('flux-schnell', 'sana-sprint', 'sana-sprint-06', 'flash-pixart'):
         return 1   # SANA-Sprint is optimized for 1-4 steps, using 1 as default for quality/speed balance
     elif model in ('pixart', 'pixart-alpha'):
         return 20  # PixArt typically uses 20 inference steps for good quality
@@ -232,7 +263,7 @@ def run_image_model(model_type: str, pipe, prompt: str, seed: int, device: torch
             generator=torch.Generator('cpu').manual_seed(seed),
             num_images_per_prompt=num_images,
         ).images
-    elif model_type in ['sana']:
+    elif model_type in ['sana', 'sana-06', 'sana15']:
         images = pipe(
             prompt=prompt,
             num_inference_steps=get_num_denoising_steps(model_type),
@@ -241,7 +272,7 @@ def run_image_model(model_type: str, pipe, prompt: str, seed: int, device: torch
             generator=torch.Generator(device=device).manual_seed(seed),
             num_images_per_prompt=num_images,
         ).images
-    elif model_type in ['sana-sprint']:
+    elif model_type in ['sana-sprint', 'sana-sprint-06']:
         images = pipe(
             prompt=prompt,
             num_inference_steps=get_num_denoising_steps(model_type),

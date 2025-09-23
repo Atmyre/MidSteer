@@ -116,6 +116,8 @@ if [[ $model_name == "sdxl" ]]; then
     estimate_model_name="sdxl-turbo"
 elif [[ $model_name == "sana" ]]; then
     estimate_model_name="sana-sprint"
+elif [[ $model_name == "sana-06" ]]; then
+    estimate_model_name="sana-sprint-06"
 fi
 
 # Set num_steering_samples based on dataset type
@@ -182,6 +184,10 @@ declare -a concepts_to_remove_pairs=(
     "chihuahua:cat"
     "chihuahua:dog"
     "chihuahua:legislator"
+    "horse:knight's riding mammal"
+    "horse:large equine"
+    "mickey:mouse from a Disneyland"
+    "mickey:Walt Disney's most famous character"
 )
 
 

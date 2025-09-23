@@ -159,6 +159,7 @@ declare -A concept_pairs=(
     ["horse"]="motorcycle"
     ["snoopy"]="mickey"
     ["chihuahua"]="muffin"
+    ["mickey"]="snoopy"
 )
 
 declare -a concepts_to_steer_pairs=(
@@ -180,6 +181,10 @@ declare -a concepts_to_steer_pairs=(
     "chihuahua:cat"
     "chihuahua:dog"
     "chihuahua:legislator"
+    "horse:knight's riding mammal"
+    "horse:large equine"
+    "mickey:mouse from a Disneyland"
+    "mickey:Walt Disney's most famous character"
 )
 
 

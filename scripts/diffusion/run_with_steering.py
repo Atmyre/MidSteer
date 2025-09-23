@@ -94,20 +94,21 @@ def main(args: argparse.Namespace):
             concept=args.generate_concept,
             tokenizer_fn=dumb_tokenizer_fn,
         )
+        num_images_per_prompt = args.num_images_per_prompt
     else:
         dataset = CocoDataset(
             coco_path='exp/datasets/eval/coco/coco_30k.csv',
             max_samples=args.max_samples,
         )
-
+        num_images_per_prompt = 1
     skipped = generated = 0
 
     print(f'Generating images for concept {args.generate_concept} and method {args.steering_method} with strength {args.steering_strength}')
     for prompt in dataset:
-        num_batches = math.ceil(args.num_images_per_prompt / args.batch_size)
+        num_batches = math.ceil(num_images_per_prompt / args.batch_size)
         for batch_id in range(0, num_batches):
             seed = args.seed + batch_id
-            num_images = min(args.batch_size, args.num_images_per_prompt - batch_id * args.batch_size)
+            num_images = min(args.batch_size, num_images_per_prompt - batch_id * args.batch_size)
 
             output_paths = [f'{args.output_dir}/{prompt}/{seed}-{idx}.{EXTENSIONS[args.file_format]}' for idx in range(num_images)]
             if all(os.path.exists(path) for path in output_paths):

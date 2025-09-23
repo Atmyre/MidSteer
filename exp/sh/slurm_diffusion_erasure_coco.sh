@@ -99,7 +99,7 @@ else
 fi
 
 
-additional_steering_params="--model_name $model_name --control_mode $control_mode $intermediate_clipping $renormalize_after_steering --num_images_per_prompt $num_images_per_prompt --seed $seed --file_format JPEG --batch_size 10 --max_samples 5000"
+additional_steering_params="--model_name $model_name --control_mode $control_mode $intermediate_clipping $renormalize_after_steering --num_images_per_prompt $num_images_per_prompt --seed $seed --file_format JPEG --batch_size 10 --max_samples 1000"
 base_dir=$OUTPUT_PREFIX/exp/results/$model_name/$JOB_NAME
 
 export PYTHONPATH=.
