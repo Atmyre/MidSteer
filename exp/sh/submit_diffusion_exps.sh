@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 
 
+sbatch --gpus=8 --job-name=num_covs_flip_sana-600m_100 ./exp/sh/slurm_diffusion_flipping.sh sana-06 attn_output 100 all relaion '2.0' 
+sbatch --gpus=8 --job-name=num_covs_flip_sana-600m_500 ./exp/sh/slurm_diffusion_flipping.sh sana-06 attn_output 500 all relaion '2.0' 
+sbatch --gpus=8 --job-name=num_covs_flip_sana-600m_1k ./exp/sh/slurm_diffusion_flipping.sh sana-06 attn_output 1000 all relaion '2.0' 
+sbatch --gpus=8 --job-name=num_covs_flip_sana-600m_5k ./exp/sh/slurm_diffusion_flipping.sh sana-06 attn_output 5000 all relaion '2.0' 
+sbatch --gpus=8 --job-name=num_covs_flip_sana-600m_10k ./exp/sh/slurm_diffusion_flipping.sh sana-06 attn_output 10000 all relaion '2.0'
+sbatch --gpus=8 --job-name=num_covs_flip_sana-600m_20k ./exp/sh/slurm_diffusion_flipping.sh sana-06 attn_output 20000 all relaion '2.0' 
+
+
+
 
 # sbatch --gpus=8 --job-name=erasure_sana_50k_06 ./exp/sh/slurm_diffusion_erasure.sh sana-06 attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0' 
 # sbatch --gpus=8 --job-name=flipping_sana_50k_06 ./exp/sh/slurm_diffusion_flipping.sh sana-06 attn_output 50000 all relaion '1.0 2.0 3.0 4.0 5.0' 
