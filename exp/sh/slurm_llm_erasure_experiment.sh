@@ -355,6 +355,9 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
         --concept "$concept_to_delete" "$concept_to_steer" \
         --dir "$results_subdir/eval" &
 
+    $run_cmd $python scripts/llm/consistency_scoring.py \
+        --dir "$results_subdir/eval" &
+
 done
 
 wait
