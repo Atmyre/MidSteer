@@ -28,11 +28,11 @@ sbatch --gpus=8 --job-name=num_covs_flip_sana-600m_20k ./exp/sh/slurm_diffusion_
 
 
 
-sbatch --gpus=8 --job-name=coco_erasure_sdxl_50k ./exp/sh/slurm_diffusion_erasure_coco.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0' 
-sbatch --gpus=8 --job-name=coco_flipping_sdxl_50k ./exp/sh/slurm_diffusion_flipping_coco.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0' 
+# sbatch --gpus=8 --job-name=coco_erasure_sdxl_50k ./exp/sh/slurm_diffusion_erasure_coco.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0' 
+# sbatch --gpus=8 --job-name=coco_flipping_sdxl_50k ./exp/sh/slurm_diffusion_flipping_coco.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0' 
 
-sbatch --gpus=8 --job-name=coco_erasure_sdxl_50k_clip ./exp/sh/slurm_diffusion_erasure_coco.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0' --intermediate_clipping
-sbatch --gpus=8 --job-name=coco_flipping_sdxl_50k_clip ./exp/sh/slurm_diffusion_flipping_coco.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0' --intermediate_clipping
+# sbatch --gpus=8 --job-name=coco_erasure_sdxl_50k_clip ./exp/sh/slurm_diffusion_erasure_coco.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0' --intermediate_clipping
+# sbatch --gpus=8 --job-name=coco_flipping_sdxl_50k_clip ./exp/sh/slurm_diffusion_flipping_coco.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0' --intermediate_clipping
 
 
 # sbatch --gpus=4 --job-name=erasure_midsteer_diffusion_sdxl_50k_clip ./exp/sh/slurm_diffusion_erasure.sh sdxl attn_output 50000 all relaion '1.0 1.5 2.0 2.5 3.0 4.0 5.0'   --intermediate_clipping
