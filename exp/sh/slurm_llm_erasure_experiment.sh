@@ -173,88 +173,88 @@ declare -A concept_pairs=(
     ["dogs"]="cats"
 )
 
-# for concept_to_delete in "${!concept_pairs[@]}"; do
+for concept_to_delete in "${!concept_pairs[@]}"; do
     
-#     results_subdir="$results_dir/${concept_to_delete}"
-#     mkdir -p "$results_subdir"
+    results_subdir="$results_dir/${concept_to_delete}"
+    mkdir -p "$results_subdir"
 
-#     # Define evaluation parameters as arrays
-#     declare -a eval_params=(
-#         "--dataset_type alpaca --num_samples $consistency_num_samples --samples_per_question $consistency_samples_per_question --max_new_tokens $consistency_max_new_tokens --output_dir $results_subdir/alpaca"
-#         "--dataset_type mmlu --num_samples $consistency_num_samples --samples_per_question $consistency_samples_per_question --max_new_tokens $consistency_max_new_tokens --output_dir $results_subdir/mmlu"
-#     )
+    # Define evaluation parameters as arrays
+    declare -a eval_params=(
+        "--dataset_type alpaca --num_samples $consistency_num_samples --samples_per_question $consistency_samples_per_question --max_new_tokens $consistency_max_new_tokens --output_dir $results_subdir/alpaca"
+        "--dataset_type mmlu --num_samples $consistency_num_samples --samples_per_question $consistency_samples_per_question --max_new_tokens $consistency_max_new_tokens --output_dir $results_subdir/mmlu"
+    )
 
-#     for params in "${eval_params[@]}"; do
-#         $run_cmd $python scripts/llm/run_with_steering.py \
-#             --model_name $model_name \
-#             --layer_type $layer_type \
-#             --source_concept $concept_to_delete \
-#             --strength 0.0 \
-#             $additional_steering_params \
-#             $params &
+    for params in "${eval_params[@]}"; do
+        $run_cmd $python scripts/llm/run_with_steering.py \
+            --model_name $model_name \
+            --layer_type $layer_type \
+            --source_concept $concept_to_delete \
+            --strength 0.0 \
+            $additional_steering_params \
+            $params &
 
-#         for strength in $strengths; do
-#             $run_cmd $python scripts/llm/run_with_steering.py \
-#                 --model_name $model_name \
-#                 --layer_type $layer_type \
-#                 --source_concept $concept_to_delete \
-#                 --source_concept_path $steering_vectors_dir/$concept_to_delete.pt \
-#                 --target_concept_path $covariances_dir/means.pt \
-#                 --steer_type casteer \
-#                 --strength $strength \
-#                 --mu_neutral $covariances_dir/means.pt \
-#                 --cov_neutral $covariances_dir/covariances.pt \
-#                 $additional_steering_params \
-#                 $params &
-#         done
+        for strength in $strengths; do
+            $run_cmd $python scripts/llm/run_with_steering.py \
+                --model_name $model_name \
+                --layer_type $layer_type \
+                --source_concept $concept_to_delete \
+                --source_concept_path $steering_vectors_dir/$concept_to_delete.pt \
+                --target_concept_path $covariances_dir/means.pt \
+                --steer_type casteer \
+                --strength $strength \
+                --mu_neutral $covariances_dir/means.pt \
+                --cov_neutral $covariances_dir/covariances.pt \
+                $additional_steering_params \
+                $params &
+        done
 
-#         for strength in $strengths; do
-#             $run_cmd $python scripts/llm/run_with_steering.py \
-#                 --model_name $model_name \
-#                 --layer_type $layer_type \
-#                 --source_concept $concept_to_delete \
-#                 --source_concept_path $steering_vectors_dir/$concept_to_delete.pt \
-#                 --target_concept_path $covariances_dir/means.pt \
-#                 --steer_type leace \
-#                 --strength $strength \
-#                 --mu_neutral $covariances_dir/means.pt \
-#                 --cov_neutral $covariances_dir/covariances.pt \
-#                 $additional_steering_params \
-#                 $params &
-#         done
+        for strength in $strengths; do
+            $run_cmd $python scripts/llm/run_with_steering.py \
+                --model_name $model_name \
+                --layer_type $layer_type \
+                --source_concept $concept_to_delete \
+                --source_concept_path $steering_vectors_dir/$concept_to_delete.pt \
+                --target_concept_path $covariances_dir/means.pt \
+                --steer_type leace \
+                --strength $strength \
+                --mu_neutral $covariances_dir/means.pt \
+                --cov_neutral $covariances_dir/covariances.pt \
+                $additional_steering_params \
+                $params &
+        done
 
-#         for strength in $strengths; do
-#             $run_cmd $python scripts/llm/run_with_steering.py \
-#                 --model_name $model_name \
-#                 --layer_type $layer_type \
-#                 --source_concept $concept_to_delete \
-#                 --source_concept_path $steering_vectors_dir/$concept_to_delete.pt \
-#                 --target_concept_path $covariances_dir/means.pt \
-#                 --steer_type mean_matching \
-#                 --strength $strength \
-#                 --mu_neutral $covariances_dir/means.pt \
-#                 --cov_neutral $covariances_dir/covariances.pt \
-#                 $additional_steering_params \
-#                 $params &
-#         done
+        for strength in $strengths; do
+            $run_cmd $python scripts/llm/run_with_steering.py \
+                --model_name $model_name \
+                --layer_type $layer_type \
+                --source_concept $concept_to_delete \
+                --source_concept_path $steering_vectors_dir/$concept_to_delete.pt \
+                --target_concept_path $covariances_dir/means.pt \
+                --steer_type mean_matching \
+                --strength $strength \
+                --mu_neutral $covariances_dir/means.pt \
+                --cov_neutral $covariances_dir/covariances.pt \
+                $additional_steering_params \
+                $params &
+        done
 
-#     done
-# done
+    done
+done
 
-# wait
+wait
 
-# for concept_to_delete in "${!concept_pairs[@]}"; do
-#     results_subdir="$results_dir/${concept_to_delete}"
+for concept_to_delete in "${!concept_pairs[@]}"; do
+    results_subdir="$results_dir/${concept_to_delete}"
 
-#     $run_cmd $python scripts/llm/consistency_scoring.py \
-#         --dir "$results_subdir/alpaca" &
+    $run_cmd $python scripts/llm/consistency_scoring.py \
+        --dir "$results_subdir/alpaca" &
 
-#     $run_cmd $python scripts/llm/consistency_scoring.py \
-#         --dir "$results_subdir/mmlu" &
+    $run_cmd $python scripts/llm/consistency_scoring.py \
+        --dir "$results_subdir/mmlu" &
 
-# done
+done
 
-# wait
+wait
 
 
 
@@ -277,71 +277,71 @@ declare -a concepts_to_steer_pairs=(
     "dogs:legislators"
 )
 
-# for pair in "${concepts_to_steer_pairs[@]}"; do
-#     IFS=':' read -r concept_to_delete concept_to_steer <<< "$pair"
+for pair in "${concepts_to_steer_pairs[@]}"; do
+    IFS=':' read -r concept_to_delete concept_to_steer <<< "$pair"
     
-#     # Sanitize concept_to_steer for directory name (replace spaces and apostrophes with underscores)
-#     sanitized_concept=$(echo "$concept_to_steer" | sed 's/[[:space:]'\''"]/_/g')
-#     results_subdir="$results_dir/${concept_to_delete}_${sanitized_concept}"
-#     mkdir -p "$results_subdir"
+    # Sanitize concept_to_steer for directory name (replace spaces and apostrophes with underscores)
+    sanitized_concept=$(echo "$concept_to_steer" | sed 's/[[:space:]'\''"]/_/g')
+    results_subdir="$results_dir/${concept_to_delete}_${sanitized_concept}"
+    mkdir -p "$results_subdir"
 
-#     declare -a concept_params=(--dataset_type template --samples_per_question $concept_samples_per_question --max_new_tokens $concept_max_new_tokens --output_dir $results_subdir/eval)
+    declare -a concept_params=(--dataset_type template --samples_per_question $concept_samples_per_question --max_new_tokens $concept_max_new_tokens --output_dir $results_subdir/eval)
 
-#     $run_cmd $python scripts/llm/run_with_steering.py \
-#         --model_name $model_name \
-#         --layer_type $layer_type \
-#         --source_concept "$concept_to_steer" \
-#         --strength 0.0 \
-#         $additional_steering_params \
-#         "${concept_params[@]}" &
+    $run_cmd $python scripts/llm/run_with_steering.py \
+        --model_name $model_name \
+        --layer_type $layer_type \
+        --source_concept "$concept_to_steer" \
+        --strength 0.0 \
+        $additional_steering_params \
+        "${concept_params[@]}" &
 
-#     for strength in $strengths; do
-#         $run_cmd $python scripts/llm/run_with_steering.py \
-#             --model_name $model_name \
-#             --layer_type $layer_type \
-#             --source_concept "$concept_to_steer" \
-#             --source_concept_path $steering_vectors_dir/$concept_to_delete.pt \
-#             --target_concept_path $covariances_dir/means.pt \
-#             --steer_type casteer \
-#             --strength $strength \
-#             --mu_neutral $covariances_dir/means.pt \
-#             --cov_neutral $covariances_dir/covariances.pt \
-#             $additional_steering_params \
-#             "${concept_params[@]}" &
-#     done
+    for strength in $strengths; do
+        $run_cmd $python scripts/llm/run_with_steering.py \
+            --model_name $model_name \
+            --layer_type $layer_type \
+            --source_concept "$concept_to_steer" \
+            --source_concept_path $steering_vectors_dir/$concept_to_delete.pt \
+            --target_concept_path $covariances_dir/means.pt \
+            --steer_type casteer \
+            --strength $strength \
+            --mu_neutral $covariances_dir/means.pt \
+            --cov_neutral $covariances_dir/covariances.pt \
+            $additional_steering_params \
+            "${concept_params[@]}" &
+    done
 
-#     for strength in $strengths; do
-#         $run_cmd $python scripts/llm/run_with_steering.py \
-#             --model_name $model_name \
-#             --layer_type $layer_type \
-#             --source_concept "$concept_to_steer" \
-#             --source_concept_path $steering_vectors_dir/$concept_to_delete.pt \
-#             --target_concept_path $covariances_dir/means.pt \
-#             --steer_type leace \
-#             --strength $strength \
-#             --mu_neutral $covariances_dir/means.pt \
-#             --cov_neutral $covariances_dir/covariances.pt \
-#             $additional_steering_params \
-#             "${concept_params[@]}" &
-#     done
+    for strength in $strengths; do
+        $run_cmd $python scripts/llm/run_with_steering.py \
+            --model_name $model_name \
+            --layer_type $layer_type \
+            --source_concept "$concept_to_steer" \
+            --source_concept_path $steering_vectors_dir/$concept_to_delete.pt \
+            --target_concept_path $covariances_dir/means.pt \
+            --steer_type leace \
+            --strength $strength \
+            --mu_neutral $covariances_dir/means.pt \
+            --cov_neutral $covariances_dir/covariances.pt \
+            $additional_steering_params \
+            "${concept_params[@]}" &
+    done
 
-#     for strength in $strengths; do
-#         $run_cmd $python scripts/llm/run_with_steering.py \
-#             --model_name $model_name \
-#             --layer_type $layer_type \
-#             --source_concept "$concept_to_steer" \
-#             --source_concept_path $steering_vectors_dir/$concept_to_delete.pt \
-#             --target_concept_path $covariances_dir/means.pt \
-#             --steer_type mean_matching \
-#             --strength $strength \
-#             --mu_neutral $covariances_dir/means.pt \
-#             --cov_neutral $covariances_dir/covariances.pt \
-#             $additional_steering_params \
-#             "${concept_params[@]}" &
-#     done
-# done
+    for strength in $strengths; do
+        $run_cmd $python scripts/llm/run_with_steering.py \
+            --model_name $model_name \
+            --layer_type $layer_type \
+            --source_concept "$concept_to_steer" \
+            --source_concept_path $steering_vectors_dir/$concept_to_delete.pt \
+            --target_concept_path $covariances_dir/means.pt \
+            --steer_type mean_matching \
+            --strength $strength \
+            --mu_neutral $covariances_dir/means.pt \
+            --cov_neutral $covariances_dir/covariances.pt \
+            $additional_steering_params \
+            "${concept_params[@]}" &
+    done
+done
 
-# wait
+wait
 
 
 for pair in "${concepts_to_steer_pairs[@]}"; do
