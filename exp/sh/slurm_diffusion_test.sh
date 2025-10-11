@@ -170,8 +170,8 @@ for pair in "${concepts_to_remove_pairs[@]}"; do
     for strength in $strengths; do
         $run_cmd $python scripts/diffusion/run_with_steering.py \
             --generate_concept "$concept_to_generate" \
-            --output_dir "$results_subdir/mean_matching-$strength" \
-            --steering_method mean_matching \
+            --output_dir "$results_subdir/midsteer-$strength" \
+            --steering_method midsteer \
             --steering_strength $strength \
             $additional_steering_params \
             erase \

@@ -230,7 +230,7 @@ for concept_to_delete in "${!concept_pairs[@]}"; do
                 --source_concept $concept_to_delete \
                 --source_concept_path $steering_vectors_dir/$concept_to_delete.pt \
                 --target_concept_path $covariances_dir/means.pt \
-                --steer_type mean_matching \
+                --steer_type midsteer \
                 --strength $strength \
                 --mu_neutral $covariances_dir/means.pt \
                 --cov_neutral $covariances_dir/covariances.pt \
@@ -332,7 +332,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
             --source_concept "$concept_to_steer" \
             --source_concept_path $steering_vectors_dir/$concept_to_delete.pt \
             --target_concept_path $covariances_dir/means.pt \
-            --steer_type mean_matching \
+            --steer_type midsteer \
             --strength $strength \
             --mu_neutral $covariances_dir/means.pt \
             --cov_neutral $covariances_dir/covariances.pt \

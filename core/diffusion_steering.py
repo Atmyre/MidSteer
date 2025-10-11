@@ -167,18 +167,6 @@ class HookManager:
                 self._register_hooks_for_flux_block(block, "single")
                 block_count += 1
         
-        # Also check transformer submodule
-        # if hasattr(model, 'transformer'):
-        #     transformer = model.transformer
-        #     if hasattr(transformer, 'joint_blocks'):
-        #         for block in transformer.joint_blocks:
-        #             self._register_hooks_for_flux_block(block, "joint")
-        #             block_count += 1
-        #     if hasattr(transformer, 'single_blocks'):
-        #         for block in transformer.single_blocks:
-        #             self._register_hooks_for_flux_block(block, "single")
-        #             block_count += 1
-        
         # Fallback: search recursively for any FLUX blocks
         if block_count == 0:
             for name, module in model.named_modules():

@@ -248,7 +248,7 @@ for pair in "${concepts_to_steer_pairs[@]}"; do
             --source_concept "$concept_to_steer" \
             --source_concept_path $steering_vectors_dir/$source_concept.pt \
             --target_concept_path $steering_vectors_dir/$target_concept.pt \
-            --steer_type mean_matching \
+            --steer_type midsteer \
             --strength $strength \
             --mu_neutral $covariances_dir/means.pt \
             --cov_neutral $covariances_dir/covariances.pt \
@@ -338,7 +338,7 @@ for source_concept in "${!concept_pairs[@]}"; do
                 --source_concept $source_concept \
                 --source_concept_path $steering_vectors_dir/$source_concept.pt \
                 --target_concept_path $steering_vectors_dir/$target_concept.pt \
-                --steer_type mean_matching \
+                --steer_type midsteer \
                 --strength $strength \
                 --mu_neutral $covariances_dir/means.pt \
                 --cov_neutral $covariances_dir/covariances.pt \

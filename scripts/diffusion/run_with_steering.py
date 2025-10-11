@@ -79,7 +79,7 @@ def main(args: argparse.Namespace):
     if args.steering_method is None and args.command is not None:
         raise ValueError(f'Cannot {args.command} concept with no --steering_method specified')
     
-    if (args.steering_method in ('leace', 'mean_matching') or args.command == 'erase') and args.covariances_dir is None:
+    if (args.steering_method in ('leace', 'midsteer') or args.command == 'erase') and args.covariances_dir is None:
         raise ValueError('')
 
     pipeline = init_pipeline_for_image_model(model=args.model_name)
@@ -149,15 +149,15 @@ if __name__ == "__main__":
     main_parser.add_argument('--max_samples', type=int, default=None, help='Maximum number of samples to use from the dataset')
 
     # Steering params
-    main_parser.add_argument('--steering_method', type=str, choices=['casteer', 'leace', 'mean_matching'], default=None)
+    main_parser.add_argument('--steering_method', type=str, choices=['casteer', 'leace', 'midsteer'], default=None)
     main_parser.add_argument('--steering_strength', type=float, default=None)
     main_parser.add_argument('--control_mode', type=DiffusionVectorControlMode, choices=[str(x) for x in DiffusionVectorControlMode],
                         default='attn_output', help='Vector control mode for steering diffusion models')
-    main_parser.add_argument('--intermediate_clipping', action='store_true', help='Apply intermediate clipping like CASteer for leace and mean_matching')
-    main_parser.add_argument('--renormalize_after_steering', action='store_true', help='Renormalize vectors after steering for leace and mean_matching')
-    main_parser.add_argument('--covariances_dir', type=str, help='Covariances directory for leace / mean_matching, or for negative concept in erasure')
-    main_parser.add_argument('--id_cov', action='store_true', help='Use the identity covariance matrix for leace and mean_matching')
-    main_parser.add_argument('--use_all_diffusion_steps', action='store_true', help='Use all diffusion steps for leace and mean_matching')
+    main_parser.add_argument('--intermediate_clipping', action='store_true', help='Apply intermediate clipping like CASteer for leace and midsteer')
+    main_parser.add_argument('--renormalize_after_steering', action='store_true', help='Renormalize vectors after steering for leace and midsteer')
+    main_parser.add_argument('--covariances_dir', type=str, help='Covariances directory for leace / midsteer, or for negative concept in erasure')
+    main_parser.add_argument('--id_cov', action='store_true', help='Use the identity covariance matrix for leace and midsteer')
+    main_parser.add_argument('--use_all_diffusion_steps', action='store_true', help='Use all diffusion steps for leace and midsteer')
 
     subparsers = parser.add_subparsers(dest='command')
 

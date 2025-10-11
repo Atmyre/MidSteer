@@ -20,7 +20,7 @@ def compute_fid(
     second_path: str,
     second_fname: str,
 ):
-    with tempfile.TemporaryDirectory(suffix='mmsteer_metrics') as tmp_dir:
+    with tempfile.TemporaryDirectory(suffix='midsteer_metrics') as tmp_dir:
         first_temp_path = os.path.join(tmp_dir, 'first')
         second_temp_path = os.path.join(tmp_dir, 'second')
         copy_recursive_file_pattern(first_path, first_fname, first_temp_path)

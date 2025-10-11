@@ -145,24 +145,6 @@ class CrossAttentionOutputStatsCollector(VectorControl):
                     result[diffusion_step][place_in_unet].append(m)
         return result
 
-    # @property
-    # def covariances(self):
-    #     if not self._compute_covariances:
-    #         raise ValueError('Covariances requested not computed (self._compute_covariances = False)')
-    #     result = {}
-    #     for diffusion_step in self._mm:
-    #         result[diffusion_step] = {}
-    #         for place_in_unet in self._mm[diffusion_step]:
-    #             result[diffusion_step][place_in_unet] = []
-    #             for block_idx in range(len(self._mm[diffusion_step][place_in_unet])):
-    #                 count = self._cnt[diffusion_step][place_in_unet][block_idx]
-    #                 m = self._m[diffusion_step][place_in_unet][block_idx] / count
-    #                 mm = self._mm[diffusion_step][place_in_unet][block_idx] / (count - 1)
-    #                 result[diffusion_step][place_in_unet].append(
-    #                     mm - m[:, :, None] @ m[:, None, :]  # compute outer product
-    #                 )
-    #     return result
-
     @property
     def covariances(self):
         if not self._compute_covariances:

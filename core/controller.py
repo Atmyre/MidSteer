@@ -89,7 +89,6 @@ class CrossAttentionOutputSteering(VectorControl):
         strength: float,
 
         mode: DiffusionVectorControlMode = None,
-        mmsteer_vectors=None,
         steer_type: str = None,
 
         steer_only_up=False, 
@@ -137,16 +136,7 @@ class CrossAttentionOutputSteering(VectorControl):
                             
                             casteer_concept_transforms[num_steer][place_in_unet].append((steering_vector.squeeze(-1), P))
                 self.casteer_vectors.append(casteer_concept_transforms)
-        elif steer_type == 'mmsteer':
-            self.mmsteer_vectors = defaultdict(lambda: defaultdict(list))
-            for num_steer in mmsteer_vectors:
-                for place_in_unet in mmsteer_vectors[num_steer]:
-                    for block_idx in range(len(mmsteer_vectors[num_steer][place_in_unet])):
-                        W, b = mmsteer_vectors[num_steer][place_in_unet][block_idx]
-                        W = torch.tensor(W).half().to(self.device)
-                        b = torch.tensor(b).half().to(self.device)
-                        self.mmsteer_vectors[num_steer][place_in_unet].append((W, b))
-        elif steer_type in ('leace', 'mean_matching'):
+        elif steer_type in ('leace', 'midsteer'):
             self.proj_transforms = []
             for source_concept, target_concept in zip(source_concepts, target_concepts):
                 concept_transforms = defaultdict(lambda: defaultdict(list))
@@ -182,7 +172,7 @@ class CrossAttentionOutputSteering(VectorControl):
 
                             if steer_type == 'leace':
                                 proj_right = torch.linalg.pinv(steering_vector) @ sigma_minus_half  # [#heads, 1, dim]
-                            elif steer_type == 'mean_matching':
+                            elif steer_type == 'midsteer':
                                 proj_right = torch.linalg.pinv(source_vector) @ sigma_minus_half  # [#heads, 1, dim]
 
                             # Transpose here because in the steer_transform we will multiply from the right
@@ -329,41 +319,10 @@ class CrossAttentionOutputSteering(VectorControl):
             elif self.steer_type == 'interpret':
                 vector[batch_slice, ...] = self.interpret(vector[batch_slice, ...], *self.casteer_vectors[0][num_steer][place_in_unet][block_index])
                 vector = self.renormalize(vector, norm)
-            elif self.steer_type in ('leace', 'mean_matching'):
+            elif self.steer_type in ('leace', 'midsteer'):
                 for transforms in self.proj_transforms:
                     vector[batch_slice, ...] = self.steer_transform(vector[batch_slice, ...], *transforms[num_steer][place_in_unet][block_index])
                     vector = self.renormalize(vector, norm)
-            elif self.steer_type == 'mmsteer':
-                pos = (num_steer, place_in_unet, block_index)
-                if pos in self.steering_cache:
-                    W_alpha, b_alpha = self.steering_cache[pos]
-                else:
-                    (W, b) = self.mmsteer_vectors[num_steer][place_in_unet][block_index]
-                    if len(W.shape) == 2:
-                        W = W[None, ...]
-                        b = b[None, :]
-
-                    if self.strength != 1.0:
-                        W = W.float()
-                        b = b.float()
-                        I = torch.eye(W.shape[1], device=W.device)[None, ...]
-                        W_alpha = fractional_matrix_power_cov_torch(W, self.strength)
-                        b_alpha = ((I - W_alpha) @ (I - W).inverse() @ b[..., None])[..., 0]
-                        W_alpha = W_alpha.half()
-                        b_alpha = b_alpha.half()
-                    else:
-                        W_alpha, b_alpha = W, b
-
-                    self.steering_cache[pos] = W_alpha, b_alpha
-
-                num_heads = W_alpha.shape[0]
-                hidden_dim = W_alpha.shape[1]
-                batch_size = vector.shape[0]
-                sequence_length = vector.shape[1]
-
-                vector_steered = ((vector.reshape(-1, num_heads, hidden_dim).transpose(0, 1) @ W_alpha.mT) + b_alpha.unsqueeze(1)).transpose(0, 1).reshape(batch_size, sequence_length, num_heads, hidden_dim) 
-                vector = vector_steered
-
             else:
                 raise ValueError(f'Unknown steer type {self.steer_type}')
         return vector.half()
