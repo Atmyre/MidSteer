@@ -11,7 +11,27 @@ from torch.utils.data import Dataset
 from transformers import AutoTokenizer
 from datasets import load_dataset
 
-from CAA.utils.tokenize import tokenize_llama_chat
+from typing import List
+from transformers import PreTrainedTokenizer
+
+B_INST, E_INST = "[INST]", "[/INST]"
+B_SYS, E_SYS = "<<SYS>>\n", "\n<</SYS>>\n\n"
+
+
+def tokenize_llama_chat(
+    tokenizer: PreTrainedTokenizer,
+    user_input: str | None,
+    model_output: str = None,
+    system_prompt: str = None,
+) -> list[int]:
+    input_content = ""
+    if system_prompt is not None:
+        input_content += B_SYS + system_prompt + E_SYS
+    if user_input is not None:
+        input_content += f"{B_INST} {user_input.strip()} {E_INST} "
+    if model_output is not None:
+        input_content += f" {model_output.strip()}"
+    return tokenizer.encode(input_content)
 
 
 def dumb_tokenizer_fn(

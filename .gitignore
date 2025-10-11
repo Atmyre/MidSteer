@@ -1,4 +1,5 @@
 /cache/
+/artefacts
 /.venv/
 
 __pycache__/
@@ -30,5 +31,3 @@ scores.tar.gz
 /exp/local/
 /exp/logs/
 /exp/locks/
-
-/notebooks/

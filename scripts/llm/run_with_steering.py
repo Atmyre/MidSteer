@@ -16,7 +16,6 @@ from transformers import GenerationConfig
 from core.controller import CrossAttentionOutputSteering, ModelToSteer, SteeringVectors
 from core.llm_steering import llm_register_vector_control
 from core.utils import init_llm_model_and_tokenizer
-from CAA.utils.tokenize import tokenize_llama_base, tokenize_llama_chat
 from core.utils import get_device
 
 
