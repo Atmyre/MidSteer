@@ -55,6 +55,7 @@ def main(
         mm_normalize_centers: bool,
         intermediate_clipping: bool,
         renormalize_after_steering: bool,
+        template_path: str = 'exp/datasets/eval/concepts/template.json',
 ):
     os.makedirs(output_dir, exist_ok=True)
 
@@ -90,7 +91,7 @@ def main(
         )
     elif dataset_type == 'template':
         dataset = TemplateDataset(
-            template_path=f'exp/datasets/eval/concepts/template.json',
+            template_path=template_path,
             concept=source_concept,
             tokenizer=tokenizer,
             tokenizer_fn=resolve_tokenizer_for_model(model_name),
@@ -191,6 +192,7 @@ if __name__ == "__main__":
     parser.add_argument('--renormalize_after_steering', action='store_true', help='Renormalize vectors after steering for leace and midsteer')
     parser.add_argument('--output_dir', type=str, required=True)
     parser.add_argument('--system_prompt', type=str, choices=['alpaca', 'mmlu'], default=None, help='System prompt type (default: auto-detect based on dataset type)')
+    parser.add_argument('--template_path', type=str, default='exp/datasets/eval/concepts/template.json', help='Path to template prompts JSON file (for template dataset type)')
 
     args = parser.parse_args()
 
@@ -244,4 +246,5 @@ if __name__ == "__main__":
         mm_normalize_centers=args.mm_normalize_centers,
         intermediate_clipping=args.intermediate_clipping,
         renormalize_after_steering=args.renormalize_after_steering,
+        template_path=args.template_path,
     )
