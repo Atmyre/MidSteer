@@ -89,8 +89,9 @@ def main(args: argparse.Namespace):
     vector_control = hook_model(pipeline, device, args)
 
     if args.generate_concept != 'coco':
+        template = getattr(args, 'template_path', None) or 'exp/datasets/eval/imagenet/template.json'
         dataset = TemplateDataset(
-            template_path='exp/datasets/eval/imagenet/template.json',
+            template_path=template,
             concept=args.generate_concept,
             tokenizer_fn=dumb_tokenizer_fn,
         )
@@ -147,6 +148,7 @@ if __name__ == "__main__":
     main_parser.add_argument('--seed', type=int, default=0, help='Starting seed for each prompt')
     main_parser.add_argument('--file_format', type=str, choices=['PNG', 'JPEG'], default='PNG', help='File format for generated images')
     main_parser.add_argument('--max_samples', type=int, default=None, help='Maximum number of samples to use from the dataset')
+    main_parser.add_argument('--template_path', type=str, default=None, help='Path to template JSON for evaluation prompts (default: imagenet template)')
 
     # Steering params
     main_parser.add_argument('--steering_method', type=str, choices=['casteer', 'leace', 'midsteer'], default=None)

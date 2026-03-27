@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 
 from diffusers import DiffusionPipeline
@@ -20,9 +21,10 @@ def main(
         aggregation_mode : TokenAggregationMode,
         normalize_vectors: bool,
         seed: int,
-        num_samples: int, 
+        num_samples: int,
         output_dir: str,
         dataset_type: str,
+        prompts_dir: str | None = None,
 ):
     output_path = os.path.join(output_dir, f"{topic}.pt") if topic is not None else os.path.join(output_dir, f"all.pt")
     if os.path.exists(output_path):
@@ -32,7 +34,12 @@ def main(
 
     device = get_device()
 
-    if dataset_type == 'relaion':
+    if dataset_type == 'custom':
+        prompts_file = os.path.join(prompts_dir, f"{topic}_prompts.json")
+        with open(prompts_file) as f:
+            prompts = json.load(f)
+        dataset = prompts[:num_samples] if num_samples else prompts
+    elif dataset_type == 'relaion':
         dataset = RelaionDataset(
             concept=topic,
             max_samples=num_samples,
@@ -92,7 +99,8 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=42, help='Seed for dataset shuffling')
     parser.add_argument('--num_samples', type=int, default=1_000, help='Number of samples used to compute statistics')
     parser.add_argument('--output_dir', type=str, required=True, help='Output directory used to write computed statistics')
-    parser.add_argument('--dataset_type', type=str, choices=['relaion', 'imagenet'], default='relaion', help='Dataset type to use for generating steering vectors')
+    parser.add_argument('--dataset_type', type=str, choices=['relaion', 'imagenet', 'custom'], default='relaion', help='Dataset type to use for generating steering vectors')
+    parser.add_argument('--prompts_dir', type=str, default=None, help='Directory with {topic}_prompts.json files (for --dataset_type custom)')
 
     args = parser.parse_args()
 
@@ -117,4 +125,5 @@ if __name__ == "__main__":
             num_samples=args.num_samples,
             output_dir=args.output_dir,
             dataset_type=args.dataset_type,
+            prompts_dir=args.prompts_dir,
         )
