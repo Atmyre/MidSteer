@@ -118,7 +118,7 @@ declare -A concept_pairs=(
 declare -a concepts_to_steer_pairs=(
     "violence:violence"
     "violence:peace"
-    "violence:war"
+    "violence:sadness"
     "violence:calm"
     "violence:anger"
     "violence:nature"
