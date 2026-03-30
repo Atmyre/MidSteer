@@ -123,6 +123,7 @@ def main(args: argparse.Namespace):
                 seed=seed,
                 device=device,
                 num_images=num_images,
+                resolution=args.resolution,
             )
             if vector_control is not None:
                 vector_control.reset()
@@ -149,6 +150,7 @@ if __name__ == "__main__":
     main_parser.add_argument('--file_format', type=str, choices=['PNG', 'JPEG'], default='PNG', help='File format for generated images')
     main_parser.add_argument('--max_samples', type=int, default=None, help='Maximum number of samples to use from the dataset')
     main_parser.add_argument('--template_path', type=str, default=None, help='Path to template JSON for evaluation prompts (default: imagenet template)')
+    main_parser.add_argument('--resolution', type=int, default=None, help='Image resolution (height=width). Default: model native resolution')
 
     # Steering params
     main_parser.add_argument('--steering_method', type=str, choices=['casteer', 'leace', 'midsteer'], default=None)

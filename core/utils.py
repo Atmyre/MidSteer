@@ -228,12 +228,17 @@ def get_num_denoising_steps(model: str) -> int:
         raise ValueError('Unknown model type')
 
 
-def run_image_model(model_type: str, pipe, prompt: str, seed: int, device: torch.device, num_images: int = 1):
+def run_image_model(model_type: str, pipe, prompt: str, seed: int, device: torch.device, num_images: int = 1, resolution: int | None = None):
+    res_kwargs = {}
+    if resolution is not None:
+        res_kwargs = {'height': resolution, 'width': resolution}
+
     if model_type in ['sd14', 'sd21', 'sdxl']:
         images = pipe(prompt=prompt,
                      num_inference_steps=get_num_denoising_steps(model_type),
                      generator=torch.Generator(device=device).manual_seed(seed),
                      num_images_per_prompt=num_images,
+                     **res_kwargs,
                     ).images
 
     elif model_type in ['sd21-turbo', 'sdxl-turbo']:
@@ -242,6 +247,7 @@ def run_image_model(model_type: str, pipe, prompt: str, seed: int, device: torch
                      guidance_scale=0.0,
                      generator=torch.Generator(device=device).manual_seed(seed),
                      num_images_per_prompt=num_images,
+                     **res_kwargs,
                     ).images
     elif model_type in ['flux']:
         images = pipe(
@@ -262,41 +268,45 @@ def run_image_model(model_type: str, pipe, prompt: str, seed: int, device: torch
             num_images_per_prompt=num_images,
         ).images
     elif model_type in ['sana', 'sana-06', 'sana15']:
+        _res = resolution or 1024
         images = pipe(
             prompt=prompt,
             num_inference_steps=get_num_denoising_steps(model_type),
-            height=1024,
-            width=1024,
+            height=_res,
+            width=_res,
             generator=torch.Generator(device=device).manual_seed(seed),
             num_images_per_prompt=num_images,
         ).images
     elif model_type in ['sana-sprint', 'sana-sprint-06']:
+        _res = resolution or 1024
         images = pipe(
             prompt=prompt,
             num_inference_steps=get_num_denoising_steps(model_type),
-            height=1024,  # SANA-Sprint is optimized for 1024px images
-            width=1024,
+            height=_res,
+            width=_res,
             intermediate_timesteps=None,
             generator=torch.Generator(device=device).manual_seed(seed),
             num_images_per_prompt=num_images,
         ).images
     elif model_type in ['pixart', 'pixart-alpha']:
+        _res = resolution or 1024
         images = pipe(
             prompt=prompt,
             num_inference_steps=get_num_denoising_steps(model_type),
-            guidance_scale=4.5,  # Default guidance scale for PixArt
-            height=1024,  # PixArt is optimized for 1024px images
-            width=1024,
+            guidance_scale=4.5,
+            height=_res,
+            width=_res,
             generator=torch.Generator(device=device).manual_seed(seed),
             num_images_per_prompt=num_images,
         ).images
     elif model_type in ['flash-pixart']:
+        _res = resolution or 1024
         images = pipe(
             prompt=prompt,
             num_inference_steps=get_num_denoising_steps(model_type),
-            guidance_scale=0,  # Default guidance scale for flash-PixArt
-            height=1024,  # PixArt is optimized for 1024px images
-            width=1024,
+            guidance_scale=0,
+            height=_res,
+            width=_res,
             generator=torch.Generator(device=device).manual_seed(seed),
             num_images_per_prompt=num_images,
         ).images
