@@ -24,6 +24,7 @@ __pycache__/
 /concept_flipping/vectors/
 
 scores.tar.gz
+.env
 
 /latex/output
 
@@ -31,3 +32,9 @@ scores.tar.gz
 /exp/local/
 /exp/logs/
 /exp/locks/
+
+# Overleaf git integration credentials — never commit
+.overleaf-token
+/icml2026_overleaf/
+/rebuttal_work/
+/runpod_results/
