@@ -1,0 +1,44 @@
+cff-version: 1.2.0
+message: "If you use this code or our paper, please cite it as below."
+title: "MidSteer: Optimal Affine Framework for Steering Generative Models"
+type: software
+authors:
+  - family-names: Gaintseva
+    given-names: Tatiana
+  - family-names: Stepanov
+    given-names: Andrew
+  - family-names: Liu
+    given-names: Ziquan
+  - family-names: Benning
+    given-names: Martin
+  - family-names: Slabaugh
+    given-names: Gregory
+  - family-names: Deng
+    given-names: Jiankang
+  - family-names: Elezi
+    given-names: Ismail
+year: 2026
+license: MIT
+repository-code: "https://github.com/Atmyre/MidSteer"
+preferred-citation:
+  type: conference-paper
+  title: "MidSteer: Optimal Affine Framework for Steering Generative Models"
+  authors:
+    - family-names: Gaintseva
+      given-names: Tatiana
+    - family-names: Stepanov
+      given-names: Andrew
+    - family-names: Liu
+      given-names: Ziquan
+    - family-names: Benning
+      given-names: Martin
+    - family-names: Slabaugh
+      given-names: Gregory
+    - family-names: Deng
+      given-names: Jiankang
+    - family-names: Elezi
+      given-names: Ismail
+  year: 2026
+  conference:
+    name: "International Conference on Machine Learning (ICML)"
+  url: "https://arxiv.org/abs/2605.05220"
