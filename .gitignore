@@ -43,6 +43,7 @@ scores.tar.gz
 /icml2026_submission/
 /notebooks/artefacts/
 /exp/plots/
+/exp/sh_original/
 
 # Local-only scratch
 session_log.txt
