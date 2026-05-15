@@ -1,3 +1,5 @@
+import os
+
 import torch
 from diffusers import FluxPipeline
 
@@ -97,7 +99,7 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
         pipe = FluxPipeline.from_pretrained(
             "black-forest-labs/FLUX.1-dev", 
             torch_dtype=torch.bfloat16,
-            token='***REMOVED***',
+            token=os.getenv("HF_TOKEN"),
 #             device_map='balanced'
         )
         pipe.enable_model_cpu_offload()
@@ -105,7 +107,7 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
         pipe = FluxPipeline.from_pretrained(
             "black-forest-labs/FLUX.1-schnell", 
             torch_dtype=torch.bfloat16,
-            token='***REMOVED***',
+            token=os.getenv("HF_TOKEN"),
 #             device_map='balanced'
         )
         pipe.enable_model_cpu_offload()
@@ -116,7 +118,7 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             "Efficient-Large-Model/SANA1.5_1.6B_1024px_diffusers",
             torch_dtype=torch.bfloat16,
             cache_dir='./cache',
-            token='***REMOVED***',
+            token=os.getenv("HF_TOKEN"),
             device_map='balanced',
         )
     elif model == 'sana':
@@ -126,7 +128,7 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             "Efficient-Large-Model/Sana_Sprint_1.6B_1024px_teacher_diffusers",
             torch_dtype=torch.bfloat16,
             cache_dir='./cache',
-            token='***REMOVED***',
+            token=os.getenv("HF_TOKEN"),
             device_map='balanced',
         )
     elif model == 'sana-06':
@@ -136,7 +138,7 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             "Efficient-Large-Model/Sana_Sprint_0.6B_1024px_teacher_diffusers",
             torch_dtype=torch.bfloat16,
             cache_dir='./cache',
-            token='***REMOVED***',
+            token=os.getenv("HF_TOKEN"),
             device_map='balanced',
         )
     elif model == 'sana-sprint':
@@ -146,7 +148,7 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             "Efficient-Large-Model/Sana_Sprint_1.6B_1024px_diffusers",
             torch_dtype=torch.bfloat16,
             cache_dir='./cache',
-            token='***REMOVED***',
+            token=os.getenv("HF_TOKEN"),
             device_map='balanced',
         )
     elif model == 'sana-sprint-06':
@@ -156,7 +158,7 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             "Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers",
             torch_dtype=torch.bfloat16,
             cache_dir='./cache',
-            token='***REMOVED***',
+            token=os.getenv("HF_TOKEN"),
             device_map='balanced',
         )
     elif model in ['pixart', 'pixart-alpha']:
@@ -166,7 +168,7 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             "PixArt-alpha/PixArt-XL-2-1024-MS",
             torch_dtype=torch.float16,
             cache_dir='./cache',
-            token='***REMOVED***',
+            token=os.getenv("HF_TOKEN"),
         )
     elif model == 'flash-pixart':
         if PixArtAlphaPipeline is None:
@@ -178,13 +180,13 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             subfolder="transformer",
             torch_dtype=torch.float16,
             cache_dir='./cache',
-            token='***REMOVED***',
+            token=os.getenv("HF_TOKEN"),
         )
         transformer = PeftModel.from_pretrained(
             transformer,
             "jasperai/flash-pixart",
             cache_dir='./cache',
-            token='***REMOVED***',
+            token=os.getenv("HF_TOKEN"),
         )
 
         # Pipeline
@@ -193,7 +195,7 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             transformer=transformer,
             torch_dtype=torch.float16,
             cache_dir='./cache',
-            token='***REMOVED***',
+            token=os.getenv("HF_TOKEN"),
         )
 
         # Scheduler
@@ -202,7 +204,7 @@ def init_pipeline_for_image_model(model: str) -> DiffusionPipeline:
             subfolder="scheduler",
             timestep_spacing="trailing",
             cache_dir='./cache',
-            token='***REMOVED***',
+            token=os.getenv("HF_TOKEN"),
         )
     else:
         raise ValueError(f'Unknown model: {model}')
@@ -317,13 +319,12 @@ def run_image_model(model_type: str, pipe, prompt: str, seed: int, device: torch
 def init_llm_model_and_tokenizer(model_name: str, cache_dir: str | None = './cache') -> tuple[AutoModelForCausalLM, AutoTokenizer]:
     if 'llama' in model_name.lower():
         torch_dtype = torch.bfloat16 if '3.1' in model_name else torch.float16
-        # ***REMOVED***
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             cache_dir=cache_dir,
             torch_dtype=torch_dtype,
             device_map='balanced',
-            token='***REMOVED***'
+            token=os.getenv("HF_TOKEN")
         )
 
         tokenizer = AutoTokenizer.from_pretrained(
@@ -331,7 +332,7 @@ def init_llm_model_and_tokenizer(model_name: str, cache_dir: str | None = './cac
             cache_dir=cache_dir,
             torch_dtype=torch_dtype,
             device_map='balanced',
-            token='***REMOVED***'
+            token=os.getenv("HF_TOKEN")
         )
         return model, tokenizer
     elif 'qwen' in model_name.lower():
