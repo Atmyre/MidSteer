@@ -38,3 +38,27 @@ scores.tar.gz
 /icml2026_overleaf/
 /rebuttal_work/
 /runpod_results/
+
+# Paper sources / artefacts kept out of the public release
+/icml2026_submission/
+/notebooks/artefacts/
+/exp/plots/
+
+# Local-only scratch
+session_log.txt
+Untitled*.ipynb
+.cursorignore
+.cursorrules
+
+# Bulky local archives & paper review materials
+/scores/
+/scores.zip
+/runpod_results.zip
+/MIDSTEER rebuttal.pdf
+/rebuttal texts.pdf
+/rebuttal_judge_response.html
+
+# SSH keys must never be committed
+id_ed25519
+id_ed25519.pub
+*.pem
