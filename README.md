@@ -8,7 +8,7 @@ Official implementation of **"MidSteer: Optimal Affine Framework for Steering Ge
 
 > **TL;DR.** Steering the internal representations of an LLM or diffusion model lets you flip one concept to another (e.g. "horse" → "motorcycle", "toxicity" → "helpfulness") without retraining. We prove that the standard *steering vector* trick is a special case of LEACE (closed-form affine concept erasure), generalize it to concept *switching*, and show that the resulting method — MidSteer — preserves unrelated features better than prior heuristics while adding zero inference-time overhead.
 
-**Authors.** Tatiana Gaintseva, Andrew Stepanov, Ziquan Liu, Martin Benning, Gregory Slabaugh, Jiankang Deng, Ismail Elezi.
+**Authors.** [Tatiana Gaintseva](https://atmyre.github.io), Andrew Stepanov, Ziquan Liu, Martin Benning, Gregory Slabaugh, Jiankang Deng, Ismail Elezi.
 
 ---
 
